@@ -1,5 +1,6 @@
 from datetime import datetime
 from app import db
+from werkzeug.security import generate_password_hash, check_password_hash
 
 
 # ===========================================================
@@ -16,12 +17,18 @@ class AttendanceRaw(db.Model):
     attendance_state = db.Column("Attendance State", db.String(10))
     device_name = db.Column("Device Name", db.String(255))
 
+    def __repr__(self):
+        return f"<AttendanceRaw {self.emp_id} - {self.name} - {self.time}>"
 
+
+# ===========================================================
+#               EMPLOYEE MODEL
+# ===========================================================
 class Employee(db.Model):
     __tablename__ = "employees"
 
     id = db.Column(db.Integer, primary_key=True)
-    emp_id = db.Column(db.String(50), unique=True, nullable=False)  # <-- new employee ID
+    emp_id = db.Column(db.String(50), unique=True, nullable=False)
     name = db.Column(db.String(120), nullable=False)
     joining_date = db.Column(db.Date, nullable=False)
     department = db.Column(db.String(100), nullable=False)
@@ -31,9 +38,21 @@ class Employee(db.Model):
     def __repr__(self):
         return f"<Employee {self.emp_id} - {self.name}>"
 
+    @property
+    def current_shift_times(self):
+        """Parse shift string and return start/end times."""
+        try:
+            if self.shift and '-' in self.shift:
+                start_str, end_str = [s.strip() for s in self.shift.split('-')]
+                return start_str, end_str
+        except (ValueError, AttributeError):
+            pass
+        return "10:00", "19:00"  # Default shift
 
 
-
+# ===========================================================
+#               DAILY REPORT MODEL
+# ===========================================================
 class DailyReport(db.Model):
     __tablename__ = "daily_report"
 
@@ -43,7 +62,7 @@ class DailyReport(db.Model):
     employee_name = db.Column(db.String(100), nullable=False)
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
-    last_updated_date = db.Column(db.Date, nullable=True)  # ✅ Track effective update date
+    last_updated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50))
     check_in = db.Column(db.Time)
     check_out = db.Column(db.Time)
@@ -51,13 +70,15 @@ class DailyReport(db.Model):
     missed_checkin = db.Column(db.Boolean, default=False)
     missed_checkout = db.Column(db.Boolean, default=False)
     overtime = db.Column(db.Float, default=0.0)
-    manual_override = db.Column(db.Boolean, default=False)  # ✅ NEW COLUMN (important)
+    manual_override = db.Column(db.Boolean, default=False)
 
     def __repr__(self):
         return f"<DailyReport {self.employee_name} - {self.date}>"
 
 
-
+# ===========================================================
+#               MONTHLY REPORT MODEL
+# ===========================================================
 class MonthlyReport(db.Model):
     __tablename__ = "monthly_report"
 
@@ -66,7 +87,7 @@ class MonthlyReport(db.Model):
     name = db.Column(db.String(255), nullable=False)
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
-    last_updated_date = db.Column(db.Date, nullable=True)  # ✅ Track effective update date
+    last_updated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50))
     total_days = db.Column(db.Integer, default=0)
     present = db.Column(db.Integer, default=0)
@@ -77,12 +98,16 @@ class MonthlyReport(db.Model):
     full_day_sat = db.Column(db.Integer, default=0)
     ot_hours = db.Column(db.Float, default=0.0)
     compensated = db.Column(db.Integer, default=0)
-    report_month = db.Column(db.String(20))  # e.g. "2025-10"
+    report_month = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-from app import db
-from werkzeug.security import generate_password_hash, check_password_hash
+    def __repr__(self):
+        return f"<MonthlyReport {self.name} - {self.report_month}>"
 
+
+# ===========================================================
+#               ADMIN MODEL
+# ===========================================================
 class Admin(db.Model):
     __tablename__ = 'admin'
     id = db.Column(db.Integer, primary_key=True)
@@ -94,3 +119,6 @@ class Admin(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+    def __repr__(self):
+        return f"<Admin {self.username}>"
