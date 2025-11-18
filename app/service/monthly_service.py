@@ -1,11 +1,16 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time, date
+from typing import Dict, List, Optional, Tuple, Any
 from app import db
 from app.models import DailyReport, MonthlyReport, Employee
-from app.service.daily_service import DailyReportGenerator
+from app.service.daily_service import AttendanceCalculator
+import logging
 
-def generate_monthly_report_from_daily(month_str=None):
-    generator = DailyReportGenerator()
+# Configure logging
+logger = logging.getLogger(__name__)
+
+def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[Dict[str, Any]]:
+    calculator = AttendanceCalculator()  # ✅ Calculator instance banaya
 
     if not month_str:
         latest_date = db.session.query(db.func.max(DailyReport.date)).scalar()
@@ -51,8 +56,9 @@ def generate_monthly_report_from_daily(month_str=None):
             check_in_dt = datetime.combine(row.date, row.check_in)
             check_out_dt = datetime.combine(row.date, row.check_out)
 
-            row.status, _ = generator.calculator.calculate_status(check_in_dt, check_out_dt, row.date, shift_start, shift_end)
-            row.overtime = generator.calculate_overtime(check_in_dt, check_out_dt,
+            row.status, _ = calculator.calculate_status(check_in_dt, check_out_dt, row.date, shift_start, shift_end)
+            
+            row.overtime = calculator.calculate_overtime(check_in_dt, check_out_dt,
                                                         datetime.combine(row.date, shift_start),
                                                         datetime.combine(row.date, shift_end))
     db.session.commit()
