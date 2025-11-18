@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel</title>
+
+<!-- CSS -->
+<link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+    /* Sidebar fix */
+    .sidebar {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100vh;
+    }
+    .sidebar-nav {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+    }
+    .sidebar-bottom {
+        margin-top: auto;
+        padding: 20px 0;
+    }
+    .logout-btn {
+        color: #ef4444 !important;
+        font-weight: bold;
+    }
+    .logout-btn:hover {
+        background: #fee2e2 !important;
+        color: #b91c1c !important;
+    }
+
+    /* Table scroll fix */
+    .table-container {
+        overflow-x: auto;
+    }
+</style>
+
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+    <div class="sidebar-header">
+        <h2>Attendance</h2>
+        <p>Admin Panel</p>
+    </div>
+
+    <nav class="sidebar-nav">
+        <a href="{{ url_for('main.employees') }}"><i class="fas fa-users"></i> Employee Manage</a>
+        <a href="{{ url_for('main.index') }}"><i class="fas fa-chart-pie"></i> Monthly Report</a>
+        <a href="{{ url_for('main.daily') }}"><i class="fas fa-calendar-day"></i> Daily Report</a>
+        <a href="{{ url_for('main.admin_panel') }}" class="active"><i class="fas fa-user-shield"></i> Admin</a>
+
+        <!-- ✅ Logout at bottom -->
+        <div class="sidebar-bottom">
+            <a href="{{ url_for('main.logout') }}" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </div>
+    </nav>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+<div class="container">
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <h1><i class="fas fa-user-shield"></i> Admin Panel</h1>
+        <p>Create new admin users and manage existing ones</p>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category,msg in messages %}
+                <div class="message {{ category }}">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Form Section: Add Admin -->
+    <div class="form-section">
+        <div class="section-header">
+            <i class="fas fa-user-plus"></i>
+            <h3>Add New Admin</h3>
+        </div>
+        <form method="POST" class="employee-form">
+            <div class="form-group">
+                <label for="username"><i class="fas fa-user"></i> Username:</label>
+                <input type="text" id="username" name="username" required placeholder="Enter username">
+            </div>
+
+            <div class="form-group">
+                <label for="password"><i class="fas fa-lock"></i> Password:</label>
+                <input type="password" id="password" name="password" required placeholder="Enter password">
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password"><i class="fas fa-lock"></i> Confirm Password:</label>
+                <input type="password" id="confirm_password" name="confirm_password" required placeholder="Confirm password">
+            </div>
+
+            <button type="submit"><i class="fas fa-user-shield"></i> Create Admin</button>
+        </form>
+    </div>
+
+    <!-- Table Section: Existing Admins -->
+    <div class="table-section">
+        <div class="section-header">
+            <i class="fas fa-list-alt"></i>
+            <h3>Existing Admins</h3>
+        </div>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if admins %}
+                        {% for admin in admins %}
+                        <tr>
+                            <td>{{ admin.username }}</td>
+                            <td>
+                                <form method="POST" action="{{ url_for('main.delete_admin') }}" style="display:inline;">
+                                    <input type="hidden" name="admin_id" value="{{ admin.id }}">
+                                    <button type="submit" class="delete-btn">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="2" class="empty-state">
+                                <div class="empty-state-icon"><i class="fas fa-user-shield"></i></div>
+                                <h3>No Admins Found</h3>
+                                <p>Add your first admin using the form above</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</div>
+
+</body>
+</html>

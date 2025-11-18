@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Employee Management</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+<style>
+    /* Sidebar Fix */
+    .sidebar {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100vh;
+    }
+    .sidebar-nav {
+        display: flex;
+        flex-direction: column;
+        flex-grow: 1;
+    }
+    .sidebar-bottom {
+        margin-top: auto;
+        padding: 20px 0;
+    }
+    .logout-btn {
+        color: #ef4444 !important;
+        font-weight: bold;
+    }
+    .logout-btn:hover {
+        background: #fee2e2 !important;
+        color: #b91c1c !important;
+    }
+</style>
+
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+    <div class="sidebar-header">
+        <h2>Attendance</h2>
+        <p>Employee Management</p>
+    </div>
+
+    <div class="sidebar-nav">
+        <a href="{{ url_for('main.employees') }}" class="active">
+            <i class="fas fa-users"></i> Employee Manage
+        </a>
+        <a href="{{ url_for('main.index') }}">
+            <i class="fas fa-chart-pie"></i> Monthly Report
+        </a>
+        <a href="{{ url_for('main.daily') }}">
+            <i class="fas fa-calendar-day"></i> Daily Report
+        </a>
+        <a href="{{ url_for('main.admin_panel') }}">
+            <i class="fas fa-user-shield"></i> Admin
+        </a>
+
+        <!-- ✅ Logout at bottom -->
+        <div class="sidebar-bottom">
+            <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+<div class="container">
+
+    <div class="page-header">
+        <h1><i class="fas fa-users"></i> Employee Management</h1>
+        <p>Add, view, and manage employee records</p>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category,msg in messages %}
+                <div class="message {{ category }}">{{ msg }}</div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Form Section -->
+    <div class="form-section">
+        <div class="section-header">
+            <i class="fas fa-user-plus"></i>
+            <h3>Add / Update Employee</h3>
+        </div>
+
+        <form method="POST" action="{{ url_for('main.employees') }}" class="employee-form">
+            
+            <div class="form-group">
+                <label for="name"><i class="fas fa-user"></i> Full Name:</label>
+                <select id="name" name="name" required>
+                    <option value="" disabled selected>Select employee name</option>
+                    {% for name in daily_names %}
+                        <option value="{{ name }}">{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="joining_date"><i class="fas fa-calendar-alt"></i> Joining Date:</label>
+                <input type="date" id="joining_date" name="joining_date" required>
+            </div>
+
+            <div class="form-group">
+    <label for="department"><i class="fas fa-building"></i> Department:</label>
+    <select id="department" name="department" required>
+        <option value="" disabled selected>Select Department</option>
+        <option value="MANAGEMENT TEAM">MANAGEMENT TEAM</option>
+        <option value="HOD">HOD</option>
+        <option value="Disposition Department">Disposition Department</option>
+        <option value="HR & Administration">HR & Administration</option>
+        <option value="Social Media Marketing">Social Media Marketing</option>
+        <option value="Salesforce & CRM">Salesforce & CRM</option>
+        <option value="Research  Work">Research Work</option>
+        <option value="Data & Report Team">Data & Report Team</option>
+        <option value="Dialer Switching Team">Dialer Switching Team</option>
+        <option value="Leads Transfer Team">Leads Transfer Team</option>
+        <option value="Quality control">Quality control</option>
+        <option value="Leads Effectiveness Team">Leads Effectiveness Team</option>
+        <option value="Leads Quality Assurance Team">Leads Quality Assurance Team</option>
+        <option value="Transaction Coordinator">Transaction Coordinator</option>
+        <option value="Other Campaigns Cold Callers">Other Campaigns Cold Callers</option>
+        <option value="Ember CC & Follow-Ups Team">Ember CC & Follow-Ups Team</option>
+        <option value="Training & Development">Training & Development</option>
+        <option value="Team Managers for Cold Calling">Team Managers for Cold Calling</option>
+        <option value="Team Leaders for Cold Calling">Team Leaders for Cold Calling</option>
+        <option value="Real Estate Cold Callers">Real Estate Cold Callers</option>
+    </select>
+</div>
+
+
+            <div class="form-group">
+                <label for="effective_date"><i class="fas fa-calendar-check"></i> Effective From:</label>
+                <input type="date" id="effective_date" name="effective_date" required value="{{ current_date }}">
+            </div>
+
+            <div class="form-group">
+                <label for="shift"><i class="fas fa-clock"></i> Shift:</label>
+                <select id="shift" name="shift" required>
+                    <option value="" disabled selected>Select shift</option>
+                    <option value="09:00 - 18:00">09:00 - 18:00 (07:00 to 04:00)</option>
+                    <option value="10:00 - 19:00">10:00 - 19:00 (08:00 to 05:00)</option>
+                    <option value="11:00 - 20:00">11:00 - 20:00 (09:00 to 06:00)</option>
+                    <option value="11:30 - 20:30">11:30 - 20:30 (09:30 to 06:30)</option>
+                    <option value="09:00 - 13:30">09:00 - 13:30 (07:00 to 11:30)</option>
+                    <option value="10:00 - 14:30">10:00 - 14:30 (08:00 to 12:30)</option>
+                    <option value="09:00 - 14:30">09:00 - 14:30 (07:00 to 12:30)</option>
+                </select>
+            </div>
+
+            <button type="submit">
+                <i class="fas fa-plus-circle"></i> Add / Update Employee
+            </button>
+
+        </form>
+    </div>
+
+    <!-- Employee Table Section -->
+    <div class="table-section">
+        <div class="section-header">
+            <i class="fas fa-list-alt"></i>
+            <h3>Current Employees</h3>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Joining Date</th>
+                        <th>Department</th>
+                        <th>Shift</th>
+                        <th>Effective From</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if employees %}
+                        {% for emp in employees %}
+                        <tr>
+                            <td>{{ emp.name }}</td>
+                            <td>{{ emp.joining_date }}</td>
+                            <td>{{ emp.department }}</td>
+                            <td>{{ emp.shift if emp.shift else '-' }}</td>
+                            <td>{{ emp.last_updated_date if emp.last_updated_date else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="empty-state">
+                                <div class="empty-state-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <h3>No Employees Found</h3>
+                                <p>Add your first employee using the form above</p>
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+</div>
+</div>
+
+<script src="{{ url_for('static', filename='js/employees.js') }}"></script>
+
+</body>
+</html>

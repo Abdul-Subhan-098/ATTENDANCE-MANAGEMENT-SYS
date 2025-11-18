@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Attendance Report | Attendance System</title>
+
+    <!-- External CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/daily.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        /* Searchable Dropdown */
+        .searchable-dropdown { position: relative; width: 100%; }
+        .searchable-dropdown .dropdown-list {
+            position: absolute;
+            top: 100%; left: 0; right: 0;
+            max-height: 250px; overflow-y: auto;
+            border: 1px solid #ddd; background: #fff;
+            z-index: 1000; display: none;
+            list-style: none; margin: 0; padding: 0;
+            border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .searchable-dropdown .dropdown-list li { padding: 10px; cursor: pointer; }
+        .searchable-dropdown .dropdown-list li:hover { background: #f3f4f6; }
+
+        /* Spinner */
+        .loading-spinner {
+            display: none; margin-left: 10px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%; width: 18px; height: 18px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Overtime badges */
+        .ot-badge { padding: 2px 6px; border-radius: 4px; background: #e5e7eb; color: #111827; display: inline-block; }
+        .ot-1 { background: #facc15; color: #000; }
+        .ot-2 { background: #f87171; color: #fff; }
+        .ot-3 { background: #f97316; color: #fff; }
+        .ot-4 { background: #ef4444; color: #fff; }
+
+        /* Sidebar Layout Fix */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 100vh;
+            width: 250px;
+            position: fixed;
+            left: 0;
+            top: 0;
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-toggle:hover {
+            background: #2563eb;
+        }
+
+        .sidebar-toggle.collapsed {
+            left: 20px;
+        }
+
+        .main-content {
+            margin-left: 250px;
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+        }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            padding: 20px 0;
+        }
+
+        .logout-btn {
+            color: #ef4444 !important;
+            font-weight: bold;
+        }
+
+        .logout-btn:hover {
+            background: #fee2e2 !important;
+            color: #b91c1c !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Attendance</h2>
+            <p>Daily Management System</p>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('main.employees') }}">
+                <i class="fas fa-users"></i> Employee Manage
+            </a>
+            <a href="{{ url_for('main.index') }}">
+                <i class="fas fa-chart-bar"></i> Monthly Report
+            </a>
+            <a href="{{ url_for('main.daily') }}" class="active">
+                <i class="fas fa-calendar-day"></i> Daily Report
+            </a>
+            <a href="{{ url_for('main.admin_panel') }}">
+                <i class="fas fa-user-shield"></i> Admin
+            </a>
+
+            <!-- 🚀 Logout Button at Bottom -->
+            <div class="sidebar-bottom">
+                <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="fas fa-calendar-alt"></i> Daily Attendance Report</h1>
+                <p>Comprehensive overview of daily employee attendance and check-in records</p>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="filters-section">
+                <div class="filters-row">
+                    <!-- Employee Search -->
+                    <div class="filter-group">
+                        <label for="employeeSearch"><i class="fas fa-search"></i> Search Employee</label>
+                        <div class="searchable-dropdown" id="employeeDropdown">
+                            <div style="display: flex; align-items: center;">
+                                <input type="text" class="search-input" id="employeeSearch"
+                                       placeholder="Type to search employees...">
+                                <div class="loading-spinner" id="searchSpinner"></div>
+                            </div>
+                            <ul class="dropdown-list" id="employeeList">
+                                <li data-value="">All Employees</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Date Filter -->
+                    <div class="filter-group">
+                        <label for="dateFilter"><i class="fas fa-calendar"></i> Filter by Date</label>
+                        <select id="dateFilter">
+                            <option value="">All Dates</option>
+                            {% if daily_table %}
+                                {% set seen_dates = [] %}
+                                {% for record in daily_table %}
+                                    {% if record.Date not in seen_dates %}
+                                        {% set _ = seen_dates.append(record.Date) %}
+                                        <option value="{{ record.Date }}">{{ record.Date }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+
+                    <!-- Status Filter -->
+                    <div class="filter-group">
+                        <label for="statusFilter"><i class="fas fa-filter"></i> Filter by Status</label>
+                        <select id="statusFilter">
+                            <option value="">All Status</option>
+                            <option value="Present">Present</option>
+                            <option value="Absent">Absent</option>
+                            <option value="Late">Late</option>
+                            <option value="Half Day">Half Day</option>
+                            <option value="Half Day (Sat)">Half Day (Sat)</option>
+                            <option value="Full Day (Sat)">Full Day (Sat)</option>
+                            <option value="Compensated">Compensated</option>
+                        </select>
+                    </div>
+
+                    <!-- Clear Filters -->
+                    <div class="filter-group">
+                        <label><i class="fas fa-times"></i> Clear Filters</label>
+                        <button id="clearFilters" class="btn-clear">Clear All</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Table -->
+            <div class="table-container">
+                <table id="attendanceTable">
+                    <thead>
+                        <tr>
+                            <th>Emp ID</th>
+                            <th>Date</th>
+                            <th>Employee Name</th>
+                            <th>Shift</th>
+                            <th>Check-In</th>
+                            <th>Check-Out</th>
+                            <th>Overtime</th>
+                            <th>Status</th>
+                            <th>Missed Check-In</th>
+                            <th>Missed Check-Out</th>
+                            <th>Department</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if daily_table %}
+                            {% for record in daily_table %}
+                            <tr data-name="{{ record.Name }}" 
+                                data-date="{{ record.Date }}" 
+                                data-status="{{ record.Status }}" 
+                                data-department="{{ record.Department if record.Department else 'Cold Calling' }}">
+                                <td><strong>{{ record.EmpID if record.EmpID else 'N/A' }}</strong></td>
+                                <td>{{ record.Date }}</td>
+                                <td><strong>{{ record.Name }}</strong></td>
+                                <td>{{ record.Shift | convert_shift_display }}</td>
+                                <td>{{ record.CheckIn if record.CheckIn else 'Not Recorded' }}</td>
+                                <td>{{ record.CheckOut if record.CheckOut else 'Not Recorded' }}</td>
+                                <td>
+                                    <span class="ot-badge ot-{{ record.Overtime|int }}">
+                                        {{ record.Overtime|int if record.Overtime else 0 }}h
+                                    </span>
+                                </td>
+                                <td>
+                                    {% set status_class = {
+                                        'Present': 'status-present',
+                                        'Absent': 'status-absent',
+                                        'Late': 'status-late',
+                                        'Half Day': 'status-halfday',
+                                        'Half Day (Sat)': 'status-sat',
+                                        'Full Day (Sat)': 'status-sat',
+                                        'Compensated': 'status-compensated'
+                                    } %}
+                                    <span class="status-badge {{ status_class.get(record.Status, 'status-absent') }}"
+                                          data-emp-name="{{ record.Name }}"
+                                          data-date="{{ record.Date }}">
+                                        {{ record.Status }}
+                                    </span>
+                                </td>
+                                <td>{{ record.MissedCheckIn if record.MissedCheckIn else 'No' }}</td>
+                                <td>{{ record.MissedCheckOut if record.MissedCheckOut else 'No' }}</td>
+                                <td>{{ record.Department if record.Department else 'Cold Calling' }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr class="empty-state">
+                                <td colspan="11">
+                                    <i class="fas fa-clipboard-list empty-state-icon"></i>
+                                    <h3>No Daily Records Found</h3>
+                                    <p>Upload attendance data to view daily records</p>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="compensate-dropdown" id="compensateDropdown" style="margin-top: 10px;">
+        <select id="compTypeSelect">
+            <option value="Com by Late">Com by Late</option>
+            <option value="Com by Abst">Com by Abst</option>
+            <option value="Com by Half">Com by Half</option>
+        </select>
+        <button id="compensateBtn">
+            <i class="fas fa-check-double"></i> Mark as Compensated
+        </button>
+    </div>
+
+    <!-- External JS -->
+    <script src="{{ url_for('static', filename='js/daily.js') }}"></script>
+    
+    <script>
+        // Sidebar toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            
+            sidebarToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('expanded');
+                
+                // Change the icon based on sidebar state
+                const icon = sidebarToggle.querySelector('i');
+                if (sidebar.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-arrow-right');
+                } else {
+                    icon.classList.remove('fa-arrow-right');
+                    icon.classList.add('fa-bars');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
