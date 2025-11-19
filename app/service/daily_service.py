@@ -22,6 +22,7 @@ class AttendanceStatus:
     COMPENSATED = "Compensated"
     FULL_DAY_SAT = "Full Day (Sat)"
     HALF_DAY_SAT = "Half Day (Sat)"
+    SATURDAY = "Saturday"  # From old code
 
 class ShiftDefaults:
     """Default shift configuration."""
@@ -31,15 +32,15 @@ class ShiftDefaults:
 
 class OvertimeConfig:
     """Overtime calculation configuration."""
-    MAX_OT_HOURS = 2
+    MAX_OT_HOURS = 2.0
     OT_THRESHOLD_1_HOUR = 1.0
     OT_THRESHOLD_2_HOURS = 2.0
 
 class AttendanceThresholds:
     """Attendance calculation thresholds."""
     FULL_TIMER_MIN_HOURS = 9.0
-    HALF_DAY_MIN_HOURS = 4.5
-    GRACE_PERIOD_MINUTES = 2
+    SAT_HALF_DAY_MIN_HOURS = 4.5  # From old code
+    GRACE_PERIOD_SECONDS = 59  # From old code (59 seconds)
     LATE_THRESHOLD_HOURS = 1
     EARLY_CHECKOUT_MINUTES = 15
 
@@ -121,7 +122,7 @@ class AttendanceProcessor:
 #              ATTENDANCE CALCULATOR
 # ===========================================================
 class AttendanceCalculator:
-    """Calculate attendance status, overtime, missed punches."""
+    """Calculate attendance status, overtime, missed punches with exact-second rules."""
 
     @staticmethod
     def calculate_status(
@@ -132,98 +133,103 @@ class AttendanceCalculator:
         shift_end: time,
         full_time: bool = True
     ) -> Tuple[str, float]:
-        """Calculate attendance status and overtime."""
+        """
+        Returns (status_string, overtime_hours).
+        Status strings:
+         - Present, Late, Half Day, Absent, Saturday, Full Day (Sat), Half Day (Sat)
+        """
         shift_start_dt = datetime.combine(day, shift_start)
         shift_end_dt = datetime.combine(day, shift_end)
+        shift_duration_hours = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
 
+        # Default
         status = AttendanceStatus.ABSENT
         overtime = 0.0
 
-        # Check for missing check-in
-        if not check_in:
-            return status, overtime
+        # ---------- Cases: both punches missing ----------
+        if (not check_in) and (not check_out):
+            # Special rule: if it's Saturday and employee is full_time, mark "Saturday"
+            if day.weekday() == 5 and full_time:
+                return AttendanceStatus.SATURDAY, 0.0
+            return AttendanceStatus.ABSENT, 0.0
 
-        # Normalize check-in/out
+        # ---------- Single missing punch => Half Day ----------
+        if (not check_in) and check_out:
+            return AttendanceStatus.HALF_DAY, 0.0
+        if check_in and (not check_out):
+            return AttendanceStatus.HALF_DAY, 0.0
+
+        # At this point we have both check_in and check_out
         check_in = check_in.replace(microsecond=0)
-        if check_out:
-            check_out = check_out.replace(microsecond=0)
+        check_out = check_out.replace(microsecond=0)
 
-        # Calculate base status (Mon-Fri & Sat for part-time)
-        present_limit = shift_start_dt + timedelta(minutes=AttendanceThresholds.GRACE_PERIOD_MINUTES)
-        late_limit = shift_start_dt + timedelta(hours=AttendanceThresholds.LATE_THRESHOLD_HOURS)
+        # ---------- Saturday logic ----------
+        if day.weekday() == 5:  # Saturday
+            if full_time:
+                # full-time Saturday special rules
+                worked_hours = max(0.0, (check_out - check_in).total_seconds() / 3600.0)
+                if worked_hours >= AttendanceThresholds.FULL_TIMER_MIN_HOURS:
+                    return AttendanceStatus.FULL_DAY_SAT, 0.0
+                elif worked_hours >= AttendanceThresholds.SAT_HALF_DAY_MIN_HOURS:
+                    return AttendanceStatus.HALF_DAY_SAT, 0.0
+                else:
+                    return AttendanceStatus.ABSENT, 0.0
+            else:
+                # part-timer: treat Saturday like a normal weekday (no OT)
+                pass
+
+        # ---------- Check-in time windows (exact second rules) ----------
+        # Present if check-in <= shift_start + 59 seconds
+        present_limit = shift_start_dt + timedelta(seconds=AttendanceThresholds.GRACE_PERIOD_SECONDS)
+        # Late if check-in <= shift_start + 1 hour + 59 seconds (i.e., up to HH:00:59)
+        late_limit = shift_start_dt + timedelta(hours=AttendanceThresholds.LATE_THRESHOLD_HOURS, 
+                                              seconds=AttendanceThresholds.GRACE_PERIOD_SECONDS)
 
         if check_in <= present_limit:
             status = AttendanceStatus.PRESENT
-        elif present_limit < check_in <= late_limit:
+        elif check_in <= late_limit:
             status = AttendanceStatus.LATE
         else:
             status = AttendanceStatus.HALF_DAY
 
-        # Early checkout reduces status
-        if check_out:
-            early_checkout_limit = shift_end_dt - timedelta(minutes=AttendanceThresholds.EARLY_CHECKOUT_MINUTES)
-            if check_out < early_checkout_limit:
-                status = AttendanceStatus.HALF_DAY
+        # ---------- Early checkout reduces status ----------
+        early_checkout_limit = shift_end_dt - timedelta(minutes=AttendanceThresholds.EARLY_CHECKOUT_MINUTES)
+        # if checkout is strictly before early_checkout_limit => Half Day
+        if check_out < early_checkout_limit:
+            status = AttendanceStatus.HALF_DAY
 
-        # Calculate overtime (full-time only)
-        if full_time and check_out:
+        # ---------- Overtime only for full-time ----------
+        if full_time:
             overtime = AttendanceCalculator._calculate_overtime_hours(check_out, shift_end_dt)
-
-        # Saturday logic
-        if day.weekday() == 5:  # Saturday
-            status, overtime = AttendanceCalculator._handle_saturday_logic(
-                check_in, check_out, full_time, status, overtime
-            )
+        else:
+            overtime = 0.0
 
         return status, overtime
 
     @staticmethod
     def _calculate_overtime_hours(check_out: datetime, shift_end_dt: datetime) -> float:
         """Calculate overtime hours based on check-out time."""
-        overtime_seconds = (check_out - shift_end_dt).total_seconds()
-        if overtime_seconds <= 0:
+        ot_seconds = (check_out - shift_end_dt).total_seconds()
+        if ot_seconds <= 0:
             return 0.0
             
-        overtime_hours = overtime_seconds / 3600
-        if overtime_hours < OvertimeConfig.OT_THRESHOLD_1_HOUR:
+        ot_hours = ot_seconds / 3600.0
+        if ot_hours < OvertimeConfig.OT_THRESHOLD_1_HOUR:
             return 0.0
-        elif overtime_hours < OvertimeConfig.OT_THRESHOLD_2_HOURS:
+        elif ot_hours < OvertimeConfig.OT_THRESHOLD_2_HOURS:
             return 1.0
         else:
-            return 2.0
-
-    @staticmethod
-    def _handle_saturday_logic(
-        check_in: Optional[datetime],
-        check_out: Optional[datetime],
-        full_time: bool,
-        current_status: str,
-        current_overtime: float
-    ) -> Tuple[str, float]:
-        """Handle Saturday-specific attendance logic."""
-        if full_time:
-            # Full-time Saturday rules
-            worked_hours = 0.0
-            if check_out:
-                worked_hours = (check_out - check_in).total_seconds() / 3600
-
-            if worked_hours >= AttendanceThresholds.FULL_TIMER_MIN_HOURS:
-                return AttendanceStatus.FULL_DAY_SAT, 0.0
-            elif worked_hours >= AttendanceThresholds.HALF_DAY_MIN_HOURS:
-                return AttendanceStatus.HALF_DAY_SAT, 0.0
-            else:
-                return AttendanceStatus.ABSENT, 0.0
-        else:
-            # Part-time Saturday: normal rules, no OT
-            return current_status, 0.0
+            return OvertimeConfig.MAX_OT_HOURS
 
     @staticmethod
     def determine_missed_punches(
         check_in: Optional[datetime],
         check_out: Optional[datetime]
     ) -> Tuple[str, str]:
-        """Check if any punch is missing."""
-        return ("Yes" if not check_in else "", "Yes" if not check_out else "")
+        """Return ("Yes"/"") for MissedCheckIn and MissedCheckOut."""
+        missed_in = "Yes" if not check_in else ""
+        missed_out = "Yes" if not check_out else ""
+        return missed_in, missed_out
 
     @staticmethod
     def calculate_overtime(
@@ -242,7 +248,7 @@ class AttendanceCalculator:
 #              DAILY REPORT GENERATOR
 # ===========================================================
 class DailyReportGenerator:
-    """Generate and store Daily Reports, including Sundays."""
+    """Generate and store Daily Reports with the corrected rules."""
 
     def __init__(self):
         self.processor = AttendanceProcessor()
@@ -263,14 +269,12 @@ class DailyReportGenerator:
             check_in_dt = datetime.combine(date_obj, record.check_in) if record.check_in else None
             check_out_dt = datetime.combine(date_obj, record.check_out) if record.check_out else None
 
-            status, _ = self.calculator.calculate_status(
-                check_in_dt, check_out_dt, date_obj, shift_start, shift_end
-            )
-            
-            overtime = self.calculator.calculate_overtime(
-                check_in_dt, check_out_dt,
-                datetime.combine(date_obj, shift_start),
-                datetime.combine(date_obj, shift_end)
+            # Get employee full-time status
+            employee_obj = Employee.query.filter_by(name=employee_name).first()
+            full_time = self._is_full_time_employee(employee_obj, shift_start, shift_end)
+
+            status, overtime = self.calculator.calculate_status(
+                check_in_dt, check_out_dt, date_obj, shift_start, shift_end, full_time
             )
 
             record.shift = new_shift
@@ -285,7 +289,8 @@ class DailyReportGenerator:
             db.session.rollback()
             logger.error(f"Error updating shift for {employee_name} on {date_str}: {e}")
 
-    def generate_daily_report(self, employee_shifts=None, compensated_dates=None):
+    def generate_daily_report(self, employee_shifts: Optional[Dict[str, str]] = None,
+                              compensated_dates: Optional[Dict[str, set]] = None) -> Dict[str, Any]:
         """Generate daily attendance report."""
         employee_shifts = employee_shifts or {}
         compensated_dates = compensated_dates or {}
@@ -337,19 +342,21 @@ class DailyReportGenerator:
 
         # Get employee configuration
         employee_obj = employees_data.get(employee_name)
-        shift_start_str, shift_end_str = self._get_employee_shift(employee_obj)
+        shift_start_str, shift_end_str = self._get_employee_shift(employee_obj, employee_name)
         department = getattr(employee_obj, 'department', 'Cold Calling')
         joining_date = getattr(employee_obj, 'joining_date', None)
         last_updated_date = getattr(employee_obj, 'last_updated_date', datetime.utcnow().date())
 
         shift_start, shift_end = self._parse_shift(f"{shift_start_str} - {shift_end_str}")
+        full_time = self._is_full_time_employee(employee_obj, shift_start, shift_end)
+        
         records = []
 
         for day in all_dates:
             record = self._create_daily_record(
                 employee_name, emp_id, emp_data, day, shift_start, shift_end,
                 shift_start_str, shift_end_str, department, joining_date,
-                last_updated_date, compensated_dates
+                last_updated_date, compensated_dates, full_time
             )
             records.append(record)
 
@@ -368,7 +375,8 @@ class DailyReportGenerator:
         department: str,
         joining_date: Optional[date],
         last_updated_date: date,
-        compensated_dates: Dict
+        compensated_dates: Dict,
+        full_time: bool
     ) -> Dict[str, Any]:
         """Create a single daily record for an employee."""
         day_data = emp_data[emp_data["Date"] == day]
@@ -380,13 +388,11 @@ class DailyReportGenerator:
             overtime_hours = 0.0
             missed_in, missed_out = "", ""
         else:
-            status, _ = self.calculator.calculate_status(check_in, check_out, day, shift_start, shift_end)
-            overtime_hours = self.calculator.calculate_overtime(
-                check_in, check_out,
-                datetime.combine(day, shift_start),
-                datetime.combine(day, shift_end)
+            status, overtime_hours = self.calculator.calculate_status(
+                check_in, check_out, day, shift_start, shift_end, full_time
             )
             
+            # Compensated date override
             if str(day) in compensated_dates.get(employee_name, set()):
                 status = AttendanceStatus.COMPENSATED
                 overtime_hours = 0.0
@@ -398,8 +404,8 @@ class DailyReportGenerator:
             "Date": day.strftime("%Y-%m-%d"),
             "Name": employee_name,
             "Shift": f"{shift_start_str} - {shift_end_str}",
-            "CheckIn": check_in.strftime("%H:%M") if check_in else "",
-            "CheckOut": check_out.strftime("%H:%M") if check_out else "",
+            "CheckIn": check_in.strftime("%H:%M:%S") if check_in else "",
+            "CheckOut": check_out.strftime("%H:%M:%S") if check_out else "",
             "Status": status,
             "MissedCheckIn": missed_in,
             "MissedCheckOut": missed_out,
@@ -414,18 +420,30 @@ class DailyReportGenerator:
         employees = Employee.query.filter(Employee.name.in_(employee_names)).all()
         return {emp.name: emp for emp in employees}
 
-    def _get_employee_shift(self, employee_obj: Optional[Employee]) -> Tuple[str, str]:
+    def _get_employee_shift(self, employee_obj: Optional[Employee], employee_name: str) -> Tuple[str, str]:
         """Get employee shift times."""
         if employee_obj and employee_obj.shift and "-" in employee_obj.shift:
             shift_parts = [s.strip() for s in employee_obj.shift.split("-", 1)]
             return shift_parts[0], shift_parts[1]
         return ShiftDefaults.DEFAULT_SHIFT_START, ShiftDefaults.DEFAULT_SHIFT_END
 
+    def _is_full_time_employee(self, employee_obj: Optional[Employee], shift_start: time, shift_end: time) -> bool:
+        """Determine if employee is full-time based on shift duration."""
+        shift_start_dt = datetime.combine(date.today(), shift_start)
+        shift_end_dt = datetime.combine(date.today(), shift_end)
+        shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
+        return shift_duration >= AttendanceThresholds.FULL_TIMER_MIN_HOURS
+
     @staticmethod
     def _parse_shift(shift_str: str) -> Tuple[time, time]:
         """Parse shift string into time objects."""
         try:
-            shift_start_str, shift_end_str = [s.strip() for s in shift_str.split("-", 1)]
+            if "-" in shift_str:
+                shift_start_str, shift_end_str = [s.strip() for s in shift_str.split("-", 1)]
+            else:
+                shift_start_str, shift_end_str = ShiftDefaults.DEFAULT_SHIFT_STR.split("-", 1)
+                shift_start_str, shift_end_str = shift_start_str.strip(), shift_end_str.strip()
+
             shift_start = datetime.strptime(shift_start_str, "%H:%M").time()
             shift_end = datetime.strptime(shift_end_str, "%H:%M").time()
             return shift_start, shift_end
@@ -459,7 +477,7 @@ class DailyReportGenerator:
             return {
                 "daily_table": daily_table,
                 "employees": sorted(df["Name"].unique()),
-                "message": "Daily report generated successfully with OT calculation."
+                "message": "✅ Daily report generated successfully with OT calculation."
             }
         except Exception as e:
             db.session.rollback()
@@ -478,8 +496,8 @@ class DailyReportGenerator:
             existing = DailyReport.query.filter_by(employee_name=row["Name"], date=date_obj).first()
 
             # Convert check-in/check-out strings to time objects
-            check_in_time = datetime.strptime(row["CheckIn"], "%H:%M").time() if row["CheckIn"] else None
-            check_out_time = datetime.strptime(row["CheckOut"], "%H:%M").time() if row["CheckOut"] else None
+            check_in_time = datetime.strptime(row["CheckIn"], "%H:%M:%S").time() if row["CheckIn"] else None
+            check_out_time = datetime.strptime(row["CheckOut"], "%H:%M:%S").time() if row["CheckOut"] else None
 
             # Get latest employee data
             emp_data = Employee.query.filter_by(name=row["Name"]).first()
@@ -487,8 +505,10 @@ class DailyReportGenerator:
             joining_date = getattr(emp_data, 'joining_date', None)
             last_updated_date_obj = getattr(emp_data, 'last_updated_date', datetime.utcnow().date())
 
-            # Parse shift and calculate status/overtime
+            # Parse shift and determine full-time status
             shift_start, shift_end = self._parse_shift(row["Shift"])
+            full_time = self._is_full_time_employee(emp_data, shift_start, shift_end)
+            
             check_in_dt = datetime.combine(date_obj, check_in_time) if check_in_time else None
             check_out_dt = datetime.combine(date_obj, check_out_time) if check_out_time else None
 
@@ -497,13 +517,8 @@ class DailyReportGenerator:
                 overtime = 0.0
                 missed_in, missed_out = "", ""
             else:
-                status, _ = self.calculator.calculate_status(
-                    check_in_dt, check_out_dt, date_obj, shift_start, shift_end
-                )
-                overtime = self.calculator.calculate_overtime(
-                    check_in_dt, check_out_dt,
-                    datetime.combine(date_obj, shift_start),
-                    datetime.combine(date_obj, shift_end)
+                status, overtime = self.calculator.calculate_status(
+                    check_in_dt, check_out_dt, date_obj, shift_start, shift_end, full_time
                 )
                 missed_in, missed_out = self.calculator.determine_missed_punches(check_in_dt, check_out_dt)
 
@@ -553,7 +568,8 @@ class DailyReportGenerator:
 # ===========================================================
 #              EXTERNAL ENTRY POINT
 # ===========================================================
-def generate_daily_report(employee_shifts=None, compensated_dates=None):
+def generate_daily_report(employee_shifts: Optional[Dict[str, str]] = None,
+                          compensated_dates: Optional[Dict[str, set]] = None) -> Dict[str, Any]:
     """External entry point for generating daily reports."""
     generator = DailyReportGenerator()
     return generator.generate_daily_report(employee_shifts, compensated_dates)

@@ -147,7 +147,7 @@ class EmployeeService:
         return affected_months
 
     def _update_single_daily_record(self, daily_record: DailyReport, employee: Employee,
-                                  shift_start: time, shift_end: time):
+                                shift_start: time, shift_end: time):
         """Update a single daily record with new employee data."""
         daily_record.shift = employee.shift
         daily_record.department = employee.department
@@ -155,7 +155,15 @@ class EmployeeService:
         daily_record.last_updated_date = employee.last_updated_date
         daily_record.manual_override = True
 
-        # Recalculate status and overtime
+        # ---------- SUNDAY CHECK (FIRST PRIORITY) ----------
+        if daily_record.date.weekday() == 6:  # Sunday
+            daily_record.status = "Sunday"
+            daily_record.overtime = 0.0
+            daily_record.missed_checkin = False
+            daily_record.missed_checkout = False
+            return  # Sunday ke liye calculation skip karo
+
+        # Recalculate status and overtime only for non-Sunday days
         check_in_dt = datetime.combine(daily_record.date, daily_record.check_in) if daily_record.check_in else None
         check_out_dt = datetime.combine(daily_record.date, daily_record.check_out) if daily_record.check_out else None
 
@@ -169,6 +177,11 @@ class EmployeeService:
             datetime.combine(daily_record.date, shift_start),
             datetime.combine(daily_record.date, shift_end)
         )
+
+        # Update missed punches
+        missed_in, missed_out = self.calculator.determine_missed_punches(check_in_dt, check_out_dt)
+        daily_record.missed_checkin = (missed_in == "Yes")
+        daily_record.missed_checkout = (missed_out == "Yes")
 
     def _update_monthly_reports(self, employee: Employee, affected_months: Set[str]):
         """Update monthly reports for affected months."""
