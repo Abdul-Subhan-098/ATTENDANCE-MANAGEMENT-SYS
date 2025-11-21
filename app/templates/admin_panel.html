@@ -9,37 +9,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-<style>
-    /* Sidebar fix */
-    .sidebar {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        height: 100vh;
-    }
-    .sidebar-nav {
-        display: flex;
-        flex-direction: column;
-        flex-grow: 1;
-    }
-    .sidebar-bottom {
-        margin-top: auto;
-        padding: 20px 0;
-    }
-    .logout-btn {
-        color: #ef4444 !important;
-        font-weight: bold;
-    }
-    .logout-btn:hover {
-        background: #fee2e2 !important;
-        color: #b91c1c !important;
-    }
-
-    /* Table scroll fix */
-    .table-container {
-        overflow-x: auto;
-    }
-</style>
 
 </head>
 <body>
@@ -56,8 +25,6 @@
         <a href="{{ url_for('main.index') }}"><i class="fas fa-chart-pie"></i> Monthly Report</a>
         <a href="{{ url_for('main.daily') }}"><i class="fas fa-calendar-day"></i> Daily Report</a>
         <a href="{{ url_for('main.admin_panel') }}" class="active"><i class="fas fa-user-shield"></i> Admin</a>
-
-        <!-- ✅ Logout at bottom -->
         <div class="sidebar-bottom">
             <a href="{{ url_for('main.logout') }}" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
         </div>

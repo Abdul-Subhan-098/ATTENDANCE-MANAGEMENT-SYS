@@ -8,125 +8,14 @@
     <!-- External CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/daily.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <style>
-        /* Searchable Dropdown */
-        .searchable-dropdown { position: relative; width: 100%; }
-        .searchable-dropdown .dropdown-list {
-            position: absolute;
-            top: 100%; left: 0; right: 0;
-            max-height: 250px; overflow-y: auto;
-            border: 1px solid #ddd; background: #fff;
-            z-index: 1000; display: none;
-            list-style: none; margin: 0; padding: 0;
-            border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        }
-        .searchable-dropdown .dropdown-list li { padding: 10px; cursor: pointer; }
-        .searchable-dropdown .dropdown-list li:hover { background: #f3f4f6; }
-
-        /* Spinner */
-        .loading-spinner {
-            display: none; margin-left: 10px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #3b82f6;
-            border-radius: 50%; width: 18px; height: 18px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-
-        /* Overtime badges */
-        .ot-badge { padding: 2px 6px; border-radius: 4px; background: #e5e7eb; color: #111827; display: inline-block; }
-        .ot-1 { background: #facc15; color: #000; }
-        .ot-2 { background: #f87171; color: #fff; }
-        .ot-3 { background: #f97316; color: #fff; }
-        .ot-4 { background: #ef4444; color: #fff; }
-
-        /* Sidebar Layout Fix */
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 100vh;
-            width: 250px;
-            position: fixed;
-            left: 0;
-            top: 0;
-            transition: transform 0.3s ease;
-            z-index: 1000;
-        }
-
-        .sidebar.collapsed {
-            transform: translateX(-100%);
-        }
-
-        .sidebar-toggle {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            background: #3b82f6;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 1001;
-            transition: all 0.3s ease;
-        }
-
-        .sidebar-toggle:hover {
-            background: #2563eb;
-        }
-
-        .sidebar-toggle.collapsed {
-            left: 20px;
-        }
-
-        .main-content {
-            margin-left: 250px;
-            transition: margin-left 0.3s ease;
-        }
-
-        .main-content.expanded {
-            margin-left: 0;
-        }
-
-        .sidebar-nav {
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-        }
-
-        .sidebar-bottom {
-            margin-top: auto;
-            padding: 20px 0;
-        }
-
-        .logout-btn {
-            color: #ef4444 !important;
-            font-weight: bold;
-        }
-
-        .logout-btn:hover {
-            background: #fee2e2 !important;
-            color: #b91c1c !important;
-        }
-    </style>
 </head>
 <body>
-    <!-- Sidebar Toggle Button -->
-    <button class="sidebar-toggle" id="sidebarToggle">
-        <i class="fas fa-bars"></i>
-    </button>
 
     <!-- Sidebar Navigation -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h2>Attendance</h2>
-            <p>Daily Management System</p>
+            <p>Daily Report</p>
         </div>
 
         <nav class="sidebar-nav">
@@ -157,8 +46,57 @@
         <div class="container">
             <!-- Page Header -->
             <div class="page-header">
-                <h1><i class="fas fa-calendar-alt"></i> Daily Attendance Report</h1>
-                <p>Comprehensive overview of daily employee attendance and check-in records</p>
+                <h1><i class="fas fa-calendar-alt"><b></i> Daily Attendance Report</h1></b>
+                <p>Comprehensive Overview Of Daily Employee Attendance Record </p>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="summary-cards" id="summaryCards">
+                <div class="summary-card">
+                    <div class="card-icon present">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="presentCount">0</h3>
+                        <p>Total Present Days</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon halfday">
+                        <i class="fas fa-user-clock"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="halfdayCount">0</h3>
+                        <p>Total Half Days</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon late">
+                        <i class="fas fa-running"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="lateCount">0</h3>
+                        <p>Total Lates</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon overtime">
+                        <i class="fas fa-business-time"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="overtimeCount">0</h3>
+                        <p>Total Overtime Hours</p>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-icon absent">
+                        <i class="fas fa-user-times"></i>
+                    </div>
+                    <div class="card-content">
+                        <h3 id="absentCount">0</h3>
+                        <p>Total Absents</p>
+                    </div>
+                </div>
             </div>
 
             <!-- Filters Section -->
@@ -228,13 +166,11 @@
                             <th>Date</th>
                             <th>Employee Name</th>
                             <th>Shift</th>
+                            <th>Department</th>
                             <th>Check-In</th>
                             <th>Check-Out</th>
-                            <th>Overtime</th>
                             <th>Status</th>
-                            <th>Missed Check-In</th>
-                            <th>Missed Check-Out</th>
-                            <th>Department</th>
+                            <th>Overtime</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -248,13 +184,9 @@
                                 <td>{{ record.Date }}</td>
                                 <td><strong>{{ record.Name }}</strong></td>
                                 <td>{{ record.Shift | convert_shift_display }}</td>
-                                <td>{{ record.CheckIn if record.CheckIn else 'Not Recorded' }}</td>
-                                <td>{{ record.CheckOut if record.CheckOut else 'Not Recorded' }}</td>
-                                <td>
-                                    <span class="ot-badge ot-{{ record.Overtime|int }}">
-                                        {{ record.Overtime|int if record.Overtime else 0 }}h
-                                    </span>
-                                </td>
+                                <td>{{ record.Department if record.Department else 'Cold Calling' }}</td>
+                                <td>{{ record.CheckIn if record.CheckIn else 'Missed' }}</td>
+                                <td>{{ record.CheckOut if record.CheckOut else 'Missed' }}</td>
                                 <td>
                                     {% set status_class = {
                                         'Present': 'status-present',
@@ -271,14 +203,16 @@
                                         {{ record.Status }}
                                     </span>
                                 </td>
-                                <td>{{ record.MissedCheckIn if record.MissedCheckIn else 'No' }}</td>
-                                <td>{{ record.MissedCheckOut if record.MissedCheckOut else 'No' }}</td>
-                                <td>{{ record.Department if record.Department else 'Cold Calling' }}</td>
+                                <td>
+                                    <span class="ot-badge ot-{{ record.Overtime|int }}">
+                                        {{ record.Overtime|int if record.Overtime else 0 }}h
+                                    </span>
+                                </td>
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr class="empty-state">
-                                <td colspan="11">
+                                <td colspan="9">
                                     <i class="fas fa-clipboard-list empty-state-icon"></i>
                                     <h3>No Daily Records Found</h3>
                                     <p>Upload attendance data to view daily records</p>
@@ -291,20 +225,9 @@
         </div>
     </div>
 
-    <div class="compensate-dropdown" id="compensateDropdown" style="margin-top: 10px;">
-        <select id="compTypeSelect">
-            <option value="Com by Late">Com by Late</option>
-            <option value="Com by Abst">Com by Abst</option>
-            <option value="Com by Half">Com by Half</option>
-        </select>
-        <button id="compensateBtn">
-            <i class="fas fa-check-double"></i> Mark as Compensated
-        </button>
-    </div>
 
-    <!-- External JS -->
     <script src="{{ url_for('static', filename='js/daily.js') }}"></script>
-    
+   
     <script>
         // Sidebar toggle functionality
         document.addEventListener('DOMContentLoaded', function() {

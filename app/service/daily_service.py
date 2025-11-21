@@ -22,7 +22,7 @@ class AttendanceStatus:
     COMPENSATED = "Compensated"
     FULL_DAY_SAT = "Full Day (Sat)"
     HALF_DAY_SAT = "Half Day (Sat)"
-    SATURDAY = "Saturday"  # From old code
+    SATURDAY = "Saturday" 
 
 class ShiftDefaults:
     """Default shift configuration."""
@@ -33,14 +33,14 @@ class ShiftDefaults:
 class OvertimeConfig:
     """Overtime calculation configuration."""
     MAX_OT_HOURS = 2.0
-    OT_THRESHOLD_1_HOUR = 1.0
+    OT_THRESHOLD_1_HOUR = 1.0   
     OT_THRESHOLD_2_HOURS = 2.0
 
 class AttendanceThresholds:
     """Attendance calculation thresholds."""
     FULL_TIMER_MIN_HOURS = 9.0
-    SAT_HALF_DAY_MIN_HOURS = 4.5  # From old code
-    GRACE_PERIOD_SECONDS = 59  # From old code (59 seconds)
+    SAT_HALF_DAY_MIN_HOURS = 4.5  
+    GRACE_PERIOD_SECONDS = 59  
     LATE_THRESHOLD_HOURS = 1
     EARLY_CHECKOUT_MINUTES = 15
 

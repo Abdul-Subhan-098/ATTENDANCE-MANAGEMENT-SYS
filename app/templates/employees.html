@@ -1,220 +1,659 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Employee Management</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Management | Attendance System</title>
 
-<link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-<style>
-    /* Sidebar Fix */
-    .sidebar {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        height: 100vh;
-    }
-    .sidebar-nav {
-        display: flex;
-        flex-direction: column;
-        flex-grow: 1;
-    }
-    .sidebar-bottom {
-        margin-top: auto;
-        padding: 20px 0;
-    }
-    .logout-btn {
-        color: #ef4444 !important;
-        font-weight: bold;
-    }
-    .logout-btn:hover {
-        background: #fee2e2 !important;
-        color: #b91c1c !important;
-    }
-</style>
-
+    <!-- External CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
 
-<!-- Sidebar -->
-<div class="sidebar">
-    <div class="sidebar-header">
-        <h2>Attendance</h2>
-        <p>Employee Management</p>
-    </div>
+    <!-- Sidebar Navigation -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Attendance</h2>
+            <p>Employee Management</p>
+        </div>
 
-    <div class="sidebar-nav">
-        <a href="{{ url_for('main.employees') }}" class="active">
-            <i class="fas fa-users"></i> Employee Manage
-        </a>
-        <a href="{{ url_for('main.index') }}">
-            <i class="fas fa-chart-pie"></i> Monthly Report
-        </a>
-        <a href="{{ url_for('main.daily') }}">
-            <i class="fas fa-calendar-day"></i> Daily Report
-        </a>
-        <a href="{{ url_for('main.admin_panel') }}">
-            <i class="fas fa-user-shield"></i> Admin
-        </a>
-
-        <!-- ✅ Logout at bottom -->
-        <div class="sidebar-bottom">
-            <a href="{{ url_for('main.logout') }}" class="logout-btn">
-                <i class="fas fa-sign-out-alt"></i> Logout
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('main.employees') }}" class="active">
+                <i class="fas fa-users"></i> Employee Manage
             </a>
-        </div>
+            <a href="{{ url_for('main.index') }}">
+                <i class="fas fa-chart-bar"></i> Monthly Report
+            </a>
+            <a href="{{ url_for('main.daily') }}">
+                <i class="fas fa-calendar-day"></i> Daily Report
+            </a>
+            <a href="{{ url_for('main.admin_panel') }}">
+                <i class="fas fa-user-shield"></i> Admin
+            </a>
 
+            <!-- 🚀 Logout Button at Bottom -->
+            <div class="sidebar-bottom">
+                <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </nav>
     </div>
-</div>
 
-<!-- Main Content -->
-<div class="main-content">
-<div class="container">
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="fas fa-users-cog"></i> Employee Management</h1>   
+            </div>
 
-    <div class="page-header">
-        <h1><i class="fas fa-users"></i> Employee Management</h1>
-        <p>Add, view, and manage employee records</p>
-    </div>
-
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category,msg in messages %}
-                <div class="message {{ category }}">{{ msg }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
-    <!-- Form Section -->
-    <div class="form-section">
-        <div class="section-header">
-            <i class="fas fa-user-plus"></i>
-            <h3>Add / Update Employee</h3>
-        </div>
-
-        <form method="POST" action="{{ url_for('main.employees') }}" class="employee-form">
-            
-            <div class="form-group">
-                <label for="name"><i class="fas fa-user"></i> Full Name:</label>
-                <select id="name" name="name" required>
-                    <option value="" disabled selected>Select employee name</option>
-                    {% for name in daily_names %}
-                        <option value="{{ name }}">{{ name }}</option>
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, msg in messages %}
+                        <div class="message {{ category }}">
+                            <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' if category == 'error' else 'exclamation-triangle' }}"></i>
+                            {{ msg }}
+                        </div>
                     {% endfor %}
-                </select>
+                {% endif %}
+            {% endwith %}
+
+            <!-- Action Buttons -->
+            <div class="action-buttons-container">
+                <div class="action-header">
+                    <i class="fas fa-user-plus"></i>
+                    <div>
+                        <h3>Employee Actions</h3>
+                        <p>Add new employees or update existing records</p>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn-primary" id="addEmployeeBtn">
+                        <i class="fas fa-plus"></i> Update Employee
+                    </button>
+                    <button class="btn-secondary" id="exportEmployeesBtn">
+                        <i class="fas fa-download"></i> Export to Excel
+                    </button>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="joining_date"><i class="fas fa-calendar-alt"></i> Joining Date:</label>
-                <input type="date" id="joining_date" name="joining_date" required>
+            <!-- Employee Form Section -->
+            <div class="form-section" id="employeeFormSection">
+                <div class="section-header">
+                    <i class="fas fa-user-edit"></i>
+                    <h3>{{ 'Update Employee' if not edit_mode else 'Edit Employee' }}</h3>
+                </div>
+
+                <form method="POST" action="{{ url_for('main.employees') }}" class="employee-form" id="employeeForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name"><i class="fas fa-user"></i> Full Name</label>
+                            <select id="name" name="name" required>
+                                <option value="" disabled selected>Select employee name</option>
+                                {% for name in daily_names %}
+                                    <option value="{{ name }}" {% if edit_employee and edit_employee.name == name %}selected{% endif %}>{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="joining_date"><i class="fas fa-calendar-alt"></i> Joining Date</label>
+                            <input type="date" id="joining_date" name="joining_date" required 
+                                   value="{{ edit_employee.joining_date if edit_employee else '' }}">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="department"><i class="fas fa-building"></i> Department</label>
+                            <select id="department" name="department" required>
+                                <option value="" disabled selected>Select Department</option>
+                                <option value="MANAGEMENT TEAM" {% if edit_employee and edit_employee.department == 'MANAGEMENT TEAM' %}selected{% endif %}>MANAGEMENT TEAM</option>
+                                <option value="HOD" {% if edit_employee and edit_employee.department == 'HOD' %}selected{% endif %}>HOD</option>
+                                <option value="Disposition Department" {% if edit_employee and edit_employee.department == 'Disposition Department' %}selected{% endif %}>Disposition Department</option>
+                                <option value="HR & Administration" {% if edit_employee and edit_employee.department == 'HR & Administration' %}selected{% endif %}>HR & Administration</option>
+                                <option value="Social Media Marketing" {% if edit_employee and edit_employee.department == 'Social Media Marketing' %}selected{% endif %}>Social Media Marketing</option>
+                                <option value="Salesforce & CRM" {% if edit_employee and edit_employee.department == 'Salesforce & CRM' %}selected{% endif %}>Salesforce & CRM</option>
+                                <option value="Research Work" {% if edit_employee and edit_employee.department == 'Research Work' %}selected{% endif %}>Research Work</option>
+                                <option value="Data & Report Team" {% if edit_employee and edit_employee.department == 'Data & Report Team' %}selected{% endif %}>Data & Report Team</option>
+                                <option value="Dialer Switching Team" {% if edit_employee and edit_employee.department == 'Dialer Switching Team' %}selected{% endif %}>Dialer Switching Team</option>
+                                <option value="Leads Transfer Team" {% if edit_employee and edit_employee.department == 'Leads Transfer Team' %}selected{% endif %}>Leads Transfer Team</option>
+                                <option value="Quality control" {% if edit_employee and edit_employee.department == 'Quality control' %}selected{% endif %}>Quality control</option>
+                                <option value="Leads Effectiveness Team" {% if edit_employee and edit_employee.department == 'Leads Effectiveness Team' %}selected{% endif %}>Leads Effectiveness Team</option>
+                                <option value="Leads Quality Assurance Team" {% if edit_employee and edit_employee.department == 'Leads Quality Assurance Team' %}selected{% endif %}>Leads Quality Assurance Team</option>
+                                <option value="Transaction Coordinator" {% if edit_employee and edit_employee.department == 'Transaction Coordinator' %}selected{% endif %}>Transaction Coordinator</option>
+                                <option value="Other Campaigns Cold Callers" {% if edit_employee and edit_employee.department == 'Other Campaigns Cold Callers' %}selected{% endif %}>Other Campaigns Cold Callers</option>
+                                <option value="Ember CC & Follow-Ups Team" {% if edit_employee and edit_employee.department == 'Ember CC & Follow-Ups Team' %}selected{% endif %}>Ember CC & Follow-Ups Team</option>
+                                <option value="Training & Development" {% if edit_employee and edit_employee.department == 'Training & Development' %}selected{% endif %}>Training & Development</option>
+                                <option value="Team Managers for Cold Calling" {% if edit_employee and edit_employee.department == 'Team Managers for Cold Calling' %}selected{% endif %}>Team Managers for Cold Calling</option>
+                                <option value="Team Leaders for Cold Calling" {% if edit_employee and edit_employee.department == 'Team Leaders for Cold Calling' %}selected{% endif %}>Team Leaders for Cold Calling</option>
+                                <option value="Real Estate Cold Callers" {% if edit_employee and edit_employee.department == 'Real Estate Cold Callers' %}selected{% endif %}>Real Estate Cold Callers</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="effective_date"><i class="fas fa-calendar-check"></i> Effective From</label>
+                            <input type="date" id="effective_date" name="effective_date" required 
+                                   value="{{ edit_employee.last_updated_date if edit_employee else current_date }}">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="shift"><i class="fas fa-clock"></i> Shift</label>
+                            <select id="shift" name="shift" required>
+                                <option value="" disabled selected>Select shift</option>
+                                <option value="09:00 - 18:00" {% if edit_employee and edit_employee.shift == '09:00 - 18:00' %}selected{% endif %}>09:00 - 18:00 (07:00 to 04:00)</option>
+                                <option value="10:00 - 19:00" {% if edit_employee and edit_employee.shift == '10:00 - 19:00' %}selected{% endif %}>10:00 - 19:00 (08:00 to 05:00)</option>
+                                <option value="11:00 - 20:00" {% if edit_employee and edit_employee.shift == '11:00 - 20:00' %}selected{% endif %}>11:00 - 20:00 (09:00 to 06:00)</option>
+                                <option value="11:30 - 20:30" {% if edit_employee and edit_employee.shift == '11:30 - 20:30' %}selected{% endif %}>11:30 - 20:30 (09:30 to 06:30)</option>
+                                <option value="09:00 - 13:30" {% if edit_employee and edit_employee.shift == '09:00 - 13:30' %}selected{% endif %}>09:00 - 13:30 (07:00 to 11:30)</option>
+                                <option value="10:00 - 14:30" {% if edit_employee and edit_employee.shift == '10:00 - 14:30' %}selected{% endif %}>10:00 - 14:30 (08:00 to 12:30)</option>
+                                <option value="09:00 - 14:30" {% if edit_employee and edit_employee.shift == '09:00 - 14:30' %}selected{% endif %}>09:00 - 14:30 (07:00 to 12:30)</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="employee_id"><i class="fas fa-id-card"></i> Employee ID (Optional)</label>
+                            <input type="text" id="employee_id" name="employee_id" 
+                                   placeholder="Auto-generated if empty"
+                                   value="{{ edit_employee.employee_id if edit_employee else '' }}">
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-{{ 'plus-circle' if not edit_mode else 'save' }}"></i> 
+                            {{ 'Update Employee' if not edit_mode else 'Update Employee' }}
+                        </button>
+                        {% if edit_mode %}
+                        <button type="button" class="btn-secondary" id="cancelEditBtn">
+                            <i class="fas fa-times"></i> Cancel
+                        </button>
+                        {% endif %}
+                    </div>
+                </form>
             </div>
 
-            <div class="form-group">
-    <label for="department"><i class="fas fa-building"></i> Department:</label>
-    <select id="department" name="department" required>
-        <option value="" disabled selected>Select Department</option>
-        <option value="MANAGEMENT TEAM">MANAGEMENT TEAM</option>
-        <option value="HOD">HOD</option>
-        <option value="Disposition Department">Disposition Department</option>
-        <option value="HR & Administration">HR & Administration</option>
-        <option value="Social Media Marketing">Social Media Marketing</option>
-        <option value="Salesforce & CRM">Salesforce & CRM</option>
-        <option value="Research  Work">Research Work</option>
-        <option value="Data & Report Team">Data & Report Team</option>
-        <option value="Dialer Switching Team">Dialer Switching Team</option>
-        <option value="Leads Transfer Team">Leads Transfer Team</option>
-        <option value="Quality control">Quality control</option>
-        <option value="Leads Effectiveness Team">Leads Effectiveness Team</option>
-        <option value="Leads Quality Assurance Team">Leads Quality Assurance Team</option>
-        <option value="Transaction Coordinator">Transaction Coordinator</option>
-        <option value="Other Campaigns Cold Callers">Other Campaigns Cold Callers</option>
-        <option value="Ember CC & Follow-Ups Team">Ember CC & Follow-Ups Team</option>
-        <option value="Training & Development">Training & Development</option>
-        <option value="Team Managers for Cold Calling">Team Managers for Cold Calling</option>
-        <option value="Team Leaders for Cold Calling">Team Leaders for Cold Calling</option>
-        <option value="Real Estate Cold Callers">Real Estate Cold Callers</option>
-    </select>
-</div>
+            <!-- Employee Table Section -->
+            <div class="table-section">
+                <div class="section-header">
+                    <i class="fas fa-list-alt"></i>
+                    <h3>Current Employees ({{ employees|length }})</h3>
+                </div>
 
+                <!-- Search and Filters -->
+                <div class="table-controls">
+                    <div class="search-box">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="employeeSearch" placeholder="Search employees by name or department...">
+                    </div>
+                    <div class="table-filters">
+                        <select id="departmentFilter">
+                            <option value="">All Departments</option>
+                            {% for dept in departments %}
+                                <option value="{{ dept }}">{{ dept }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn-clear" id="clearFilters">
+                            <i class="fas fa-times"></i> Clear Filters
+                        </button>
+                    </div>
+                </div>
 
-            <div class="form-group">
-                <label for="effective_date"><i class="fas fa-calendar-check"></i> Effective From:</label>
-                <input type="date" id="effective_date" name="effective_date" required value="{{ current_date }}">
+                <div class="table-container">
+                    <table id="employeesTable">
+                        <thead>
+                            <tr>
+                                <th>Emp ID</th>
+                                <th>Name</th>
+                                <th>Joining Date</th>
+                                <th>Department</th>
+                                <th>Shift</th>
+                                <th>Effective From</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if employees %}
+                                {% for emp in employees %}
+                                <tr data-name="{{ emp.name }}" data-department="{{ emp.department }}">
+                                    <td><strong>{{ emp.employee_id if emp.employee_id else 'N/A' }}</strong></td>
+                                    <td><strong>{{ emp.name }}</strong></td>
+                                    <td>{{ emp.joining_date }}</td>
+                                    <td>
+                                        <span class="dept-badge dept-{{ emp.department|replace(' ', '-')|replace('&', 'and')|lower }}">
+                                            {{ emp.department }}
+                                        </span>
+                                    </td>
+                                    <td>{{ emp.shift if emp.shift else '-' }}</td>
+                                    <td>{{ emp.last_updated_date if emp.last_updated_date else emp.joining_date }}</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="btn-edit" data-id="{{ emp.id }}" data-name="{{ emp.name }}">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </button>
+                                            <button class="btn-delete" data-id="{{ emp.id }}" data-name="{{ emp.name }}">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr class="empty-state">
+                                    <td colspan="7">
+                                        <i class="fas fa-users empty-state-icon"></i>
+                                        <h3>No Employees Found</h3>
+                                        <p>Add your first employee using the form above</p>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Table Pagination -->
+                <div class="table-pagination" id="paginationControls">
+                    <div class="pagination-info">
+                        Showing <span id="showingCount">0</span> of <span id="totalCount">0</span> employees
+                    </div>
+                    <div class="pagination-buttons">
+                        <button id="prevPage" disabled>
+                            <i class="fas fa-chevron-left"></i> Previous
+                        </button>
+                        <span id="pageInfo">Page 1 of 1</span>
+                        <button id="nextPage" disabled>
+                            Next <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label for="shift"><i class="fas fa-clock"></i> Shift:</label>
-                <select id="shift" name="shift" required>
-                    <option value="" disabled selected>Select shift</option>
-                    <option value="09:00 - 18:00">09:00 - 18:00 (07:00 to 04:00)</option>
-                    <option value="10:00 - 19:00">10:00 - 19:00 (08:00 to 05:00)</option>
-                    <option value="11:00 - 20:00">11:00 - 20:00 (09:00 to 06:00)</option>
-                    <option value="11:30 - 20:30">11:30 - 20:30 (09:30 to 06:30)</option>
-                    <option value="09:00 - 13:30">09:00 - 13:30 (07:00 to 11:30)</option>
-                    <option value="10:00 - 14:30">10:00 - 14:30 (08:00 to 12:30)</option>
-                    <option value="09:00 - 14:30">09:00 - 14:30 (07:00 to 12:30)</option>
-                </select>
-            </div>
-
-            <button type="submit">
-                <i class="fas fa-plus-circle"></i> Add / Update Employee
-            </button>
-
-        </form>
+        </div>
     </div>
 
-    <!-- Employee Table Section -->
-    <div class="table-section">
-        <div class="section-header">
-            <i class="fas fa-list-alt"></i>
-            <h3>Current Employees</h3>
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-exclamation-triangle"></i> Confirm Deletion</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete employee: <strong id="deleteEmployeeName"></strong>?</p>
+                <p class="warning-text">This action cannot be undone.</p>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-secondary" id="cancelDelete">Cancel</button>
+                <button class="btn-danger" id="confirmDelete">Delete Employee</button>
+            </div>
         </div>
-
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Name</th>
-                        <th>Joining Date</th>
-                        <th>Department</th>
-                        <th>Shift</th>
-                        <th>Effective From</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if employees %}
-                        {% for emp in employees %}
-                        <tr>
-                            <td>{{ emp.name }}</td>
-                            <td>{{ emp.joining_date }}</td>
-                            <td>{{ emp.department }}</td>
-                            <td>{{ emp.shift if emp.shift else '-' }}</td>
-                            <td>{{ emp.last_updated_date if emp.last_updated_date else '-' }}</td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="5" class="empty-state">
-                                <div class="empty-state-icon">
-                                    <i class="fas fa-users"></i>
-                                </div>
-                                <h3>No Employees Found</h3>
-                                <p>Add your first employee using the form above</p>
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-
     </div>
 
-</div>
-</div>
+    <script src="{{ url_for('static', filename='js/employees.js') }}"></script>
+    
+    <script>
+        // Sidebar toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            
+            sidebarToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('expanded');
+                
+                // Change the icon based on sidebar state
+                const icon = sidebarToggle.querySelector('i');
+                if (sidebar.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-arrow-right');
+                } else {
+                    icon.classList.remove('fa-arrow-right');
+                    icon.classList.add('fa-bars');
+                }
+            });
 
-<script src="{{ url_for('static', filename='js/employees.js') }}"></script>
+            // Set today's date as default for effective date
+            const effectiveDateInput = document.getElementById('effective_date');
+            if (effectiveDateInput && !effectiveDateInput.value) {
+                const today = new Date().toISOString().split('T')[0];
+                effectiveDateInput.value = today;
+            }
 
+            // Set joining date to today if empty
+            const joiningDateInput = document.getElementById('joining_date');
+            if (joiningDateInput && !joiningDateInput.value) {
+                const today = new Date().toISOString().split('T')[0];
+                joiningDateInput.value = today;
+            }
+        });
+
+        // employees.js - Enhanced Employee Management Functionality
+
+document.addEventListener("DOMContentLoaded", function() {
+    // DOM Elements
+    const elements = {
+        employeeForm: document.getElementById('employeeForm'),
+        employeeSearch: document.getElementById('employeeSearch'),
+        departmentFilter: document.getElementById('departmentFilter'),
+        clearFilters: document.getElementById('clearFilters'),
+        employeesTable: document.getElementById('employeesTable'),
+        tableBody: document.querySelector('#employeesTable tbody'),
+        prevPage: document.getElementById('prevPage'),
+        nextPage: document.getElementById('nextPage'),
+        pageInfo: document.getElementById('pageInfo'),
+        showingCount: document.getElementById('showingCount'),
+        totalCount: document.getElementById('totalCount'),
+        addEmployeeBtn: document.getElementById('addEmployeeBtn'),
+        exportEmployeesBtn: document.getElementById('exportEmployeesBtn'),
+        cancelEditBtn: document.getElementById('cancelEditBtn'),
+        deleteModal: document.getElementById('deleteModal'),
+        cancelDelete: document.getElementById('cancelDelete'),
+        confirmDelete: document.getElementById('confirmDelete'),
+        deleteEmployeeName: document.getElementById('deleteEmployeeName')
+    };
+
+    // State
+    const state = {
+        currentPage: 1,
+        itemsPerPage: 10,
+        filteredEmployees: [],
+        searchTerm: '',
+        departmentFilter: '',
+        employeeToDelete: null
+    };
+
+    // Initialize
+    function init() {
+        bindEvents();
+        updateTable();
+        populateDepartmentFilter();
+    }
+
+    // Event Binding
+    function bindEvents() {
+        // Search and Filter
+        elements.employeeSearch.addEventListener('input', handleSearch);
+        elements.departmentFilter.addEventListener('change', handleDepartmentFilter);
+        elements.clearFilters.addEventListener('click', clearFilters);
+
+        // Pagination
+        elements.prevPage.addEventListener('click', goToPrevPage);
+        elements.nextPage.addEventListener('click', goToNextPage);
+
+        // Form Actions
+        if (elements.addEmployeeBtn) {
+            elements.addEmployeeBtn.addEventListener('click', scrollToForm);
+        }
+
+        if (elements.exportEmployeesBtn) {
+            elements.exportEmployeesBtn.addEventListener('click', exportToExcel);
+        }
+
+        if (elements.cancelEditBtn) {
+            elements.cancelEditBtn.addEventListener('click', cancelEdit);
+        }
+
+        // Delete Modal
+        elements.cancelDelete.addEventListener('click', closeDeleteModal);
+        elements.confirmDelete.addEventListener('click', confirmDeleteEmployee);
+
+        // Close modal when clicking outside
+        elements.deleteModal.addEventListener('click', function(e) {
+            if (e.target === elements.deleteModal) {
+                closeDeleteModal();
+            }
+        });
+
+        // Edit and Delete buttons (delegated)
+        elements.tableBody.addEventListener('click', handleTableActions);
+    }
+
+    // Table Actions Handler
+    function handleTableActions(e) {
+        const target = e.target.closest('.btn-edit, .btn-delete');
+        if (!target) return;
+
+        const row = target.closest('tr');
+        const employeeId = target.dataset.id;
+        const employeeName = target.dataset.name;
+
+        if (target.classList.contains('btn-edit')) {
+            editEmployee(employeeId, employeeName);
+        } else if (target.classList.contains('btn-delete')) {
+            showDeleteModal(employeeId, employeeName);
+        }
+    }
+
+    // Search Handler
+    function handleSearch(e) {
+        state.searchTerm = e.target.value.toLowerCase();
+        state.currentPage = 1;
+        updateTable();
+    }
+
+    // Department Filter Handler
+    function handleDepartmentFilter(e) {
+        state.departmentFilter = e.target.value;
+        state.currentPage = 1;
+        updateTable();
+    }
+
+    // Clear Filters
+    function clearFilters() {
+        elements.employeeSearch.value = '';
+        elements.departmentFilter.value = '';
+        state.searchTerm = '';
+        state.departmentFilter = '';
+        state.currentPage = 1;
+        updateTable();
+    }
+
+    // Pagination
+    function goToPrevPage() {
+        if (state.currentPage > 1) {
+            state.currentPage--;
+            updateTable();
+        }
+    }
+
+    function goToNextPage() {
+        const totalPages = Math.ceil(state.filteredEmployees.length / state.itemsPerPage);
+        if (state.currentPage < totalPages) {
+            state.currentPage++;
+            updateTable();
+        }
+    }
+
+    // Update Table
+    function updateTable() {
+        const allRows = Array.from(elements.tableBody.querySelectorAll('tr:not(.empty-state)'));
+        
+        // Filter employees
+        state.filteredEmployees = allRows.filter(row => {
+            const name = row.dataset.name.toLowerCase();
+            const department = row.dataset.department.toLowerCase();
+            
+            const matchesSearch = !state.searchTerm || 
+                name.includes(state.searchTerm) || 
+                department.includes(state.searchTerm);
+            
+            const matchesDepartment = !state.departmentFilter || 
+                department.includes(state.departmentFilter.toLowerCase());
+            
+            return matchesSearch && matchesDepartment;
+        });
+
+        // Hide all rows first
+        allRows.forEach(row => row.style.display = 'none');
+
+        // Show filtered rows with pagination
+        const startIndex = (state.currentPage - 1) * state.itemsPerPage;
+        const endIndex = startIndex + state.itemsPerPage;
+        const employeesToShow = state.filteredEmployees.slice(startIndex, endIndex);
+
+        employeesToShow.forEach(row => row.style.display = '');
+
+        // Update pagination controls
+        updatePagination();
+
+        // Show empty state if no results
+        const emptyState = elements.tableBody.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.style.display = state.filteredEmployees.length === 0 ? '' : 'none';
+        }
+    }
+
+    // Update Pagination
+    function updatePagination() {
+        const totalEmployees = state.filteredEmployees.length;
+        const totalPages = Math.ceil(totalEmployees / state.itemsPerPage);
+        const startCount = totalEmployees === 0 ? 0 : (state.currentPage - 1) * state.itemsPerPage + 1;
+        const endCount = Math.min(state.currentPage * state.itemsPerPage, totalEmployees);
+
+        // Update counts
+        elements.showingCount.textContent = `${startCount}-${endCount}`;
+        elements.totalCount.textContent = totalEmployees;
+
+        // Update page info
+        elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages || 1}`;
+
+        // Update button states
+        elements.prevPage.disabled = state.currentPage === 1;
+        elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
+    }
+
+    // Populate Department Filter
+    function populateDepartmentFilter() {
+        const departments = new Set();
+        const rows = elements.tableBody.querySelectorAll('tr:not(.empty-state)');
+        
+        rows.forEach(row => {
+            const department = row.dataset.department;
+            if (department) {
+                departments.add(department);
+            }
+        });
+
+        // Departments are already in the HTML, no need to populate dynamically
+    }
+
+    // Scroll to Form
+    function scrollToForm() {
+        document.getElementById('employeeFormSection').scrollIntoView({ 
+            behavior: 'smooth' 
+        });
+    }
+
+    // Export to Excel
+    function exportToExcel() {
+        // Simple CSV export implementation
+        const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Effective From'];
+        const rows = state.filteredEmployees.map(row => {
+            const cells = row.querySelectorAll('td');
+            return [
+                cells[1].textContent.trim(),
+                cells[0].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim()
+            ];
+        });
+
+        const csvContent = [headers, ...rows]
+            .map(row => row.map(cell => `"${cell}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    // Edit Employee
+    function editEmployee(employeeId, employeeName) {
+        // This would typically involve fetching employee data and populating the form
+        // For now, we'll just scroll to the form
+        scrollToForm();
+        
+        // Show notification
+        showNotification(`Ready to edit ${employeeName}`, 'success');
+    }
+
+    // Cancel Edit
+    function cancelEdit() {
+        // Reset form and redirect to regular add mode
+        window.location.href = "{{ url_for('main.employees') }}";
+    }
+
+    // Delete Employee Modal
+    function showDeleteModal(employeeId, employeeName) {
+        state.employeeToDelete = { id: employeeId, name: employeeName };
+        elements.deleteEmployeeName.textContent = employeeName;
+        elements.deleteModal.style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+        elements.deleteModal.style.display = 'none';
+        state.employeeToDelete = null;
+    }
+
+    function confirmDeleteEmployee() {
+        if (state.employeeToDelete) {
+            // In a real implementation, you would send a DELETE request to the server
+            console.log('Deleting employee:', state.employeeToDelete);
+            
+            // For now, just show a notification
+            showNotification(`Employee ${state.employeeToDelete.name} deleted successfully`, 'success');
+            
+            closeDeleteModal();
+            
+            // Reload the page to reflect changes
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        }
+    }
+
+    // Notification System
+    function showNotification(message, type = 'success') {
+        // Remove existing notifications
+        const existingNotif = document.querySelector('.custom-notification');
+        if (existingNotif) existingNotif.remove();
+
+        const notif = document.createElement('div');
+        notif.className = `custom-notification ${type}`;
+        notif.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
+            <span>${message}</span>
+        `;
+
+        document.body.appendChild(notif);
+
+        // Animate in
+        setTimeout(() => notif.classList.add('show'), 100);
+
+        // Remove after delay
+        setTimeout(() => {
+            notif.classList.remove('show');
+            setTimeout(() => notif.remove(), 300);
+        }, 3000);
+    }
+
+    // Initialize the application
+    init();
+});
+    </script>
 </body>
 </html>

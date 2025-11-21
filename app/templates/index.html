@@ -1,196 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Monthly Attendance Summary</title>
-
-<!-- CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/monthly.css') }}">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-<style>
-    /* Sidebar Fix */
-    .sidebar {
-        display: flex;
-        flex-direction: column;
-        justify-content: space-between;
-        height: 100vh;
-    }
-    .sidebar-nav {
-        display: flex;
-        flex-direction: column;
-        flex-grow: 1;
-    }
-    .sidebar-bottom {
-        margin-top: auto;
-        padding: 20px 0;
-    }
-    .logout-btn {
-        color: #ef4444 !important;
-        font-weight: bold;
-    }
-    .logout-btn:hover {
-        background: #fee2e2 !important;
-        color: #b91c1c !important;
-    }
-
-    /* Table scroll fix */
-    .table-container {
-        overflow-x: auto;
-    }
-</style>
-
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Attendance Summary</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>Attendance</h2>
+            <p>Monthly Report</p>
+        </div>
 
-<!-- Sidebar -->
-<div class="sidebar">
-    <div class="sidebar-header">
-        <h2>Attendance</h2>
-        <p>Management System</p>
-    </div>
-
-    <nav class="sidebar-nav">
-        <a href="{{ url_for('main.employees') }}">
-            <i class="fas fa-users"></i> Employee Manage
-        </a>
-        <a href="{{ url_for('main.index') }}" class="active">
-            <i class="fas fa-chart-bar"></i> Monthly Report
-        </a>
-        <a href="{{ url_for('main.daily') }}">
-            <i class="fas fa-calendar-day"></i> Daily Report
-        </a>
-        <a href="{{ url_for('main.admin_panel') }}">
-            <i class="fas fa-user-shield"></i> Admin
-        </a>
-
-        <!-- ✅ Logout at bottom -->
-        <div class="sidebar-bottom">
-            <a href="{{ url_for('main.logout') }}" class="logout-btn">
-                <i class="fas fa-sign-out-alt"></i> Logout
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('main.employees') }}">
+                <i class="fas fa-users"></i> Employee Manage
             </a>
-        </div>
-    </nav>
-</div>
+            <a href="{{ url_for('main.index') }}" class="active">
+                <i class="fas fa-chart-bar"></i> Monthly Report
+            </a>
+            <a href="{{ url_for('main.daily') }}">
+                <i class="fas fa-calendar-day"></i> Daily Report
+            </a>
+            <a href="{{ url_for('main.admin_panel') }}">
+                <i class="fas fa-user-shield"></i> Admin
+            </a>
 
-<!-- Main Content -->
-<div class="main-content">
-<div class="container">
-
-    <!-- Page Header -->
-    <div class="page-header">
-        <h1><i class="fas fa-chart-bar"></i> Monthly Attendance Summary</h1>
-        <p>Comprehensive overview of monthly employee attendance and performance metrics</p>
+            <div class="sidebar-bottom">
+                <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </nav>
     </div>
 
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, msg in messages %}
-                <div class="message {{ category }}">{{ msg }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
-    <!-- Action Buttons (Upload + Delete) -->
-    <div class="action-buttons-container">
-        <!-- Upload Section -->
-        <div class="upload-section-compact">
-            <div class="upload-header-compact">
-                <i class="fas fa-file-excel"></i>
-                <div>
-                    <h3>Upload Data</h3>
-                    <p>Select Excel file</p>
-                </div>
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="fas fa-chart-bar"></i> Monthly Attendance Summary</h1>
+                <p>Comprehensive Overview Of Monthly Employee Attendance</p>
             </div>
-            <form method="POST" action="{{ url_for('main.upload_file') }}" enctype="multipart/form-data" class="upload-form-compact">
-                <div class="file-input-wrapper-compact">
-                    <input type="file" name="file" required accept=".xlsx, .xls" id="excelFile">
-                    <label for="excelFile" class="file-label-compact">
-                        <i class="fas fa-cloud-upload-alt"></i>
-                        <span id="fileText">Choose File</span>
-                    </label>
-                </div>
-                <button type="submit" class="upload-btn-compact">
-                    <i class="fas fa-upload"></i> Process
-                </button>
-            </form>
-        </div>
 
-        <!-- Delete Button -->
-        <form action="{{ url_for('main.delete_data') }}" method="POST" 
-              onsubmit="return confirm('⚠️ This will permanently delete ALL attendance and report data. Continue?');">
-            <button type="submit" class="delete-btn-compact">
-                <i class="fas fa-trash"></i> Delete All Data
-            </button>
-        </form>
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, msg in messages %}
+                        <div class="message {{ category }}">{{ msg }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Action Buttons (Upload + Delete) -->
+            <div class="action-buttons-container">
+                <!-- Upload Section -->
+                <div class="upload-section-compact">
+                    <div class="upload-header-compact">
+                        <i class="fas fa-file-excel"></i>
+                        <div>
+                            <h3>Upload Data</h3>
+                            <p>Select Excel file</p>
+                        </div>
+                    </div>
+                    <form method="POST" action="{{ url_for('main.upload_file') }}" enctype="multipart/form-data" class="upload-form-compact">
+                        <div class="file-input-wrapper-compact">
+                            <input type="file" name="file" required accept=".xlsx, .xls" id="excelFile">
+                            <label for="excelFile" class="file-label-compact">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span id="fileText">Choose File</span>
+                            </label>
+                        </div>
+                        <button type="submit" class="upload-btn-compact">
+                            <i class="fas fa-upload"></i> Process
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Delete Button -->
+                <form action="{{ url_for('main.delete_data') }}" method="POST" 
+                      onsubmit="return confirm('⚠️ This will permanently delete ALL attendance and report data. Continue?');">
+                    <button type="submit" class="delete-btn-compact">
+                        <i class="fas fa-trash"></i> Delete All Data
+                    </button>
+                </form>
+            </div>
+
+            <!-- Monthly Summary Table -->
+            {% if table %}
+                <div class="action-section">
+                    <div class="section-header">
+                        <i class="fas fa-table"></i>
+                        <h3>Monthly Summary Report</h3>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" id="agentSearch" placeholder="🔍 Search employee name...">
+                    </div>
+                    <div class="table-container" id="tableContainer">
+                        <table id="summaryTable">
+                            <thead>
+                                <tr>
+                                    <th>Emp ID</th>
+                                    <th>Name</th>
+                                    <th>Shift</th>
+                                    <th>Department</th>
+                                    <th>Total Days</th>
+                                    <th>Present</th>
+                                    <th>Absent</th>
+                                    <th>Late</th>
+                                    <th>Half Days</th>
+                                    <th>Half Day (Sat)</th>
+                                    <th>Full Day (Sat)</th>
+                                    <th>OT Hours</th>
+                                    <th>Compensated</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in table %}
+                                    <tr>
+                                        <td>{{ row.EmpID if row.EmpID is defined else '' }}</td>
+                                        <td><strong>{{ row.Name }}</strong></td>
+                                        <td>{{ row.Shift if row.Shift is defined else '10:00 - 19:00' }}</td>
+                                        <td>{{ row.Department if row.Department is defined else 'Cold Calling' }}</td>
+                                        <td>{{ row.TotalDays if row.TotalDays is defined else 0 }}</td>
+                                        <td>{{ row.Present if row.Present is defined else 0 }}</td>
+                                        <td>{{ row.Absent if row.Absent is defined else 0 }}</td>
+                                        <td>{{ row.Late if row.Late is defined else 0 }}</td>
+                                        <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
+                                        <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td>
+                                        <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td>
+                                        <td>{{ row.Overtime if row.Overtime is defined else 0 }}</td>
+                                        <td>{{ row.Compensated if row.Compensated is defined else 0 }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% else %}
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-clipboard-list"></i></div>
+                    <h3>No Monthly Summary Available</h3>
+                    <p>Upload attendance data to generate monthly reports and analytics</p>
+                </div>
+            {% endif %}
+        </div>
     </div>
 
-    <!-- Monthly Summary Table -->
-    {% if table %}
-        <div class="action-section">
-            <div class="section-header">
-                <i class="fas fa-table"></i>
-                <h3>Monthly Summary Report</h3>
-            </div>
-            <div class="search-box">
-                <input type="text" id="agentSearch" placeholder="🔍 Search employee name...">
-            </div>
-            <div class="table-container" id="tableContainer">
-                <table id="summaryTable">
-                    <thead>
-                        <tr>
-                            <th>Emp ID</th>
-                            <th>Name</th>
-                            <th>Shift</th>
-                            <th>Department</th>
-                            <th>Total Days</th>
-                            <th>Present</th>
-                            <th>Absent</th>
-                            <th>Late</th>
-                            <th>Half Day (Weekdays)</th>
-                            <th>Half Day (Sat)</th>
-                            <th>Full Day (Sat)</th>
-                            <th>OT Hours</th>
-                            <th>Compensated</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in table %}
-                            <tr>
-                                <td>{{ row.EmpID if row.EmpID is defined else '' }}</td>
-                                <td><strong>{{ row.Name }}</strong></td>
-                                <td>{{ row.Shift if row.Shift is defined else '10:00 - 19:00' }}</td>
-                                <td>{{ row.Department if row.Department is defined else 'Cold Calling' }}</td>
-                                <td>{{ row.TotalDays if row.TotalDays is defined else 0 }}</td>
-                                <td>{{ row.Present if row.Present is defined else 0 }}</td>
-                                <td>{{ row.Absent if row.Absent is defined else 0 }}</td>
-                                <td>{{ row.Late if row.Late is defined else 0 }}</td>
-                                <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
-                                <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td>
-                                <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td>
-                                <td>{{ row.Overtime if row.Overtime is defined else 0 }}</td>
-                                <td>{{ row.Compensated if row.Compensated is defined else 0 }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    {% else %}
-        <div class="empty-state">
-            <div class="empty-state-icon"><i class="fas fa-clipboard-list"></i></div>
-            <h3>No Monthly Summary Available</h3>
-            <p>Upload attendance data to generate monthly reports and analytics</p>
-        </div>
-    {% endif %}
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle navigation">
+        <i class="fas fa-bars"></i>
+    </button>
 
-</div>
-</div>
-
-<!-- JS -->
-<script src="{{ url_for('static', filename='js/monthly.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/monthly.js') }}"></script>
 </body>
 </html>

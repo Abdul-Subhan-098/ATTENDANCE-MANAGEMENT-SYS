@@ -11,7 +11,13 @@ document.addEventListener("DOMContentLoaded", () => {
         dropdown: document.getElementById("compensateDropdown"),
         compensateBtn: document.getElementById("compensateBtn"),
         searchSpinner: document.getElementById("searchSpinner"),
-        tableContainer: document.querySelector('.table-container')
+        tableContainer: document.querySelector('.table-container'),
+        // Summary card elements
+        presentCount: document.getElementById("presentCount"),
+        halfdayCount: document.getElementById("halfdayCount"),
+        lateCount: document.getElementById("lateCount"),
+        overtimeCount: document.getElementById("overtimeCount"),
+        absentCount: document.getElementById("absentCount")
     };
 
     // State management
@@ -71,6 +77,50 @@ document.addEventListener("DOMContentLoaded", () => {
         template.innerHTML = html.trim();
         return template.content.firstElementChild;
     };
+
+    /* ============================
+       📊 SUMMARY CARDS FUNCTIONS
+    ============================ */
+    function updateSummaryCards(records) {
+        if (!records || records.length === 0) {
+            resetSummaryCards();
+            return;
+        }
+
+        const counts = {
+            present: 0,
+            halfday: 0,
+            late: 0,
+            overtime: 0,
+            absent: 0
+        };
+
+        records.forEach(record => {
+            // Count statuses
+            if (record.Status === 'Present') counts.present++;
+            else if (record.Status === 'Late') counts.late++;
+            else if (record.Status.includes('Half Day')) counts.halfday++;
+            else if (record.Status === 'Absent') counts.absent++;
+            
+            // Sum overtime hours
+            counts.overtime += parseFloat(record.Overtime) || 0;
+        });
+
+        // Update DOM elements
+        elements.presentCount.textContent = counts.present;
+        elements.halfdayCount.textContent = counts.halfday;
+        elements.lateCount.textContent = counts.late;
+        elements.overtimeCount.textContent = counts.overtime.toFixed(1);
+        elements.absentCount.textContent = counts.absent;
+    }
+
+    function resetSummaryCards() {
+        elements.presentCount.textContent = '0';
+        elements.halfdayCount.textContent = '0';
+        elements.lateCount.textContent = '0';
+        elements.overtimeCount.textContent = '0';
+        elements.absentCount.textContent = '0';
+    }
 
     /* ============================
        🔹 INITIAL LOAD (OPTIMIZED)
@@ -265,9 +315,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (records.length > 0) {
                 await renderFromServer(records);
+                updateSummaryCards(records);
                 showNotification(`Found ${records.length} record(s)`, "success");
             } else {
                 showEmptyState();
+                resetSummaryCards();
             }
         } catch (err) {
             if (err.name !== 'AbortError') {
@@ -336,20 +388,19 @@ document.addEventListener("DOMContentLoaded", () => {
         const statusClass = STATUS_CLASSES[r.Status] || 'status-absent';
         const otClass = `ot-${Math.min(parseInt(r.Overtime) || 0, 5)}`;
         const overtimeDisplay = formatOvertime(r.Overtime);
+        
+        // Extract shift time from format like "10:00 - 19:00 (08:00 to 05:00)"
+        const shiftTime = extractShiftTime(r.ShiftDisplay || r.Shift);
 
         return createElement(`
             <tr data-name="${r.Name || ""}" data-date="${r.Date || ""}" data-status="${r.Status || ""}" data-department="${r.Department || ""}">
                 <td><strong>${r.EmpID || "N/A"}</strong></td>
                 <td>${r.Date || "N/A"}</td>
                 <td><strong>${r.Name || "N/A"}</strong></td>
-                <td>${r.ShiftDisplay || "N/A"}</td>
-                <td>${r.CheckIn || "Not Recorded"}</td>
-                <td>${r.CheckOut || "Not Recorded"}</td>
-                <td>
-                    <span class="ot-badge ${otClass}">
-                        ${overtimeDisplay}
-                    </span>
-                </td>
+                <td>${shiftTime}</td>
+                <td>${r.Department || "Cold Calling"}</td>
+                <td>${r.CheckIn || "Missed"}</td>
+                <td>${r.CheckOut || "Missed"}</td>
                 <td>
                     <span class="status-badge ${statusClass}"
                           data-emp-name="${r.Name}" 
@@ -357,11 +408,21 @@ document.addEventListener("DOMContentLoaded", () => {
                           ${r.Status || "Absent"}
                     </span>
                 </td>
-                <td>${r.MissedCheckIn || "No"}</td>
-                <td>${r.MissedCheckOut || "No"}</td>
-                <td>${r.Department || ""}</td>
+                <td>
+                    <span class="ot-badge ${otClass}">
+                        ${overtimeDisplay}
+                    </span>
+                </td>
             </tr>
         `);
+    }
+
+    function extractShiftTime(shift) {
+        if (!shift) return "N/A";
+        
+        // Extract the time in parentheses like "(08:00 to 05:00)"
+        const match = shift.match(/\(([^)]+)\)/);
+        return match ? match[1] : shift;
     }
 
     function formatOvertime(value) {
@@ -374,7 +435,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function showEmptyState() {
         elements.tbody.innerHTML = `
             <tr class="empty-state">
-                <td colspan="11">
+                <td colspan="9">
                     <i class="fas fa-search empty-state-icon"></i>
                     <h3>No matching records found</h3>
                     <p>Try adjusting your search criteria</p>
@@ -416,6 +477,7 @@ document.addEventListener("DOMContentLoaded", () => {
         elements.statusFilter.value = "";
         elements.employeeList.style.display = "none";
         loadInitialData();
+        resetSummaryCards();
         showNotification("Filters cleared", "success");
     });
 
@@ -503,6 +565,9 @@ document.addEventListener("DOMContentLoaded", () => {
         initSearchableDropdown();
         initCompensationHandler();
         loadInitialData();
+        
+        // Initialize summary cards to zero
+        resetSummaryCards();
         
         // Keyboard shortcuts
         document.addEventListener('keydown', e => {
