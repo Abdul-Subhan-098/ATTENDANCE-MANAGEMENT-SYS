@@ -147,7 +147,7 @@ class EmployeeService:
         return affected_months
 
     def _update_single_daily_record(self, daily_record: DailyReport, employee: Employee,
-                                shift_start: time, shift_end: time):
+                                    shift_start: time, shift_end: time):
         """Update a single daily record with new employee data."""
         daily_record.shift = employee.shift
         daily_record.department = employee.department
@@ -163,12 +163,18 @@ class EmployeeService:
             daily_record.missed_checkout = False
             return  # Sunday ke liye calculation skip karo
 
+        # ---------- DETERMINE FULL-TIME STATUS ----------
+        shift_start_dt = datetime.combine(daily_record.date, shift_start)
+        shift_end_dt = datetime.combine(daily_record.date, shift_end)
+        shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
+        full_time = shift_duration >= 9.0  # FULL_TIMER_MIN_HOURS
+
         # Recalculate status and overtime only for non-Sunday days
         check_in_dt = datetime.combine(daily_record.date, daily_record.check_in) if daily_record.check_in else None
         check_out_dt = datetime.combine(daily_record.date, daily_record.check_out) if daily_record.check_out else None
 
         daily_record.status, _ = self.calculator.calculate_status(
-            check_in_dt, check_out_dt, daily_record.date, shift_start, shift_end
+            check_in_dt, check_out_dt, daily_record.date, shift_start, shift_end, full_time
         )
         
         daily_record.overtime = self.calculator.calculate_overtime(
