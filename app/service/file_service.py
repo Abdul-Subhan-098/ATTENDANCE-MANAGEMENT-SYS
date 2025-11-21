@@ -1,26 +1,27 @@
 import pandas as pd
-from sqlalchemy import text, delete
+from sqlalchemy import text, delete, func
 from app import db
 from app.models import AttendanceRaw, Employee
 from app.service.daily_service import generate_daily_report
 from app.service.monthly_service import generate_monthly_report_from_daily
 from datetime import datetime
 import logging
-from typing import Tuple, Dict, Any
+import uuid
+from typing import Tuple, Dict, Any, List
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # ===========================================================
-#              FILE SERVICE (OPTIMIZED)
+#              FILE SERVICE (UPDATED FOR FILE TRACKING)
 # ===========================================================
 class FileService:
-    """Optimized service for fast file upload and processing."""
+    """File service with file tracking in attendance_raw table."""
 
     def __init__(self, employee_shifts=None, compensated_dates=None):
         self.employee_shifts = employee_shifts or {}
         self.compensated_dates = compensated_dates or {}
-        self.batch_size = 1000  # Process records in batches
+        self.batch_size = 1000
 
     def validate_required_columns(self, df: pd.DataFrame) -> bool:
         """Quick validation for required columns."""
@@ -55,48 +56,14 @@ class FileService:
         else:
             df["Attendance State"] = -1
 
-        # Optimized grouping with aggregation
-        result_rows = []
-        
-        # Use faster groupby with named aggregation
-        grouped = df.groupby(["Emp ID", "Name", "Date"], dropna=False)
-        
-        for (emp_id, name, date), group in grouped:
-            # Use boolean indexing instead of multiple group filters
-            checkin_mask = group["Attendance State"] == 0
-            checkout_mask = group["Attendance State"] == 1
-            
-            first_in = group.loc[checkin_mask, "Time"].min() if checkin_mask.any() else None
-            last_out = group.loc[checkout_mask, "Time"].max() if checkout_mask.any() else None
+        return df
 
-            if first_in is not None:
-                result_rows.append({
-                    "Emp ID": emp_id,
-                    "Name": name,
-                    "Time": first_in,
-                    "Work Code": None,
-                    "Attendance State": 0,
-                    "Device Name": None
-                })
-            if last_out is not None:
-                result_rows.append({
-                    "Emp ID": emp_id,
-                    "Name": name,
-                    "Time": last_out,
-                    "Work Code": None,
-                    "Attendance State": 1,
-                    "Device Name": None
-                })
-
-        return pd.DataFrame(result_rows) if result_rows else df
-
-    def save_attendance_to_db(self, df: pd.DataFrame) -> None:
-        """Optimized database operations with bulk inserts."""
+    def save_attendance_to_db(self, df: pd.DataFrame, original_filename: str) -> str:
+        """Save attendance data with file tracking."""
         try:
-            # Fast table truncation
-            db.session.execute(delete(AttendanceRaw))
-            db.session.commit()
-
+            # Generate unique batch ID for this upload
+            batch_id = f"batch_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:8]}"
+            
             # Prepare data for bulk insert
             records = []
             for _, row in df.iterrows():
@@ -107,13 +74,17 @@ class FileService:
                     'work_code': row.get("Work Code"),
                     'attendance_state': str(row.get("Attendance State")) if not pd.isna(row.get("Attendance State")) else None,
                     'device_name': row.get("Device Name"),
+                    'upload_batch': batch_id,
+                    'original_filename': original_filename,
+                    'upload_date': datetime.utcnow()
                 })
 
             # Bulk insert in batches
             if records:
                 self._bulk_insert_attendance(records)
                 
-            logger.info(f"Saved {len(records)} attendance records to database")
+            logger.info(f"Saved {len(records)} attendance records with batch ID: {batch_id}")
+            return batch_id
 
         except Exception as e:
             db.session.rollback()
@@ -121,7 +92,7 @@ class FileService:
             raise
 
     def _bulk_insert_attendance(self, records: list) -> None:
-        """Bulk insert attendance records for maximum performance."""
+        """Bulk insert attendance records."""
         batch_size = self.batch_size
         
         for i in range(0, len(records), batch_size):
@@ -133,7 +104,7 @@ class FileService:
                 logger.info(f"Processed {i} records...")
 
     def sync_employee_info(self, df: pd.DataFrame) -> Tuple[int, int]:
-        """Optimized employee synchronization with bulk operations."""
+        """Optimized employee synchronization."""
         try:
             # Get unique employees efficiently
             unique_emps = df[["Emp ID", "Name"]].drop_duplicates(subset=["Emp ID", "Name"])
@@ -195,13 +166,13 @@ class FileService:
             return 0, 0
 
     def process_file(self, file) -> str:
-        """Main file processing method with performance optimizations."""
+        """Main file processing method with file tracking."""
         try:
-            # Fast file reading with optimized parameters
+            # Fast file reading
             df = pd.read_excel(
                 file, 
-                engine='openpyxl',  # Faster than default for xlsx
-                dtype={'Emp ID': str, 'Name': str},  # Preserve data types
+                engine='openpyxl',
+                dtype={'Emp ID': str, 'Name': str},
                 na_values=['', 'NULL', 'null'],
                 keep_default_na=False
             )
@@ -220,9 +191,9 @@ class FileService:
             if df.empty:
                 return "❌ No valid attendance records found after cleaning."
 
-            # Save to database
+            # Save to database with file tracking
             logger.info("Saving to database...")
-            self.save_attendance_to_db(df)
+            batch_id = self.save_attendance_to_db(df, file.filename)
 
             # Sync employee info
             logger.info("Syncing employee information...")
@@ -250,22 +221,118 @@ class FileService:
             logger.error(error_msg)
             return error_msg
 
-    def get_processing_stats(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Get statistics about the processed data."""
-        return {
-            "total_records": len(df),
-            "unique_employees": df["Name"].nunique(),
-            "date_range": {
-                "start": df["Date"].min(),
-                "end": df["Date"].max()
-            } if "Date" in df.columns else {}
-        }
+# ===========================================================
+#              FILE MANAGEMENT SERVICE
+# ===========================================================
+class FileManagementService:
+    """Service for managing uploaded files using attendance_raw table."""
+    
+    @staticmethod
+    def get_uploaded_files() -> List[Dict[str, Any]]:
+        """Get all unique uploaded files from attendance_raw."""
+        try:
+            # First, check if we have any data in attendance_raw
+            total_records = db.session.query(func.count(AttendanceRaw.id)).scalar() or 0
+            logger.info(f"Total records in attendance_raw: {total_records}")
+            
+            if total_records == 0:
+                return []
+
+            # Get unique uploaded files
+            files = db.session.query(
+                AttendanceRaw.upload_batch,
+                AttendanceRaw.original_filename,
+                func.max(AttendanceRaw.upload_date).label('upload_date'),
+                func.count(AttendanceRaw.id).label('record_count')
+            ).filter(
+                AttendanceRaw.upload_batch.isnot(None),
+                AttendanceRaw.original_filename.isnot(None)
+            ).group_by(
+                AttendanceRaw.upload_batch,
+                AttendanceRaw.original_filename
+            ).order_by(
+                func.max(AttendanceRaw.upload_date).desc()
+            ).all()
+            
+            logger.info(f"Found {len(files)} uploaded files")
+            
+            result = []
+            for file in files:
+                file_data = {
+                    'batch_id': file.upload_batch,
+                    'filename': file.original_filename,
+                    'upload_date': file.upload_date.strftime('%Y-%m-%d %H:%M') if file.upload_date else 'Unknown',
+                    'record_count': file.record_count
+                }
+                logger.info(f"File: {file_data}")
+                result.append(file_data)
+                
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error fetching uploaded files: {e}")
+            return []
+    @staticmethod
+    def delete_file_by_batch(batch_id: str) -> Tuple[bool, str]:
+        """Delete all records for a specific batch ONLY - don't touch other data."""
+        try:
+            if not batch_id:
+                return False, "Batch ID is required"
+
+            # SUPER SIMPLE - Direct delete karo
+            deleted_count = db.session.query(AttendanceRaw).filter(
+                AttendanceRaw.upload_batch == batch_id
+            ).delete()
+            
+            db.session.commit()
+            
+            if deleted_count > 0:
+                return True, f"✅ File deleted successfully ({deleted_count} records removed). Other files are safe."
+            else:
+                return False, "No records found to delete"
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error deleting batch {batch_id}: {e}")
+            return False, f"❌ Error deleting file: {e}"
+    @staticmethod
+    def get_file_stats() -> Dict[str, Any]:
+        """Get statistics about uploaded files."""
+        try:
+            total_files = db.session.query(
+                func.count(func.distinct(AttendanceRaw.upload_batch))
+            ).scalar() or 0
+            
+            total_records = db.session.query(func.count(AttendanceRaw.id)).scalar() or 0
+            
+            latest_file = db.session.query(
+                AttendanceRaw.original_filename,
+                AttendanceRaw.upload_date
+            ).order_by(AttendanceRaw.upload_date.desc()).first()
+            
+            return {
+                "total_files": total_files,
+                "total_records": total_records,
+                "latest_upload": latest_file.upload_date if latest_file else None,
+                "latest_filename": latest_file.original_filename if latest_file else None
+            }
+        except Exception as e:
+            logger.error(f"Error getting file stats: {e}")
+            return {}
 
 
 # ===========================================================
-#              EXTERNAL ENTRY POINT
+#              EXTERNAL ENTRY POINTS
 # ===========================================================
 def process_attendance_file(file, employee_shifts=None, compensated_dates=None) -> str:
-    """External entry point for fast file processing."""
+    """External entry point for file processing."""
     service = FileService(employee_shifts, compensated_dates)
     return service.process_file(file)
+
+def get_uploaded_files() -> List[Dict[str, Any]]:
+    """External entry point for getting uploaded files."""
+    return FileManagementService.get_uploaded_files()
+
+def delete_uploaded_file(batch_id: str) -> Tuple[bool, str]:
+    """External entry point for deleting a specific file."""
+    return FileManagementService.delete_file_by_batch(batch_id)

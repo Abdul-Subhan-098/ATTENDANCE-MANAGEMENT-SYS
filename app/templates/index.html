@@ -56,7 +56,7 @@
                 {% endif %}
             {% endwith %}
 
-            <!-- Action Buttons (Upload + Delete) -->
+            <!-- Action Buttons (Upload + File Management) -->
             <div class="action-buttons-container">
                 <!-- Upload Section -->
                 <div class="upload-section-compact">
@@ -76,20 +76,55 @@
                             </label>
                         </div>
                         <button type="submit" class="upload-btn-compact">
-                            <i class="fas fa-upload"></i> Process
+                            <i class="fas fa-upload"></i>Upload File 
                         </button>
                     </form>
                 </div>
 
-                <!-- Delete Button -->
-                <form action="{{ url_for('main.delete_data') }}" method="POST" 
-                      onsubmit="return confirm('⚠️ This will permanently delete ALL attendance and report data. Continue?');">
-                    <button type="submit" class="delete-btn-compact">
-                        <i class="fas fa-trash"></i> Delete All Data
-                    </button>
-                </form>
-            </div>
+                <!-- File Management Section -->
+                <div class="file-management-section">
+                    <div class="file-management-header">
+                        <i class="fas fa-trash"></i>
+                        <div>
+                            <h3>Delete Data</h3>
+                            <p>Remove uploaded files</p>
+                        </div>
+                    </div>
+                    
+                    <div class="file-management-content">
+                        <!-- File Selection Dropdown -->
+                        <div class="file-selection-group">
+                            <label for="fileDropdown"><i class="fas fa-file"></i> Select File to Delete:</label>
+                            <div class="dropdown-wrapper">
+                                <select id="fileDropdown" class="file-dropdown">
+                                    <option value="">-- Select a file --</option>
+                                </select>
+                                <div class="dropdown-loading">
+                                    <i class="fas fa-spinner fa-spin" id="dropdownSpinner"></i>
+                                </div>
+                            </div>
+                        </div>
 
+                        <!-- Delete Buttons -->
+                        <div class="delete-buttons-group">
+                            <form method="POST" action="{{ url_for('main.delete_file') }}" id="deleteFileForm" 
+                                onsubmit="return confirm('⚠️ This will delete the selected file and all its attendance data. Continue?');">
+                                <input type="hidden" name="batch_id" id="batchIdInput">
+                                <button type="submit" class="delete-file-btn" id="deleteFileBtn" disabled>
+                                    <i class="fas fa-trash"></i> Delete Selected File
+                                </button>
+                            </form>
+                            
+                            <form action="{{ url_for('main.delete_data') }}" method="POST" 
+                                onsubmit="return confirm('⚠️ This will permanently delete ALL attendance and report data. Continue?');">
+                                <button type="submit" class="delete-all-btn">
+                                    <i class="fas fa-bomb"></i> Delete All Data
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- Monthly Summary Table -->
             {% if table %}
                 <div class="action-section">

@@ -407,6 +407,7 @@ function initializeMonthlyJS() {
     initSearchableDropdown("shiftDropdown");
     initSearchableDropdown("compDropdown");
     initTableSearch();
+    initFileManagement();
     initTableSorting();
     initClearSearch();
     initDataExport();
@@ -447,5 +448,203 @@ const addSortStyles = () => {
         document.head.appendChild(styles);
     }
 };
+/* ============================
+   📁 FILE MANAGEMENT FUNCTIONS
+============================ */
+function initFileManagement() {
+    console.log('Initializing file management...');
+    
+    const fileDropdown = document.getElementById('fileDropdown');
+    const deleteFileBtn = document.getElementById('deleteFileBtn');
+    const batchIdInput = document.getElementById('batchIdInput');
+
+    if (!fileDropdown) {
+        console.error('File dropdown element not found');
+        return;
+    }
+
+    // Load files immediately on page load
+    loadUploadedFiles();
+    
+    // Enable/disable delete button based on selection
+    fileDropdown.addEventListener('change', function() {
+        const hasSelection = this.value !== '';
+        if (deleteFileBtn) {
+            deleteFileBtn.disabled = !hasSelection;
+        }
+        if (batchIdInput) {
+            batchIdInput.value = this.value;
+        }
+        console.log('Selected batch:', this.value);
+    });
+
+    // Reload files when dropdown is focused
+    fileDropdown.addEventListener('focus', function() {
+        if (this.options.length <= 1 || (this.options.length === 2 && this.options[1].disabled)) {
+            loadUploadedFiles();
+        }
+    });
+}
+
+async function loadUploadedFiles() {
+    const fileDropdown = document.getElementById('fileDropdown');
+    const dropdownSpinner = document.getElementById('dropdownSpinner');
+    
+    if (!fileDropdown) {
+        console.error('File dropdown not found');
+        return;
+    }
+
+    try {
+        console.log('Loading uploaded files from API...');
+        
+        // Show loading state
+        if (dropdownSpinner) {
+            dropdownSpinner.style.display = 'inline-block';
+        }
+        
+        fileDropdown.innerHTML = '<option value="">-- Loading files... --</option>';
+        fileDropdown.disabled = true;
+
+        // IMPORTANT: Add credentials include for session cookies
+        const response = await fetch('/api/uploaded_files', {
+            method: 'GET',
+            credentials: 'include'  // Session cookies include karne ke liye
+        });
+        
+        // Check if response is JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            console.error('Non-JSON response:', text.substring(0, 200));
+            throw new Error('Server returned HTML instead of JSON. Check authentication.');
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        console.log('Files API response:', data);
+        populateFileDropdown(data.files || []);
+
+    } catch (error) {
+        console.error('Error loading files:', error);
+        
+        // Show appropriate error message
+        let errorMessage = 'Failed to load file list';
+        if (error.message.includes('HTML')) {
+            errorMessage = 'Authentication required. Please refresh the page.';
+        } else if (error.message.includes('Network')) {
+            errorMessage = 'Network error. Please check your connection.';
+        } else {
+            errorMessage = error.message;
+        }
+        
+        showNotification(errorMessage, 'error');
+        populateFileDropdown([]); // Show empty state
+    } finally {
+        if (dropdownSpinner) {
+            dropdownSpinner.style.display = 'none';
+        }
+        fileDropdown.disabled = false;
+    }
+}
+
+function populateFileDropdown(files) {
+    const fileDropdown = document.getElementById('fileDropdown');
+    
+    if (!fileDropdown) return;
+
+    console.log('Populating dropdown with:', files);
+
+    // Clear all options
+    fileDropdown.innerHTML = '';
+
+    if (!files || files.length === 0) {
+        // Add empty state option
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '-- No files uploaded yet --';
+        emptyOption.disabled = true;
+        fileDropdown.appendChild(emptyOption);
+        
+        updateDeleteButtonState(false);
+        return;
+    }
+
+    // Add default option
+    const defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = '-- Select a file to delete --';
+    fileDropdown.appendChild(defaultOption);
+
+    // Add file options
+    files.forEach(file => {
+        const option = document.createElement('option');
+        option.value = file.batch_id;
+        
+        // Create display text
+        const displayText = `${file.filename} (${file.upload_date}) - ${file.record_count} records`;
+        option.textContent = displayText.length > 80 ? displayText.substring(0, 77) + '...' : displayText;
+        
+        option.title = `Filename: ${file.filename}\nUploaded: ${file.upload_date}\nRecords: ${file.record_count}`;
+        fileDropdown.appendChild(option);
+    });
+
+    updateDeleteButtonState(false);
+}
+
+function updateDeleteButtonState(enabled) {
+    const deleteFileBtn = document.getElementById('deleteFileBtn');
+    const deleteBtnText = document.getElementById('deleteBtnText');
+    
+    if (deleteFileBtn) {
+        deleteFileBtn.disabled = !enabled;
+    }
+    if (deleteBtnText) {
+        deleteBtnText.textContent = enabled ? 'Delete Selected File' : 'Select File First';
+    }
+}
+
+// Enhanced notification function for file management
+function showNotification(message, type = 'success') {
+    // Remove existing notifications
+    const existingNotif = document.querySelector('.custom-notification');
+    if (existingNotif) existingNotif.remove();
+
+    const notif = document.createElement('div');
+    notif.className = `custom-notification ${type}`;
+    notif.innerHTML = `
+        <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
+        <span>${message}</span>
+    `;
+
+    document.body.appendChild(notif);
+
+    // Animate in
+    setTimeout(() => notif.classList.add('show'), 100);
+
+    // Remove after delay
+    setTimeout(() => {
+        notif.classList.remove('show');
+        setTimeout(() => notif.remove(), 300);
+    }, 5000);
+}
+
+function confirmDeleteFile() {
+    const dropdown = document.getElementById('fileDropdown');
+    const selectedOption = dropdown.options[dropdown.selectedIndex];
+    
+    if (!selectedOption || selectedOption.value === '') {
+        showNotification('Please select a file first', 'error');
+        return false;
+    }
+    
+    const filename = selectedOption.textContent.split(' (')[0];
+    
+    return confirm(`⚠️ DELETE CONFIRMATION\n\nFile: "${filename}"\n\nThis will:\n• Remove this file's data from database\n• Remove this file from UI\n• Keep all other files safe\n\nContinue?`);
+}
 
 addSortStyles();

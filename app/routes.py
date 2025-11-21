@@ -5,17 +5,19 @@ from app import db
 from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin
 from datetime import datetime
 from sqlalchemy import func
+from app.service.file_service import get_uploaded_files, delete_uploaded_file
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 import re
 import time
-
+import logging 
 from app.service.daily_service import generate_daily_report, DailyReportGenerator, AttendanceCalculator
 from app.service.monthly_service import generate_monthly_report_from_daily
 from app.service.file_service import FileService
 from app.service.employee_service import EmployeeService
 
 main = Blueprint("main", __name__)
+logger = logging.getLogger(__name__)
 
 # ===========================================================
 # CONFIGURATION & CONSTANTS
@@ -458,3 +460,65 @@ def convert_shift_display(shift_text):
 
     shift_text = shift_text.strip()
     return f"{shift_text} {SHIFT_DISPLAY_MAPPING.get(shift_text, '')}".strip()
+
+# ===========================================================
+# Selected file deleete routes 
+# ===========================================================
+
+
+@main.route("/api/uploaded_files", methods=["GET"])
+@login_required
+def get_uploaded_files_api():
+    """API endpoint to get all uploaded files."""
+    try:
+        files = get_uploaded_files()
+        return jsonify({"files": files})
+    except Exception as e:
+        print(f"Error fetching uploaded files: {e}")  # Temporary print
+        return jsonify({"error": "Failed to fetch uploaded files"}), 500
+
+@main.route("/api/session_check", methods=["GET"])
+def session_check():
+    """Public endpoint to check session status."""
+    if 'admin_id' in session:
+        return jsonify({
+            "authenticated": True,
+            "username": session.get('admin_username')
+        })
+    else:
+        return jsonify({
+            "authenticated": False
+        }), 401
+    
+
+@main.route("/delete_file", methods=["POST"])
+@login_required
+def delete_file():
+    """Delete a specific uploaded file and regenerate reports from remaining data."""
+    try:
+        batch_id = request.form.get("batch_id")
+        if not batch_id:
+            flash("❌ File selection is required", "error")
+            return redirect(url_for("main.index"))
+
+        success, message = delete_uploaded_file(batch_id)
+        
+        if success:
+            # Clear existing reports
+            db.session.query(DailyReport).delete()
+            db.session.query(MonthlyReport).delete()
+            db.session.commit()
+            
+            # Regenerate reports from REMAINING data only
+            generate_daily_report()
+            generate_monthly_report_from_daily()
+            
+            flash(f"{message} Reports updated with remaining data.", "success")
+        else:
+            flash(message, "error")
+            
+    except Exception as e:
+        print(f"Error in delete_file route: {e}")
+        flash("❌ Error deleting file", "error")
+    
+    return redirect(url_for("main.index"))

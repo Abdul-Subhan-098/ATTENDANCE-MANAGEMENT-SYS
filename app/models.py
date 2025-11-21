@@ -4,7 +4,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 
 # ===========================================================
-#               ATTENDANCE RAW MODEL
+#               ATTENDANCE RAW MODEL (UPDATED)
 # ===========================================================
 class AttendanceRaw(db.Model):
     __tablename__ = "attendance_raw"
@@ -16,6 +16,11 @@ class AttendanceRaw(db.Model):
     work_code = db.Column("Work Code", db.String(50))
     attendance_state = db.Column("Attendance State", db.String(10))
     device_name = db.Column("Device Name", db.String(255))
+    
+    # New columns for file tracking
+    upload_batch = db.Column(db.String(100), nullable=False, default='default')
+    original_filename = db.Column(db.String(255))
+    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<AttendanceRaw {self.emp_id} - {self.name} - {self.time}>"
