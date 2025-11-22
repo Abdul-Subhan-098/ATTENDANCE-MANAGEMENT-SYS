@@ -1,6 +1,6 @@
 import re
-from datetime import datetime, date, time
-from typing import Optional, Tuple, Set
+from datetime import datetime, date, timedelta , time
+from typing import Optional, Tuple, Set 
 from flask import flash
 from app import db
 from app.models import Employee, DailyReport, MonthlyReport
@@ -190,23 +190,117 @@ class EmployeeService:
         daily_record.missed_checkout = (missed_out == "Yes")
 
     def _update_monthly_reports(self, employee: Employee, affected_months: Set[str]):
-        """Update monthly reports for affected months."""
+        """Update monthly reports for affected months with recalculated metrics."""
         for month in affected_months:
-            monthly_records = MonthlyReport.query.filter(
+            # Delete existing monthly records for this employee and month
+            MonthlyReport.query.filter(
                 MonthlyReport.name == employee.name,
                 MonthlyReport.report_month == month
-            ).all()
-            
-            for monthly_record in monthly_records:
-                self._update_single_monthly_record(monthly_record, employee)
+            ).delete()
         
         db.session.commit()
+        
+        # Regenerate monthly reports for all affected months
+        for month in affected_months:
+            self._regenerate_monthly_report(employee.name, month)
+
+    def _regenerate_monthly_report(self, employee_name: str, month_str: str):
+        """Regenerate monthly report for a specific employee and month."""
+        try:
+            # Parse month
+            start_date = datetime.strptime(f"{month_str}-01", "%Y-%m-%d").date()
+            next_month = start_date.replace(day=28) + timedelta(days=4)
+            end_date = next_month.replace(day=1)
+            
+            # Get all daily records for this employee in the month
+            daily_records = DailyReport.query.filter(
+                DailyReport.employee_name == employee_name,
+                DailyReport.date >= start_date,
+                DailyReport.date < end_date
+            ).order_by(DailyReport.date).all()
+            
+            if not daily_records:
+                return
+                
+            # Get employee data
+            employee = Employee.query.filter_by(name=employee_name).first()
+            if not employee:
+                return
+                
+            # Initialize counters
+            present_count = 0
+            absent_count = 0
+            late_count = 0
+            half_day_weekdays_count = 0
+            half_day_sat_count = 0
+            full_day_sat_count = 0
+            overtime_hours = 0.0
+            compensated_count = 0
+            total_days = len(daily_records)
+            
+            # Calculate metrics from daily records
+            for daily_record in daily_records:
+                status = daily_record.status or ""
+                
+                if status == "Present":
+                    present_count += 1
+                elif status == "Absent":
+                    absent_count += 1
+                elif status == "Late":
+                    late_count += 1
+                elif status == "Half Day":
+                    if daily_record.date.weekday() < 5:  # Monday-Friday
+                        half_day_weekdays_count += 1
+                    else:
+                        half_day_sat_count += 1
+                elif status == "Half Day (Sat)":
+                    half_day_sat_count += 1
+                elif status == "Full Day (Sat)":
+                    full_day_sat_count += 1
+                elif status == "Compensated":
+                    compensated_count += 1
+                    
+                overtime_hours += float(daily_record.overtime or 0.0)
+            
+            # Create or update monthly report
+            monthly_report = MonthlyReport(
+                emp_id=employee.emp_id or daily_records[0].emp_id,
+                name=employee_name,
+                department=employee.department or "Cold Calling",
+                joining_date=employee.joining_date,
+                last_updated_date=employee.last_updated_date or datetime.utcnow().date(),
+                shift=employee.shift,
+                report_month=month_str,
+                total_days=total_days,
+                present=present_count,
+                absent=absent_count,
+                late=late_count,
+                half_day_weekdays=half_day_weekdays_count,
+                half_day_sat=half_day_sat_count,
+                full_day_sat=full_day_sat_count,
+                ot_hours=round(overtime_hours, 2),
+                compensated=compensated_count
+            )
+            
+            db.session.add(monthly_report)
+            db.session.commit()
+            
+            logger.info(f"Regenerated monthly report for {employee_name} - {month_str}")
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error regenerating monthly report for {employee_name} - {month_str}: {e}")
 
     def _update_single_monthly_record(self, monthly_record: MonthlyReport, employee: Employee):
         """Update a single monthly record with new employee data."""
+        # Update basic employee info
         monthly_record.department = employee.department
         monthly_record.joining_date = employee.joining_date
         monthly_record.last_updated_date = employee.last_updated_date
+        monthly_record.shift = employee.shift  
+        
+        
+
 
     def _parse_employee_shift(self, employee: Employee) -> Tuple[time, time]:
         """Parse employee shift string into time objects."""
