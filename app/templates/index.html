@@ -148,8 +148,6 @@
                                     <th>Absent</th>
                                     <th>Late</th>
                                     <th>Half Days</th>
-                                    <th>Half Day (Sat)</th>
-                                    <th>Full Day (Sat)</th>
                                     <th>OT Hours</th>
                                     <th>Compensated</th>
                                 </tr>
@@ -166,8 +164,6 @@
                                         <td>{{ row.Absent if row.Absent is defined else 0 }}</td>
                                         <td>{{ row.Late if row.Late is defined else 0 }}</td>
                                         <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
-                                        <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td>
-                                        <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td>
                                         <td>{{ row.Overtime if row.Overtime is defined else 0 }}</td>
                                         <td>{{ row.Compensated if row.Compensated is defined else 0 }}</td>
                                     </tr>
