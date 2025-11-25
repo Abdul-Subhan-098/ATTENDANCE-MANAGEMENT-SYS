@@ -148,7 +148,7 @@ class EmployeeService:
 
     def _update_single_daily_record(self, daily_record: DailyReport, employee: Employee,
                                     shift_start: time, shift_end: time):
-        """Update a single daily record with new employee data."""
+        """Update a single daily record with new employee data - FIXED Saturday OT logic."""
         daily_record.shift = employee.shift
         daily_record.department = employee.department
         daily_record.joining_date = employee.joining_date
@@ -173,21 +173,17 @@ class EmployeeService:
         check_in_dt = datetime.combine(daily_record.date, daily_record.check_in) if daily_record.check_in else None
         check_out_dt = datetime.combine(daily_record.date, daily_record.check_out) if daily_record.check_out else None
 
-        daily_record.status, _ = self.calculator.calculate_status(
+        # Use the UPDATED calculate_status method with full_time parameter
+        daily_record.status, daily_record.overtime = self.calculator.calculate_status(
             check_in_dt, check_out_dt, daily_record.date, shift_start, shift_end, full_time
-        )
-        
-        daily_record.overtime = self.calculator.calculate_overtime(
-            check_in_dt, 
-            check_out_dt,
-            datetime.combine(daily_record.date, shift_start),
-            datetime.combine(daily_record.date, shift_end)
         )
 
         # Update missed punches
         missed_in, missed_out = self.calculator.determine_missed_punches(check_in_dt, check_out_dt)
         daily_record.missed_checkin = (missed_in == "Yes")
         daily_record.missed_checkout = (missed_out == "Yes")
+
+        logger.debug(f"Updated {employee.name} - {daily_record.date}: Status={daily_record.status}, OT={daily_record.overtime}, FullTime={full_time}")
 
     def _update_monthly_reports(self, employee: Employee, affected_months: Set[str]):
         """Update monthly reports for affected months with recalculated metrics."""
@@ -200,12 +196,12 @@ class EmployeeService:
         
         db.session.commit()
         
-        # Regenerate monthly reports for all affected months
+        # Regenerate monthly reports for all affected months using UPDATED logic
         for month in affected_months:
             self._regenerate_monthly_report(employee.name, month)
 
     def _regenerate_monthly_report(self, employee_name: str, month_str: str):
-        """Regenerate monthly report for a specific employee and month."""
+        """Regenerate monthly report for a specific employee and month - FIXED with new OT logic."""
         try:
             # Parse month
             start_date = datetime.strptime(f"{month_str}-01", "%Y-%m-%d").date()
@@ -226,22 +222,36 @@ class EmployeeService:
             employee = Employee.query.filter_by(name=employee_name).first()
             if not employee:
                 return
+
+            # Determine if employee is full-time based on current shift
+            is_full_time = True
+            if employee and employee.shift:
+                try:
+                    shift_parts = employee.shift.split('-')
+                    if len(shift_parts) == 2:
+                        shift_start = datetime.strptime(shift_parts[0].strip(), "%H:%M").time()
+                        shift_end = datetime.strptime(shift_parts[1].strip(), "%H:%M").time()
+                        shift_start_dt = datetime.combine(date.today(), shift_start)
+                        shift_end_dt = datetime.combine(date.today(), shift_end)
+                        shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
+                        is_full_time = shift_duration >= 9.0
+                except Exception as e:
+                    logger.warning(f"Error calculating full-time status for {employee_name}: {e}")
                 
-            # Initialize counters
+            # Initialize counters - UPDATED: No separate Saturday columns
             present_count = 0
             absent_count = 0
             late_count = 0
             half_day_weekdays_count = 0
-            half_day_sat_count = 0
-            full_day_sat_count = 0
             overtime_hours = 0.0
             compensated_count = 0
             total_days = len(daily_records)
             
-            # Calculate metrics from daily records
+            # Calculate metrics from daily records - UPDATED LOGIC
             for daily_record in daily_records:
                 status = daily_record.status or ""
                 
+                # Status counting - simplified without Saturday-specific columns
                 if status == "Present":
                     present_count += 1
                 elif status == "Absent":
@@ -249,20 +259,31 @@ class EmployeeService:
                 elif status == "Late":
                     late_count += 1
                 elif status == "Half Day":
-                    if daily_record.date.weekday() < 5:  # Monday-Friday
-                        half_day_weekdays_count += 1
-                    else:
-                        half_day_sat_count += 1
-                elif status == "Half Day (Sat)":
-                    half_day_sat_count += 1
-                elif status == "Full Day (Sat)":
-                    full_day_sat_count += 1
+                    half_day_weekdays_count += 1
                 elif status == "Compensated":
                     compensated_count += 1
+                
+                # Overtime calculation - UPDATED for Saturday logic
+                daily_overtime = float(daily_record.overtime or 0.0)
+                
+                # For full-timers on Saturday, ensure all hours are counted as OT
+                if (daily_record.date.weekday() == 5 and  # Saturday
+                    is_full_time and 
+                    daily_record.check_in and 
+                    daily_record.check_out):
                     
-                overtime_hours += float(daily_record.overtime or 0.0)
+                    # Calculate actual hours worked on Saturday
+                    check_in_dt = datetime.combine(daily_record.date, daily_record.check_in)
+                    check_out_dt = datetime.combine(daily_record.date, daily_record.check_out)
+                    saturday_hours = max(0.0, (check_out_dt - check_in_dt).total_seconds() / 3600.0)
+                    
+                    # Use the actual hours worked as OT (override any previous calculation)
+                    daily_overtime = saturday_hours
+                    logger.debug(f"Saturday OT for {employee_name} on {daily_record.date}: {saturday_hours} hours")
+                
+                overtime_hours += daily_overtime
             
-            # Create or update monthly report
+            # Create or update monthly report - UPDATED structure
             monthly_report = MonthlyReport(
                 emp_id=employee.emp_id or daily_records[0].emp_id,
                 name=employee_name,
@@ -276,8 +297,8 @@ class EmployeeService:
                 absent=absent_count,
                 late=late_count,
                 half_day_weekdays=half_day_weekdays_count,
-                half_day_sat=half_day_sat_count,
-                full_day_sat=full_day_sat_count,
+                half_day_sat=0,  # Deprecated column - set to 0
+                full_day_sat=0,  # Deprecated column - set to 0
                 ot_hours=round(overtime_hours, 2),
                 compensated=compensated_count
             )
@@ -285,22 +306,12 @@ class EmployeeService:
             db.session.add(monthly_report)
             db.session.commit()
             
-            logger.info(f"Regenerated monthly report for {employee_name} - {month_str}")
+            logger.info(f"Regenerated monthly report for {employee_name} - {month_str}: "
+                       f"Present={present_count}, OT={overtime_hours}, FullTime={is_full_time}")
             
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error regenerating monthly report for {employee_name} - {month_str}: {e}")
-
-    def _update_single_monthly_record(self, monthly_record: MonthlyReport, employee: Employee):
-        """Update a single monthly record with new employee data."""
-        # Update basic employee info
-        monthly_record.department = employee.department
-        monthly_record.joining_date = employee.joining_date
-        monthly_record.last_updated_date = employee.last_updated_date
-        monthly_record.shift = employee.shift  
-        
-        
-
 
     def _parse_employee_shift(self, employee: Employee) -> Tuple[time, time]:
         """Parse employee shift string into time objects."""

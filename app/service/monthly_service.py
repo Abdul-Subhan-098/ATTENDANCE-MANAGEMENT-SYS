@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Generate monthly report from daily records, using employee shift data."""
+    """Generate monthly report from daily records - UPDATED to remove Saturday columns"""
     calculator = AttendanceCalculator() 
 
     if not month_str:
@@ -38,7 +38,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     MonthlyReport.query.filter(MonthlyReport.report_month == month_str).delete()
     db.session.commit()
 
-    # Aggregate data by employee
+    # Aggregate data by employee - UPDATED structure
     employees_data = defaultdict(lambda: {
         "EmpID": "",
         "Name": "",
@@ -47,9 +47,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         "Absent": 0,
         "Late": 0,
         "HalfDayWeekdays": 0,
-        "HalfDaySat": 0,
-        "FullDaySat": 0,
-        "OverTime": 0.0,
+        "OverTime": 0.0,  # Now includes Saturday hours for full-timers
         "Compensated": 0,
     })
 
@@ -66,11 +64,23 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             
         emp_data["Name"] = emp_name
         emp_data["TotalDays"] += 1
-        emp_data["OverTime"] += float(row.overtime or 0.0)
+        
+        # Determine if employee is full-time
+        is_full_time = True  # Default
+        if emp and emp.shift:
+            try:
+                shift_parts = emp.shift.split('-')
+                if len(shift_parts) == 2:
+                    shift_start = datetime.strptime(shift_parts[0].strip(), "%H:%M").time()
+                    shift_end = datetime.strptime(shift_parts[1].strip(), "%H:%M").time()
+                    is_full_time = calculator.is_full_time_employee(shift_start, shift_end)
+            except Exception as e:
+                logger.warning(f"Error parsing shift for {emp_name}: {e}")
 
         status = row.status or ""
         weekday = row.date.weekday()
         
+        # Count statuses - UPDATED: No separate Saturday columns
         if status == "Present":
             emp_data["Present"] += 1
         elif status == "Absent":
@@ -78,18 +88,26 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         elif status == "Late":
             emp_data["Late"] += 1
         elif status == "Half Day":
-            if weekday < 5:
-                emp_data["HalfDayWeekdays"] += 1
-            else:
-                emp_data["HalfDaySat"] += 1
-        elif status == "Half Day (Sat)":
-            emp_data["HalfDaySat"] += 1
-        elif status == "Full Day (Sat)":
-            emp_data["FullDaySat"] += 1
-        elif status == "Compensated":
+            # All half days go to same counter now
+            emp_data["HalfDayWeekdays"] += 1
+        
+        # Overtime calculation - UPDATED for Saturday logic
+        overtime_to_add = float(row.overtime or 0.0)
+        
+        # For full-timers on Saturday, add all hours as OT
+        if weekday == 5 and is_full_time and row.check_in and row.check_out:
+            # Calculate actual hours worked on Saturday
+            check_in_dt = datetime.combine(row.date, row.check_in)
+            check_out_dt = datetime.combine(row.date, row.check_out)
+            saturday_hours = (check_out_dt - check_in_dt).total_seconds() / 3600.0
+            overtime_to_add = saturday_hours  # Override with actual hours
+        
+        emp_data["OverTime"] += overtime_to_add
+
+        if status == "Compensated":
             emp_data["Compensated"] += 1
 
-    # Save monthly reports with employee data
+    # Save monthly reports with updated structure
     for name, data in employees_data.items():
         emp = all_emps.get(name)
         
@@ -99,15 +117,15 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             department=emp.department if emp else "Cold Calling",
             joining_date=emp.joining_date if emp else None,
             last_updated_date=emp.last_updated_date if emp else datetime.utcnow().date(),
-            shift=emp.shift if emp else "10:00 - 19:00",  # Use employee's shift
+            shift=emp.shift if emp else "10:00 - 19:00",
             report_month=month_str,
             total_days=data["TotalDays"],
             present=data["Present"],
             absent=data["Absent"],
             late=data["Late"],
             half_day_weekdays=data["HalfDayWeekdays"],
-            half_day_sat=data["HalfDaySat"],
-            full_day_sat=data["FullDaySat"],
+            half_day_sat=0,  # Set to 0 as column is deprecated
+            full_day_sat=0,  # Set to 0 as column is deprecated
             ot_hours=round(data["OverTime"], 2),
             compensated=data["Compensated"]
         )
@@ -115,7 +133,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
 
     db.session.commit()
 
-    # Return display-ready data
+    # Return display-ready data with updated structure
     def safe(val, default=""):
         return val if val is not None else default
 
@@ -126,7 +144,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             "EmpID": safe(data["EmpID"], ""),
             "Name": safe(data["Name"]),
             "Department": safe(emp.department) if emp else "Cold Calling",
-            "Shift": safe(emp.shift) if emp else "10:00 - 19:00",  # Ensure shift is included
+            "Shift": safe(emp.shift) if emp else "10:00 - 19:00",
             "JoiningDate": emp.joining_date.strftime("%Y-%m-%d") if emp and emp.joining_date else "",
             "LastUpdated": emp.last_updated_date.strftime("%Y-%m-%d") if emp and emp.last_updated_date else "",
             "TotalDays": safe(data["TotalDays"], 0),
@@ -134,8 +152,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             "Absent": safe(data["Absent"], 0),
             "Late": safe(data["Late"], 0),
             "HalfDayWeekdays": safe(data["HalfDayWeekdays"], 0),
-            "HalfDaySat": safe(data["HalfDaySat"], 0),
-            "FullDaySat": safe(data["FullDaySat"], 0),
+            # Removed: "HalfDaySat" and "FullDaySat" columns
             "OverTime": round(float(data["OverTime"] or 0.0), 2),
             "Compensated": safe(data["Compensated"], 0),
         })
