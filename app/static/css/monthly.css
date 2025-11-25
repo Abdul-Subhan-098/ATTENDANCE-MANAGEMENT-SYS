@@ -539,7 +539,7 @@ body {
     color: var(--warning);
 }
 
-#summaryTable td:nth-child(12) { /* OT Hours - GOLDEN */
+#summaryTable td:nth-child(10) { /* OT Hours - GOLDEN */
     color: #bba10b;
     font-weight: 700;
 }
@@ -547,8 +547,6 @@ body {
 /* All other numeric columns - BLACK */
 #summaryTable td:nth-child(5),  /* Total Days */
 #summaryTable td:nth-child(9),  /* Half Days */
-#summaryTable td:nth-child(10), /* Half Day (Sat) */
-#summaryTable td:nth-child(11), /* Full Day (Sat) */
 #summaryTable td:nth-child(13) { /* Compensation */
     color: var(--dark);
 }
