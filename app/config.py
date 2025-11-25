@@ -97,13 +97,18 @@ class ProductionConfig(Config):
     SESSION_COOKIE_SECURE = False  # Set to True when you have HTTPS
     PREFERRED_URL_SCHEME = 'http'  # Change to 'https' when using SSL
     
-    # Production performance
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_recycle': 300,
         'pool_pre_ping': True,
-        'pool_size': 20,
-        'max_overflow': 30,
-        'pool_timeout': 15,
+        'pool_size': 100,  # 50k rows ke liye bada pool
+        'max_overflow': 200,  # More overflow connections
+        'pool_timeout': 60,
+        'echo': False,
+        'connect_args': {
+            'application_name': 'attendance_app_50k',
+            'connect_timeout': 30,
+            'command_timeout': 300,  # 5 minutes for large operations
+        }
     }
 
 
