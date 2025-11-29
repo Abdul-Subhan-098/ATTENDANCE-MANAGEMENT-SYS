@@ -149,7 +149,10 @@
                                     <th>Late</th>
                                     <th>Half Days</th>
                                     <th>OT Hours</th>
-                                    <th>Compensated</th>
+                                    <th>Comp 
+                                        Late</th>
+                                    <th>Comp Half</th>
+                                    <th>Comp Absent</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -165,7 +168,10 @@
                                         <td>{{ row.Late if row.Late is defined else 0 }}</td>
                                         <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
                                         <td>{{ row.Overtime if row.Overtime is defined else 0 }}</td>
-                                        <td>{{ row.Compensated if row.Compensated is defined else 0 }}</td>
+                                        <!-- <td>{{ row.Compensated if row.Compensated is defined else 0 }}</td> -->
+                                        <td>{{ row.ByLateCount if row.ByLateCount is defined else 0 }}</td>
+                                        <td>{{ row.ByHalfDayCount if row.ByHalfDayCount is defined else 0 }}</td>
+                                        <td>{{ row.ByAbsentCount if row.ByAbsentCount is defined else 0 }}</td>
                                     </tr>
                                 {% endfor %}
                             </tbody>

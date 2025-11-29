@@ -61,121 +61,455 @@
                 {% endif %}
             {% endwith %}
 
-            <!-- Action Buttons -->
-            <div class="action-buttons-container">
-                <div class="action-header">
-                    <i class="fas fa-user-plus"></i>
-                    <div>
-                        <h3>Employee Actions</h3>
-                        <p>Add new employees or update existing records</p>
+            <!-- Settings Tabs - Added from Settings page -->
+            <div class="settings-tabs">
+                <button class="tab-btn active" data-tab="add-employee">Add Employee</button>
+                <button class="tab-btn" data-tab="update-employee">Update Employee</button>
+                <button class="tab-btn" data-tab="company-off">Company Off Days</button>
+                <button class="tab-btn" data-tab="compensation-settings">Compensation</button>
+                <button class="tab-btn" data-tab="export-settings">Export</button>
+                <button class="tab-btn" data-tab="system-settings">System</button>
+            </div>
+
+            <!-- Tab Contents -->
+            <!-- Add Employee Tab -->
+            <div class="tab-content active" id="add-employee">
+                <div class="settings-section">
+                    <h3 class="section-title">Add New Employee</h3>
+                    <div class="settings-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Employee ID</label>
+                                <input type="text" class="form-input" id="employeeId" placeholder="Enter unique employee ID">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" class="form-input" id="employeeName" placeholder="Enter full name">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Joining Date</label>
+                                <input type="date" class="form-input" id="employeeJoinDate">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Department</label>
+                                <select class="form-input" id="employeeDepartment">
+                                    <option value="">Select Department</option>
+                                    <option value="MANAGEMENT TEAM">MANAGEMENT TEAM</option>
+                                    <option value="HOD">HOD</option>
+                                    <option value="Disposition Department">Disposition Department</option>
+                                    <option value="HR & Administration">HR & Administration</option>
+                                    <option value="Social Media Marketing">Social Media Marketing</option>
+                                    <option value="Salesforce & CRM">Salesforce & CRM</option>
+                                    <option value="Research Work">Research Work</option>
+                                    <option value="Data & Report Team">Data & Report Team</option>
+                                    <option value="Dialer Switching Team">Dialer Switching Team</option>
+                                    <option value="Leads Transfer Team">Leads Transfer Team</option>
+                                    <option value="Quality control">Quality control</option>
+                                    <option value="Leads Effectiveness Team">Leads Effectiveness Team</option>
+                                    <option value="Leads Quality Assurance Team">Leads Quality Assurance Team</option>
+                                    <option value="Transaction Coordinator">Transaction Coordinator</option>
+                                    <option value="Other Campaigns Cold Callers">Other Campaigns Cold Callers</option>
+                                    <option value="Ember CC & Follow-Ups Team">Ember CC & Follow-Ups Team</option>
+                                    <option value="Training & Development">Training & Development</option>
+                                    <option value="Team Managers for Cold Calling">Team Managers for Cold Calling</option>
+                                    <option value="Team Leaders for Cold Calling">Team Leaders for Cold Calling</option>
+                                    <option value="Real Estate Cold Callers">Real Estate Cold Callers</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Shift</label>
+                                <select class="form-input" id="employeeShift">
+                                    <option value="09:00 - 18:00">09:00 - 18:00 (07:00 to 04:00)</option>
+                                    <option value="10:00 - 19:00">10:00 - 19:00 (08:00 to 05:00)</option>
+                                    <option value="11:00 - 20:00">11:00 - 20:00 (09:00 to 06:00)</option>
+                                    <option value="11:30 - 20:30">11:30 - 20:30 (09:30 to 06:30)</option>
+                                    <option value="09:00 - 13:30">09:00 - 13:30 (07:00 to 11:30)</option>
+                                    <option value="10:00 - 14:30">10:00 - 14:30 (08:00 to 12:30)</option>
+                                    <option value="09:00 - 14:30">09:00 - 14:30 (07:00 to 12:30)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Role</label>
+                                <input type="text" class="form-input" id="employeeRole" placeholder="Enter job role">
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn btn-primary" id="addEmployeeBtn">
+                                <i class="fas fa-user-plus"></i> Add Employee
+                            </button>
+                            <button class="btn btn-secondary" id="clearEmployeeForm">
+                                <i class="fas fa-undo"></i> Clear Form
+                            </button>
+                        </div>
                     </div>
-                </div>
-                <div class="action-buttons">
-                    <button class="btn-primary" id="addEmployeeBtn">
-                        <i class="fas fa-plus"></i> Update Employee
-                    </button>
-                    <button class="btn-secondary" id="exportEmployeesBtn">
-                        <i class="fas fa-download"></i> Export to Excel
-                    </button>
                 </div>
             </div>
 
-            <!-- Employee Form Section -->
-            <div class="form-section" id="employeeFormSection">
-                <div class="section-header">
-                    <i class="fas fa-user-edit"></i>
-                    <h3>{{ 'Update Employee' if not edit_mode else 'Edit Employee' }}</h3>
+            <!-- Update Employee Tab -->
+            <div class="tab-content" id="update-employee">
+                <div class="form-section" id="employeeFormSection">
+                    <div class="section-header">
+                        <i class="fas fa-user-edit"></i>
+                        <h3>{{ 'Update Employee' if not edit_mode else 'Edit Employee' }}</h3>
+                    </div>
+
+                    <form method="POST" action="{{ url_for('main.employees') }}" class="employee-form" id="employeeForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="name"><i class="fas fa-user"></i> Full Name</label>
+                                <select id="name" name="name" required>
+                                    <option value="" disabled selected>Select employee name</option>
+                                    {% for name in daily_names %}
+                                        <option value="{{ name }}" {% if edit_employee and edit_employee.name == name %}selected{% endif %}>{{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="joining_date"><i class="fas fa-calendar-alt"></i> Joining Date</label>
+                                <input type="date" id="joining_date" name="joining_date" required 
+                                       value="{{ edit_employee.joining_date if edit_employee else '' }}">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="department"><i class="fas fa-building"></i> Department</label>
+                                <select id="department" name="department" required>
+                                    <option value="" disabled selected>Select Department</option>
+                                    <option value="MANAGEMENT TEAM" {% if edit_employee and edit_employee.department == 'MANAGEMENT TEAM' %}selected{% endif %}>MANAGEMENT TEAM</option>
+                                    <option value="HOD" {% if edit_employee and edit_employee.department == 'HOD' %}selected{% endif %}>HOD</option>
+                                    <option value="Disposition Department" {% if edit_employee and edit_employee.department == 'Disposition Department' %}selected{% endif %}>Disposition Department</option>
+                                    <option value="HR & Administration" {% if edit_employee and edit_employee.department == 'HR & Administration' %}selected{% endif %}>HR & Administration</option>
+                                    <option value="Social Media Marketing" {% if edit_employee and edit_employee.department == 'Social Media Marketing' %}selected{% endif %}>Social Media Marketing</option>
+                                    <option value="Salesforce & CRM" {% if edit_employee and edit_employee.department == 'Salesforce & CRM' %}selected{% endif %}>Salesforce & CRM</option>
+                                    <option value="Research Work" {% if edit_employee and edit_employee.department == 'Research Work' %}selected{% endif %}>Research Work</option>
+                                    <option value="Data & Report Team" {% if edit_employee and edit_employee.department == 'Data & Report Team' %}selected{% endif %}>Data & Report Team</option>
+                                    <option value="Dialer Switching Team" {% if edit_employee and edit_employee.department == 'Dialer Switching Team' %}selected{% endif %}>Dialer Switching Team</option>
+                                    <option value="Leads Transfer Team" {% if edit_employee and edit_employee.department == 'Leads Transfer Team' %}selected{% endif %}>Leads Transfer Team</option>
+                                    <option value="Quality control" {% if edit_employee and edit_employee.department == 'Quality control' %}selected{% endif %}>Quality control</option>
+                                    <option value="Leads Effectiveness Team" {% if edit_employee and edit_employee.department == 'Leads Effectiveness Team' %}selected{% endif %}>Leads Effectiveness Team</option>
+                                    <option value="Leads Quality Assurance Team" {% if edit_employee and edit_employee.department == 'Leads Quality Assurance Team' %}selected{% endif %}>Leads Quality Assurance Team</option>
+                                    <option value="Transaction Coordinator" {% if edit_employee and edit_employee.department == 'Transaction Coordinator' %}selected{% endif %}>Transaction Coordinator</option>
+                                    <option value="Other Campaigns Cold Callers" {% if edit_employee and edit_employee.department == 'Other Campaigns Cold Callers' %}selected{% endif %}>Other Campaigns Cold Callers</option>
+                                    <option value="Ember CC & Follow-Ups Team" {% if edit_employee and edit_employee.department == 'Ember CC & Follow-Ups Team' %}selected{% endif %}>Ember CC & Follow-Ups Team</option>
+                                    <option value="Training & Development" {% if edit_employee and edit_employee.department == 'Training & Development' %}selected{% endif %}>Training & Development</option>
+                                    <option value="Team Managers for Cold Calling" {% if edit_employee and edit_employee.department == 'Team Managers for Cold Calling' %}selected{% endif %}>Team Managers for Cold Calling</option>
+                                    <option value="Team Leaders for Cold Calling" {% if edit_employee and edit_employee.department == 'Team Leaders for Cold Calling' %}selected{% endif %}>Team Leaders for Cold Calling</option>
+                                    <option value="Real Estate Cold Callers" {% if edit_employee and edit_employee.department == 'Real Estate Cold Callers' %}selected{% endif %}>Real Estate Cold Callers</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="effective_date"><i class="fas fa-calendar-check"></i> Effective From</label>
+                                <input type="date" id="effective_date" name="effective_date" required 
+                                       value="{{ edit_employee.last_updated_date if edit_employee else current_date }}">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="shift"><i class="fas fa-clock"></i> Shift</label>
+                                <select id="shift" name="shift" required>
+                                    <option value="" disabled selected>Select shift</option>
+                                    <option value="09:00 - 18:00" {% if edit_employee and edit_employee.shift == '09:00 - 18:00' %}selected{% endif %}>09:00 - 18:00 (07:00 to 04:00)</option>
+                                    <option value="10:00 - 19:00" {% if edit_employee and edit_employee.shift == '10:00 - 19:00' %}selected{% endif %}>10:00 - 19:00 (08:00 to 05:00)</option>
+                                    <option value="11:00 - 20:00" {% if edit_employee and edit_employee.shift == '11:00 - 20:00' %}selected{% endif %}>11:00 - 20:00 (09:00 to 06:00)</option>
+                                    <option value="11:30 - 20:30" {% if edit_employee and edit_employee.shift == '11:30 - 20:30' %}selected{% endif %}>11:30 - 20:30 (09:30 to 06:30)</option>
+                                    <option value="09:00 - 13:30" {% if edit_employee and edit_employee.shift == '09:00 - 13:30' %}selected{% endif %}>09:00 - 13:30 (07:00 to 11:30)</option>
+                                    <option value="10:00 - 14:30" {% if edit_employee and edit_employee.shift == '10:00 - 14:30' %}selected{% endif %}>10:00 - 14:30 (08:00 to 12:30)</option>
+                                    <option value="09:00 - 14:30" {% if edit_employee and edit_employee.shift == '09:00 - 14:30' %}selected{% endif %}>09:00 - 14:30 (07:00 to 12:30)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="employee_id"><i class="fas fa-id-card"></i> Employee ID (Optional)</label>
+                                <input type="text" id="employee_id" name="employee_id" 
+                                       placeholder="Auto-generated if empty"
+                                       value="{{ edit_employee.employee_id if edit_employee else '' }}">
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">
+                                <i class="fas fa-{{ 'plus-circle' if not edit_mode else 'save' }}"></i> 
+                                {{ 'Update Employee' if not edit_mode else 'Update Employee' }}
+                            </button>
+                            {% if edit_mode %}
+                            <button type="button" class="btn-secondary" id="cancelEditBtn">
+                                <i class="fas fa-times"></i> Cancel
+                            </button>
+                            {% endif %}
+                        </div>
+                    </form>
                 </div>
+            </div>
 
-                <form method="POST" action="{{ url_for('main.employees') }}" class="employee-form" id="employeeForm">
-                    <div class="form-row">
+            <!-- Company Off Days Tab -->
+            <div class="tab-content" id="company-off">
+                <div class="settings-section">
+                    <h3 class="section-title">Company Off Days</h3>
+                    <div class="settings-form">
                         <div class="form-group">
-                            <label for="name"><i class="fas fa-user"></i> Full Name</label>
-                            <select id="name" name="name" required>
-                                <option value="" disabled selected>Select employee name</option>
-                                {% for name in daily_names %}
-                                    <option value="{{ name }}" {% if edit_employee and edit_employee.name == name %}selected{% endif %}>{{ name }}</option>
-                                {% endfor %}
+                            <label class="form-label">Add Company Off Day</label>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <input type="date" class="form-input" id="offDayDate">
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" class="form-input" id="offDayReason" placeholder="Reason for off day">
+                                </div>
+                                <div class="form-group">
+                                    <button class="btn btn-primary" id="addOffDay">
+                                        <i class="fas fa-plus"></i> Add Off Day
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Scheduled Off Days</label>
+                            <div class="off-days-list" id="offDaysList">
+                                <!-- Off days will be listed here -->
+                                <div class="empty-state">
+                                    <i class="fas fa-calendar-times"></i>
+                                    <p>No off days scheduled</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Recurring Weekly Off</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="weeklyOff" value="sunday"> Sunday
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="weeklyOff" value="monday"> Monday
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="weeklyOff" value="tuesday"> Tuesday
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="weeklyOff" value="wednesday"> Wednesday
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="weeklyOff" value="thursday"> Thursday
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="weeklyOff" value="friday"> Friday
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="weeklyOff" value="saturday" checked> Saturday
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+                <!-- Compensation Tab -->
+                <div class="tab-content" id="compensation-settings">
+                    <div class="settings-section">
+                        <h3 class="section-title">Attendance Compensation</h3>
+                        
+                        <!-- Compensation Form -->
+                        <div class="settings-form" id="compensationForm">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Employee Name *</label>
+                                    <input type="text" class="form-input" id="compensationEmployee" 
+                                        list="employeeSuggestions" placeholder="Select employee">
+                                    <datalist id="employeeSuggestions">
+                                        {% for name in daily_names %}
+                                        <option value="{{ name }}">{{ name }}</option>
+                                        {% endfor %}
+                                    </datalist>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Compensation Type *</label>
+                                    <select class="form-input" id="compensationType" required>
+                                        <option value="">Select Type</option>
+                                        <option value="By Late">By Late</option>
+                                        <option value="By Half Day">By Half Day</option>
+                                        <option value="By Absent">By Absent</option>
+                                        <option value="Sandwich">Sandwich Policy</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label class="form-label">Violation Date *</label>
+                                    <input type="date" class="form-input" id="violationDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Compensation Date *</label>
+                                    <input type="date" class="form-input" id="compensationDate" required>
+                                </div>
+                            </div>
+
+                            <!-- Eligibility Check Result -->
+                            <div id="eligibilityResult" class="eligibility-result" style="display: none;"></div>
+
+                            <!-- Action Buttons -->
+                            <div class="form-actions">
+                                <button type="button" class="btn btn-secondary" id="checkEligibilityBtn">
+                                    <i class="fas fa-check-circle"></i> Check Eligibility
+                                </button>
+                                <button type="button" class="btn btn-primary" id="applyCompensationBtn">
+                                    <i class="fas fa-calculator"></i> Apply Compensation
+                                </button>
+                                <button type="button" class="btn btn-outline" id="clearCompensationForm">
+                                    <i class="fas fa-times"></i> Clear Form
+                                </button>
+                            </div>
+
+                            <!-- Result Message -->
+                            <div id="compensationResult" class="result-message" style="display: none;"></div>
+                        </div>
+
+                        <!-- Compensation History -->
+                        <div class="compensation-history-section">
+                            <h4 class="section-subtitle">
+                                <i class="fas fa-history"></i> Recent Compensation History
+                                <button class="btn btn-sm btn-outline" id="refreshHistoryBtn">
+                                    <i class="fas fa-sync-alt"></i> Refresh
+                                </button>
+                            </h4>
+                            <div id="compensationHistoryList" class="compensation-history-list">
+                                <!-- History will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <!-- Export Tab -->
+            <div class="tab-content" id="export-settings">
+                <div class="settings-section">
+                    <h3 class="section-title">Export Settings</h3>
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label class="form-label">Default Export Format</label>
+                            <select class="form-input" id="exportFormat" name="defaultExportFormat">
+                                <option value="csv">CSV</option>
+                                <option value="excel">Excel</option>
+                                <option value="pdf">PDF</option>
                             </select>
                         </div>
-
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Select Month</label>
+                                <select class="form-input" id="exportMonth">
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Select Year</label>
+                                <select class="form-input" id="exportYear">
+                                    <option value="2023">2023</option>
+                                    <option value="2024" selected>2024</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2026">2026</option>
+                                </select>
+                            </div>
+                        </div>
+                        
                         <div class="form-group">
-                            <label for="joining_date"><i class="fas fa-calendar-alt"></i> Joining Date</label>
-                            <input type="date" id="joining_date" name="joining_date" required 
-                                   value="{{ edit_employee.joining_date if edit_employee else '' }}">
+                            <label class="form-label">Include in Export</label>
+                            <div class="checkbox-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" checked> Employee Details
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" checked> Daily Records
+                                </label>
+                                <label class="checkbox-label">
+                                    <input type="checkbox" checked> Monthly Records
+                                </label>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button class="btn btn-primary" id="exportData">
+                                <i class="fas fa-download"></i> Export Data Now
+                            </button>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="department"><i class="fas fa-building"></i> Department</label>
-                            <select id="department" name="department" required>
-                                <option value="" disabled selected>Select Department</option>
-                                <option value="MANAGEMENT TEAM" {% if edit_employee and edit_employee.department == 'MANAGEMENT TEAM' %}selected{% endif %}>MANAGEMENT TEAM</option>
-                                <option value="HOD" {% if edit_employee and edit_employee.department == 'HOD' %}selected{% endif %}>HOD</option>
-                                <option value="Disposition Department" {% if edit_employee and edit_employee.department == 'Disposition Department' %}selected{% endif %}>Disposition Department</option>
-                                <option value="HR & Administration" {% if edit_employee and edit_employee.department == 'HR & Administration' %}selected{% endif %}>HR & Administration</option>
-                                <option value="Social Media Marketing" {% if edit_employee and edit_employee.department == 'Social Media Marketing' %}selected{% endif %}>Social Media Marketing</option>
-                                <option value="Salesforce & CRM" {% if edit_employee and edit_employee.department == 'Salesforce & CRM' %}selected{% endif %}>Salesforce & CRM</option>
-                                <option value="Research Work" {% if edit_employee and edit_employee.department == 'Research Work' %}selected{% endif %}>Research Work</option>
-                                <option value="Data & Report Team" {% if edit_employee and edit_employee.department == 'Data & Report Team' %}selected{% endif %}>Data & Report Team</option>
-                                <option value="Dialer Switching Team" {% if edit_employee and edit_employee.department == 'Dialer Switching Team' %}selected{% endif %}>Dialer Switching Team</option>
-                                <option value="Leads Transfer Team" {% if edit_employee and edit_employee.department == 'Leads Transfer Team' %}selected{% endif %}>Leads Transfer Team</option>
-                                <option value="Quality control" {% if edit_employee and edit_employee.department == 'Quality control' %}selected{% endif %}>Quality control</option>
-                                <option value="Leads Effectiveness Team" {% if edit_employee and edit_employee.department == 'Leads Effectiveness Team' %}selected{% endif %}>Leads Effectiveness Team</option>
-                                <option value="Leads Quality Assurance Team" {% if edit_employee and edit_employee.department == 'Leads Quality Assurance Team' %}selected{% endif %}>Leads Quality Assurance Team</option>
-                                <option value="Transaction Coordinator" {% if edit_employee and edit_employee.department == 'Transaction Coordinator' %}selected{% endif %}>Transaction Coordinator</option>
-                                <option value="Other Campaigns Cold Callers" {% if edit_employee and edit_employee.department == 'Other Campaigns Cold Callers' %}selected{% endif %}>Other Campaigns Cold Callers</option>
-                                <option value="Ember CC & Follow-Ups Team" {% if edit_employee and edit_employee.department == 'Ember CC & Follow-Ups Team' %}selected{% endif %}>Ember CC & Follow-Ups Team</option>
-                                <option value="Training & Development" {% if edit_employee and edit_employee.department == 'Training & Development' %}selected{% endif %}>Training & Development</option>
-                                <option value="Team Managers for Cold Calling" {% if edit_employee and edit_employee.department == 'Team Managers for Cold Calling' %}selected{% endif %}>Team Managers for Cold Calling</option>
-                                <option value="Team Leaders for Cold Calling" {% if edit_employee and edit_employee.department == 'Team Leaders for Cold Calling' %}selected{% endif %}>Team Leaders for Cold Calling</option>
-                                <option value="Real Estate Cold Callers" {% if edit_employee and edit_employee.department == 'Real Estate Cold Callers' %}selected{% endif %}>Real Estate Cold Callers</option>
-                            </select>
+            <!-- System Tab -->
+            <div class="tab-content" id="system-settings">
+                <div class="settings-section">
+                    <h3 class="section-title">System Information</h3>
+                    <div class="settings-form">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">System Version</label>
+                                <input type="text" class="form-input" value="AMS v2.1.0" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Last Updated</label>
+                                <input type="text" class="form-input" value="2023-11-15" readonly>
+                            </div>
                         </div>
-
-                        <div class="form-group">
-                            <label for="effective_date"><i class="fas fa-calendar-check"></i> Effective From</label>
-                            <input type="date" id="effective_date" name="effective_date" required 
-                                   value="{{ edit_employee.last_updated_date if edit_employee else current_date }}">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Database Size</label>
+                                <input type="text" class="form-input" value="245 MB" readonly>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Total Employees</label>
+                                <input type="text" class="form-input" value="127" readonly>
+                            </div>
                         </div>
                     </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="shift"><i class="fas fa-clock"></i> Shift</label>
-                            <select id="shift" name="shift" required>
-                                <option value="" disabled selected>Select shift</option>
-                                <option value="09:00 - 18:00" {% if edit_employee and edit_employee.shift == '09:00 - 18:00' %}selected{% endif %}>09:00 - 18:00 (07:00 to 04:00)</option>
-                                <option value="10:00 - 19:00" {% if edit_employee and edit_employee.shift == '10:00 - 19:00' %}selected{% endif %}>10:00 - 19:00 (08:00 to 05:00)</option>
-                                <option value="11:00 - 20:00" {% if edit_employee and edit_employee.shift == '11:00 - 20:00' %}selected{% endif %}>11:00 - 20:00 (09:00 to 06:00)</option>
-                                <option value="11:30 - 20:30" {% if edit_employee and edit_employee.shift == '11:30 - 20:30' %}selected{% endif %}>11:30 - 20:30 (09:30 to 06:30)</option>
-                                <option value="09:00 - 13:30" {% if edit_employee and edit_employee.shift == '09:00 - 13:30' %}selected{% endif %}>09:00 - 13:30 (07:00 to 11:30)</option>
-                                <option value="10:00 - 14:30" {% if edit_employee and edit_employee.shift == '10:00 - 14:30' %}selected{% endif %}>10:00 - 14:30 (08:00 to 12:30)</option>
-                                <option value="09:00 - 14:30" {% if edit_employee and edit_employee.shift == '09:00 - 14:30' %}selected{% endif %}>09:00 - 14:30 (07:00 to 12:30)</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="employee_id"><i class="fas fa-id-card"></i> Employee ID (Optional)</label>
-                            <input type="text" id="employee_id" name="employee_id" 
-                                   placeholder="Auto-generated if empty"
-                                   value="{{ edit_employee.employee_id if edit_employee else '' }}">
+                </div>
+                
+                <div class="settings-section">
+                    <h3 class="section-title">System Actions</h3>
+                    <div class="danger-zone">
+                        <h4 class="danger-title">Danger Zone</h4>
+                        <p class="danger-description">These actions are irreversible. Please proceed with caution.</p>
+                        
+                        <div class="danger-actions">
+                            <div class="danger-action">
+                                <div class="danger-info">
+                                    <h5>Reset Settings</h5>
+                                    <p>Reset all settings to their default values</p>
+                                </div>
+                                <button class="btn btn-warning" id="resetSettings">
+                                    <i class="fas fa-undo"></i> Reset Settings
+                                </button>
+                            </div>
+                            
+                            <div class="danger-action">
+                                <div class="danger-info">
+                                    <h5>Clear All Data</h5>
+                                    <p>Permanently delete all attendance and employee data</p>
+                                </div>
+                                <button class="btn btn-danger" id="clearData">
+                                    <i class="fas fa-trash"></i> Clear All Data
+                                </button>
+                            </div>
                         </div>
                     </div>
-
-                    <div class="form-actions">
-                        <button type="submit" class="btn-primary">
-                            <i class="fas fa-{{ 'plus-circle' if not edit_mode else 'save' }}"></i> 
-                            {{ 'Update Employee' if not edit_mode else 'Update Employee' }}
-                        </button>
-                        {% if edit_mode %}
-                        <button type="button" class="btn-secondary" id="cancelEditBtn">
-                            <i class="fas fa-times"></i> Cancel
-                        </button>
-                        {% endif %}
-                    </div>
-                </form>
+                </div>
             </div>
 
             <!-- Employee Table Section -->
@@ -213,6 +547,7 @@
                                 <th>Joining Date</th>
                                 <th>Department</th>
                                 <th>Shift</th>
+                                <th>Role</th>
                                 <th>Effective From</th>
                                 <th>Actions</th>
                             </tr>
@@ -230,6 +565,7 @@
                                         </span>
                                     </td>
                                     <td>{{ emp.shift if emp.shift else '-' }}</td>
+                                    <td>{{ emp.role if emp.role else '-' }}</td>
                                     <td>{{ emp.last_updated_date if emp.last_updated_date else emp.joining_date }}</td>
                                     <td>
                                         <div class="action-buttons">
@@ -245,7 +581,7 @@
                                 {% endfor %}
                             {% else %}
                                 <tr class="empty-state">
-                                    <td colspan="7">
+                                    <td colspan="8">
                                         <i class="fas fa-users empty-state-icon"></i>
                                         <h3>No Employees Found</h3>
                                         <p>Add your first employee using the form above</p>
@@ -303,20 +639,22 @@
             const mainContent = document.getElementById('mainContent');
             const sidebarToggle = document.getElementById('sidebarToggle');
             
-            sidebarToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('collapsed');
-                mainContent.classList.toggle('expanded');
-                
-                // Change the icon based on sidebar state
-                const icon = sidebarToggle.querySelector('i');
-                if (sidebar.classList.contains('collapsed')) {
-                    icon.classList.remove('fa-bars');
-                    icon.classList.add('fa-arrow-right');
-                } else {
-                    icon.classList.remove('fa-arrow-right');
-                    icon.classList.add('fa-bars');
-                }
-            });
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('collapsed');
+                    mainContent.classList.toggle('expanded');
+                    
+                    // Change the icon based on sidebar state
+                    const icon = sidebarToggle.querySelector('i');
+                    if (sidebar.classList.contains('collapsed')) {
+                        icon.classList.remove('fa-bars');
+                        icon.classList.add('fa-arrow-right');
+                    } else {
+                        icon.classList.remove('fa-arrow-right');
+                        icon.classList.add('fa-bars');
+                    }
+                });
+            }
 
             // Set today's date as default for effective date
             const effectiveDateInput = document.getElementById('effective_date');
@@ -331,6 +669,25 @@
                 const today = new Date().toISOString().split('T')[0];
                 joiningDateInput.value = today;
             }
+
+            // Tab switching functionality
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Remove active class from all buttons and contents
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    // Add active class to clicked button
+                    btn.classList.add('active');
+                    
+                    // Show corresponding content
+                    const tabId = btn.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
         });
 
         // employees.js - Enhanced Employee Management Functionality
@@ -553,7 +910,7 @@ document.addEventListener("DOMContentLoaded", function() {
     // Export to Excel
     function exportToExcel() {
         // Simple CSV export implementation
-        const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Effective From'];
+        const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Role', 'Effective From'];
         const rows = state.filteredEmployees.map(row => {
             const cells = row.querySelectorAll('td');
             return [
@@ -562,7 +919,8 @@ document.addEventListener("DOMContentLoaded", function() {
                 cells[2].textContent.trim(),
                 cells[3].textContent.trim(),
                 cells[4].textContent.trim(),
-                cells[5].textContent.trim()
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim()
             ];
         });
 

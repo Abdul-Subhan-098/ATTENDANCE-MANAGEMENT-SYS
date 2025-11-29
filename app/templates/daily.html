@@ -46,8 +46,8 @@
         <div class="container">
             <!-- Page Header -->
             <div class="page-header">
-                <h1><i class="fas fa-calendar-alt"><b></i> Daily Attendance Report</h1></b>
-                <p>Comprehensive Overview Of Daily Employee Attendance Record </p>
+                <h1><i class="fas fa-calendar-alt"></i> Daily Attendance Report</h1>
+                <p>Comprehensive Overview Of Daily Employee Attendance Record</p>
             </div>
 
             <!-- Summary Cards -->
@@ -171,6 +171,7 @@
                             <th>Check-Out</th>
                             <th>Status</th>
                             <th>Overtime</th>
+                            <th>Compensation</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -208,11 +209,21 @@
                                         {{ record.Overtime|int if record.Overtime else 0 }}h
                                     </span>
                                 </td>
+                                <td>
+                                    {% if record.CompensationType and record.CompensatedDate %}
+                                        <span class="compensation-badge">
+                                            {{ record.CompensationType }}<br>
+                                            <small>{{ record.CompensatedDate }}</small>
+                                        </span>
+                                    {% else %}
+                                        <span class="no-compensation">-</span>
+                                    {% endif %}
+                                </td>
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr class="empty-state">
-                                <td colspan="9">
+                                <td colspan="10">
                                     <i class="fas fa-clipboard-list empty-state-icon"></i>
                                     <h3>No Daily Records Found</h3>
                                     <p>Upload attendance data to view daily records</p>
@@ -225,7 +236,6 @@
         </div>
     </div>
 
-
     <script src="{{ url_for('static', filename='js/daily.js') }}"></script>
    
     <script>
@@ -235,20 +245,22 @@
             const mainContent = document.getElementById('mainContent');
             const sidebarToggle = document.getElementById('sidebarToggle');
             
-            sidebarToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('collapsed');
-                mainContent.classList.toggle('expanded');
-                
-                // Change the icon based on sidebar state
-                const icon = sidebarToggle.querySelector('i');
-                if (sidebar.classList.contains('collapsed')) {
-                    icon.classList.remove('fa-bars');
-                    icon.classList.add('fa-arrow-right');
-                } else {
-                    icon.classList.remove('fa-arrow-right');
-                    icon.classList.add('fa-bars');
-                }
-            });
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    sidebar.classList.toggle('collapsed');
+                    mainContent.classList.toggle('expanded');
+                    
+                    // Change the icon based on sidebar state
+                    const icon = sidebarToggle.querySelector('i');
+                    if (sidebar.classList.contains('collapsed')) {
+                        icon.classList.remove('fa-bars');
+                        icon.classList.add('fa-arrow-right');
+                    } else {
+                        icon.classList.remove('fa-arrow-right');
+                        icon.classList.add('fa-bars');
+                    }
+                });
+            }
         });
     </script>
 </body>
