@@ -3,7 +3,7 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from app import db
 from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin
-from datetime import datetime
+from datetime import datetime,timedelta
 from sqlalchemy import func
 from app.service.file_service import get_uploaded_files, delete_uploaded_file
 from functools import wraps
@@ -91,8 +91,10 @@ def _clear_daily_cache():
     global _daily_report_cache
     _daily_report_cache = {"data": None, "timestamp": 0}
 
+# In your routes.py file, update the _format_daily_record function:
+
 def _format_daily_record(record):
-    """Format a single daily record for API response."""
+    """Format a single daily record for API response"""
     return {
         "EmpID": record.emp_id,
         "Date": record.date.strftime("%Y-%m-%d"),
@@ -105,7 +107,9 @@ def _format_daily_record(record):
         "MissedCheckIn": "Yes" if record.missed_checkin else "No",
         "MissedCheckOut": "Yes" if record.missed_checkout else "No",
         "Overtime": record.overtime or 0.0,
-        "Department": record.department or "Cold Calling"
+        "Department": record.department or "Cold Calling",
+        "CompensationType": record.compensation_type or "",
+        "CompensatedDate": record.compensated_date.strftime("%Y-%m-%d") if record.compensated_date else ""
     }
 
 def _format_monthly_record(record):
@@ -125,7 +129,11 @@ def _format_monthly_record(record):
         "Overtime": record.ot_hours or 0.0,
         "JoiningDate": record.joining_date.strftime("%Y-%m-%d") if record.joining_date else "",
         "LastUpdated": record.last_updated_date.strftime("%Y-%m-%d") if record.last_updated_date else "",
+        "ByLateCount": record.by_late_count or 0,         
+        "ByHalfDayCount": record.by_half_day_count or 0,  
+        "ByAbsentCount": record.by_absent_count or 0      
     }
+
 
 # ===========================================================
 # AUTHENTICATION ROUTES
@@ -522,3 +530,100 @@ def delete_file():
         flash("❌ Error deleting file", "error")
     
     return redirect(url_for("main.index"))
+# ===========================================================
+# COMPENSATION ROUTES
+# ===========================================================
+
+@main.route("/apply_compensation", methods=["POST"])
+@login_required
+def apply_compensation():
+    """Apply compensation to attendance record"""
+    try:
+        data = request.get_json()
+        
+        employee_name = data.get("employee_name")
+        violation_date_str = data.get("violation_date")
+        compensation_date_str = data.get("compensation_date")
+        compensation_type = data.get("compensation_type")
+        
+        if not all([employee_name, violation_date_str, compensation_date_str, compensation_type]):
+            return jsonify({"success": False, "message": "All fields are required"}), 400
+        
+        # Convert dates
+        violation_date = datetime.strptime(violation_date_str, "%Y-%m-%d").date()
+        compensation_date = datetime.strptime(compensation_date_str, "%Y-%m-%d").date()
+        
+        # Apply compensation
+        from app.service.compensation_service import CompensationService
+        service = CompensationService()
+        result = service.apply_compensation(
+            employee_name, violation_date, compensation_date, compensation_type
+        )
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Compensation API error: {e}")
+        return jsonify({"success": False, "message": "Internal server error"}), 500
+
+@main.route("/check_compensation_eligibility", methods=["POST"])
+@login_required
+def check_compensation_eligibility():
+    """Check if employee is eligible for compensation"""
+    try:
+        data = request.get_json()
+        
+        employee_name = data.get("employee_name")
+        violation_date_str = data.get("violation_date")
+        compensation_type = data.get("compensation_type")
+        
+        if not all([employee_name, violation_date_str, compensation_type]):
+            return jsonify({"eligible": False, "message": "All fields are required"})
+        
+        violation_date = datetime.strptime(violation_date_str, "%Y-%m-%d").date()
+        
+        from app.service.compensation_service import CompensationService
+        service = CompensationService()
+        
+        # For eligibility check, we use compensation_date = violation_date (same day)
+        employee, violation_record, _ = service._fetch_records(
+            employee_name, violation_date, violation_date
+        )
+        
+        if not employee:
+            return jsonify({"eligible": False, "message": "Employee not found"})
+        if not violation_record:
+            return jsonify({"eligible": False, "message": "Violation record not found"})
+        
+        is_eligible, message = service._check_eligibility(
+            employee, violation_record, compensation_type
+        )
+        
+        return jsonify({"eligible": is_eligible, "message": message})
+        
+    except Exception as e:
+        logger.error(f"Eligibility check error: {e}")
+        return jsonify({"eligible": False, "message": "Error checking eligibility"})
+
+@main.route("/api/compensation_history")
+@login_required
+def get_compensation_history():
+    """Get compensation history for display"""
+    try:
+        from app.service.compensation_service import CompensationService
+        service = CompensationService()
+        
+        # Get last 30 days of compensation history
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=30)
+        
+        history = service.get_compensation_history(
+            start_date=start_date, 
+            end_date=end_date
+        )
+        
+        return jsonify({"history": history})
+        
+    except Exception as e:
+        logger.error(f"Error getting compensation history: {e}")
+        return jsonify({"history": []})

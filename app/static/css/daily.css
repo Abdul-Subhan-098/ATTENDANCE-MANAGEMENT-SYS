@@ -10,8 +10,8 @@
     --primary-dark: #2563eb;
     --primary-light: #60a5fa;
     --secondary: #7c3aed;
-    --success: #16a34a;
-    --success-dark: #15803d;
+    --success: #1bcf5d;
+    --success-dark: #0a6d2e;
     --error: #dc2626;
     --error-dark: #b91c1c;
     --warning: #d97706;
@@ -1041,4 +1041,64 @@ body {
 
 .container > * {
     animation: fadeIn 0.4s ease-out;
+}
+
+.compensation-badge small {
+    font-size: 10px;
+    opacity: 0.9;
+    font-weight: 500;
+    display: block;
+    margin-top: 2px;
+}
+
+.no-compensation {
+    color: #6b7280;
+    font-style: italic;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Compensation column header styling */
+#attendanceTable th:nth-child(10) {
+    color: white;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* Compensation column data styling */
+#attendanceTable td:nth-child(10) {
+    text-align: center;
+    vertical-align: middle;
+    padding: 8px 6px;
+}
+
+
+/* Responsive design for compensation column */
+@media (max-width: 768px) {
+    .compensation-badge {
+        min-width: 80px;
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+    
+    .compensation-badge small {
+        font-size: 9px;
+    }
+    
+    #attendanceTable td:nth-child(10) {
+        padding: 6px 4px;
+    }
+}
+
+@media (max-width: 480px) {
+    .compensation-badge {
+        min-width: 70px;
+        padding: 4px 6px;
+        font-size: 10px;
+    }
+    
+    .compensation-badge small {
+        font-size: 8px;
+    }
 }

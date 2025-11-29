@@ -391,6 +391,11 @@ document.addEventListener("DOMContentLoaded", () => {
         
         // Extract shift time from format like "10:00 - 19:00 (08:00 to 05:00)"
         const shiftTime = extractShiftTime(r.ShiftDisplay || r.Shift);
+        
+        // Create compensation display
+        const compensationDisplay = r.CompensationType && r.CompensatedDate 
+            ? `<span class="compensation-badge">${r.CompensationType}<br><small>${r.CompensatedDate}</small></span>`
+            : `<span class="no-compensation">-</span>`;
 
         return createElement(`
             <tr data-name="${r.Name || ""}" data-date="${r.Date || ""}" data-status="${r.Status || ""}" data-department="${r.Department || ""}">
@@ -403,9 +408,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td>${r.CheckOut || "Missed"}</td>
                 <td>
                     <span class="status-badge ${statusClass}"
-                          data-emp-name="${r.Name}" 
-                          data-date="${r.Date}">
-                          ${r.Status || "Absent"}
+                        data-emp-name="${r.Name}" 
+                        data-date="${r.Date}">
+                        ${r.Status || "Absent"}
                     </span>
                 </td>
                 <td>
@@ -413,10 +418,12 @@ document.addEventListener("DOMContentLoaded", () => {
                         ${overtimeDisplay}
                     </span>
                 </td>
+                <td>
+                    ${compensationDisplay}
+                </td>
             </tr>
         `);
     }
-
     function extractShiftTime(shift) {
         if (!shift) return "N/A";
         

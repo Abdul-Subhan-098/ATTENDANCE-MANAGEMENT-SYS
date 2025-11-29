@@ -10,7 +10,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[Dict[str, Any]]:
-    """Generate monthly report from daily records - UPDATED to remove Saturday columns"""
+    """Generate monthly report from daily records with compensation counts"""
     calculator = AttendanceCalculator() 
 
     if not month_str:
@@ -38,7 +38,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     MonthlyReport.query.filter(MonthlyReport.report_month == month_str).delete()
     db.session.commit()
 
-    # Aggregate data by employee - UPDATED structure
+    # Aggregate data by employee - UPDATED structure with compensation counts
     employees_data = defaultdict(lambda: {
         "EmpID": "",
         "Name": "",
@@ -47,8 +47,12 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         "Absent": 0,
         "Late": 0,
         "HalfDayWeekdays": 0,
-        "OverTime": 0.0,  # Now includes Saturday hours for full-timers
-        "Compensated": 0,
+        "OverTime": 0.0,
+        # "Compensated": 0,
+        # NEW COMPENSATION COUNTS
+        "ByLateCount": 0,
+        "ByHalfDayCount": 0,
+        "ByAbsentCount": 0
     })
 
     for row in daily_records:
@@ -80,7 +84,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         status = row.status or ""
         weekday = row.date.weekday()
         
-        # Count statuses - UPDATED: No separate Saturday columns
+        # Count statuses
         if status == "Present":
             emp_data["Present"] += 1
         elif status == "Absent":
@@ -88,21 +92,28 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         elif status == "Late":
             emp_data["Late"] += 1
         elif status == "Half Day":
-            # All half days go to same counter now
             emp_data["HalfDayWeekdays"] += 1
         
-        # Overtime calculation - UPDATED for Saturday logic
+        # Overtime calculation
         overtime_to_add = float(row.overtime or 0.0)
         
         # For full-timers on Saturday, add all hours as OT
         if weekday == 5 and is_full_time and row.check_in and row.check_out:
-            # Calculate actual hours worked on Saturday
             check_in_dt = datetime.combine(row.date, row.check_in)
             check_out_dt = datetime.combine(row.date, row.check_out)
             saturday_hours = (check_out_dt - check_in_dt).total_seconds() / 3600.0
-            overtime_to_add = saturday_hours  # Override with actual hours
+            overtime_to_add = saturday_hours
         
         emp_data["OverTime"] += overtime_to_add
+
+        # Count compensation types - NEW LOGIC
+        if row.compensation_type:
+            if row.compensation_type == "By Late":
+                emp_data["ByLateCount"] += 1
+            elif row.compensation_type == "By Half Day":
+                emp_data["ByHalfDayCount"] += 1
+            elif row.compensation_type == "By Absent":
+                emp_data["ByAbsentCount"] += 1
 
         if status == "Compensated":
             emp_data["Compensated"] += 1
@@ -124,10 +135,13 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             absent=data["Absent"],
             late=data["Late"],
             half_day_weekdays=data["HalfDayWeekdays"],
-            half_day_sat=0,  # Set to 0 as column is deprecated
-            full_day_sat=0,  # Set to 0 as column is deprecated
+            half_day_sat=0,
+            full_day_sat=0,
             ot_hours=round(data["OverTime"], 2),
-            compensated=data["Compensated"]
+            # compensated=data["Compensated"],
+            by_late_count=data["ByLateCount"],
+            by_half_day_count=data["ByHalfDayCount"],
+            by_absent_count=data["ByAbsentCount"]
         )
         db.session.add(monthly_rec)
 
@@ -152,8 +166,10 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             "Absent": safe(data["Absent"], 0),
             "Late": safe(data["Late"], 0),
             "HalfDayWeekdays": safe(data["HalfDayWeekdays"], 0),
-            # Removed: "HalfDaySat" and "FullDaySat" columns
             "OverTime": round(float(data["OverTime"] or 0.0), 2),
-            "Compensated": safe(data["Compensated"], 0),
+            # "Compensated": safe(data["Compensated"], 0),
+            "ByLateCount": safe(data["ByLateCount"], 0),
+            "ByHalfDayCount": safe(data["ByHalfDayCount"], 0),
+            "ByAbsentCount": safe(data["ByAbsentCount"], 0)
         })
     return result
