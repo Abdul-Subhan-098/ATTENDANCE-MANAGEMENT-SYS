@@ -405,7 +405,6 @@ function initializeMonthlyJS() {
     
     // Initialize components
     initSearchableDropdown("shiftDropdown");
-    initSearchableDropdown("compDropdown");
     initTableSearch();
     initFileManagement();
     initTableSorting();

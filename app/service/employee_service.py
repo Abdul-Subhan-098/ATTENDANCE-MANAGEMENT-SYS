@@ -1,6 +1,6 @@
 import re
-from datetime import datetime, date, timedelta , time
-from typing import Optional, Tuple, Set 
+from datetime import datetime, date, timedelta, time
+from typing import Optional, Tuple, Set
 from flask import flash
 from app import db
 from app.models import Employee, DailyReport, MonthlyReport
@@ -29,8 +29,8 @@ class EmployeeService:
             logger.error(f"Error getting max effective date: {e}")
             return datetime.today().date()
 
-    def validate_employee_data(self, name: str, joining_date_str: str, department: str, 
-                             effective_date_str: str, shift_full: str) -> None:
+    def validate_employee_data(self, name: str, joining_date_str: str, department: str,
+                               effective_date_str: str, shift_full: str) -> None:
         """Validate all employee input data."""
         if not all([name, joining_date_str, department, effective_date_str, shift_full]):
             raise ValueError("Please provide all required fields.")
@@ -49,20 +49,20 @@ class EmployeeService:
         shift_pattern = r"(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})"
         return bool(re.match(shift_pattern, shift_str))
 
-    def add_or_update_employee(self, name: str, joining_date_str: str, department: str, 
-                             effective_date_str: str, shift_full: str) -> bool:
-        """Add or update employee and update related reports."""
+    def add_or_update_employee(self, name: str, joining_date_str: str, department: str,
+                               effective_date_str: str, shift_full: str, role: Optional[str] = None) -> bool:
+        """Add or update employee and update related reports. Accepts optional role."""
         try:
             self.validate_employee_data(name, joining_date_str, department, effective_date_str, shift_full)
-            
+
             joining_date = datetime.strptime(joining_date_str, "%Y-%m-%d").date()
             effective_date = datetime.strptime(effective_date_str, "%Y-%m-%d").date()
             shift_main = self._extract_shift_from_string(shift_full)
 
-            employee = self._save_employee_data(name, joining_date, department, effective_date, shift_main)
+            employee = self._save_employee_data(name, joining_date, department, effective_date, shift_main, role)
             self._update_related_reports(employee, effective_date)
-            
-            flash(f"✅ Employee '{name}' processed successfully effective from {effective_date}", "success")
+
+            flash(f"✅ Employee '{name}' ({employee.role}) processed successfully effective from {effective_date}", "success")
             return True
 
         except Exception as e:
@@ -79,39 +79,45 @@ class EmployeeService:
             raise ValueError("Invalid shift format")
         return match.group(1)
 
-    def _save_employee_data(self, name: str, joining_date: date, department: str, 
-                          effective_date: date, shift_main: str) -> Employee:
-        """Save or update employee record in database."""
+    def _save_employee_data(self, name: str, joining_date: date, department: str,
+                            effective_date: date, shift_main: str, role: Optional[str]) -> Employee:
+        """Save or update employee record in database. Preserves existing role if role param omitted."""
         employee = Employee.query.filter_by(name=name).first()
-        
+
         if employee:
-            self._update_existing_employee(employee, joining_date, department, effective_date, shift_main)
+            # Preserve existing role if role not explicitly provided
+            role_to_use = role if role else employee.role
+            self._update_existing_employee(employee, joining_date, department, effective_date, shift_main, role_to_use)
             action = "Updated"
         else:
-            employee = self._create_new_employee(name, joining_date, department, effective_date, shift_main)
+            # Use default role if none provided
+            role_to_use = role or "FullTime"
+            employee = self._create_new_employee(name, joining_date, department, effective_date, shift_main, role_to_use)
             action = "Added new"
-        
+
         db.session.commit()
-        logger.info(f"{action} employee '{name}' effective from {effective_date}")
+        logger.info(f"{action} employee '{name}' ({role_to_use}) effective from {effective_date}")
         return employee
 
     def _update_existing_employee(self, employee: Employee, joining_date: date, department: str,
-                                effective_date: date, shift_main: str):
+                                  effective_date: date, shift_main: str, role: str):
         """Update existing employee record."""
         employee.joining_date = joining_date
         employee.department = department
         employee.last_updated_date = effective_date
         employee.shift = shift_main
+        employee.role = role  # Preserve / update role
 
     def _create_new_employee(self, name: str, joining_date: date, department: str,
-                           effective_date: date, shift_main: str) -> Employee:
+                             effective_date: date, shift_main: str, role: str) -> Employee:
         """Create new employee record."""
         employee = Employee(
             name=name,
             joining_date=joining_date,
             department=department,
             last_updated_date=effective_date,
-            shift=shift_main
+            shift=shift_main,
+            role=role  # Set role
         )
         db.session.add(employee)
         return employee
@@ -153,6 +159,7 @@ class EmployeeService:
         daily_record.department = employee.department
         daily_record.joining_date = employee.joining_date
         daily_record.last_updated_date = employee.last_updated_date
+        daily_record.role = employee.role  # Always from Employee table (added from A)
         daily_record.manual_override = True
 
         # ---------- SUNDAY CHECK (FIRST PRIORITY) ----------
@@ -193,122 +200,152 @@ class EmployeeService:
                 MonthlyReport.name == employee.name,
                 MonthlyReport.report_month == month
             ).delete()
-        
+
         db.session.commit()
-        
+
         # Regenerate monthly reports for all affected months using UPDATED logic
         for month in affected_months:
             self._regenerate_monthly_report(employee.name, month)
 
     def _regenerate_monthly_report(self, employee_name: str, month_str: str):
-        """Regenerate monthly report for a specific employee and month - FIXED with new OT logic."""
+        """Regenerate monthly report with correct Sunday count, Sat types,
+        and weekday-only OT (Saturday OT excluded)."""
+
         try:
-            # Parse month
+            # -------------------------
+            # Date Range Setup
+            # -------------------------
             start_date = datetime.strptime(f"{month_str}-01", "%Y-%m-%d").date()
             next_month = start_date.replace(day=28) + timedelta(days=4)
             end_date = next_month.replace(day=1)
-            
-            # Get all daily records for this employee in the month
+
             daily_records = DailyReport.query.filter(
                 DailyReport.employee_name == employee_name,
                 DailyReport.date >= start_date,
                 DailyReport.date < end_date
             ).order_by(DailyReport.date).all()
-            
+
             if not daily_records:
-                return
-                
-            # Get employee data
-            employee = Employee.query.filter_by(name=employee_name).first()
-            if not employee:
+                logger.info(f"No daily records for {employee_name} in {month_str}")
                 return
 
-            # Determine if employee is full-time based on current shift
+            # -------------------------
+            # Employee Fetch
+            # -------------------------
+            employee = Employee.query.filter_by(name=employee_name).first()
+            if not employee:
+                logger.warning(f"Employee {employee_name} not found for monthly report {month_str}")
+                return
+
+            # -------------------------
+            # Determine full-time status via shift duration
+            # -------------------------
             is_full_time = True
-            if employee and employee.shift:
+            if employee.shift:
                 try:
-                    shift_parts = employee.shift.split('-')
-                    if len(shift_parts) == 2:
-                        shift_start = datetime.strptime(shift_parts[0].strip(), "%H:%M").time()
-                        shift_end = datetime.strptime(shift_parts[1].strip(), "%H:%M").time()
-                        shift_start_dt = datetime.combine(date.today(), shift_start)
-                        shift_end_dt = datetime.combine(date.today(), shift_end)
-                        shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
-                        is_full_time = shift_duration >= 9.0
-                except Exception as e:
-                    logger.warning(f"Error calculating full-time status for {employee_name}: {e}")
-                
-            # Initialize counters - UPDATED: No separate Saturday columns
-            present_count = 0
-            absent_count = 0
-            late_count = 0
-            half_day_weekdays_count = 0
-            overtime_hours = 0.0
-            compensated_count = 0
+                    parts = employee.shift.split('-')
+                    if len(parts) == 2:
+                        st = datetime.strptime(parts[0].strip(), "%H:%M").time()
+                        et = datetime.strptime(parts[1].strip(), "%H:%M").time()
+                        hrs = (datetime.combine(date.today(), et) - 
+                            datetime.combine(date.today(), st)).total_seconds() / 3600
+
+                        is_full_time = hrs >= 9
+                except:
+                    pass
+
+            # -------------------------
+            # Counters - UPDATED with all Code A + Code B fields
+            # -------------------------
+            present = absent = late = 0
+            half_day_weekdays = 0
+            half_day_sat = 0          
+            full_day_sat = 0          
+            compensated = 0
+            sundays = 0                
+            by_late_count = 0
+            by_half_day_count = 0
+            by_absent_count = 0
+            weekday_ot_hours = 0.0     
             total_days = len(daily_records)
-            
-            # Calculate metrics from daily records - UPDATED LOGIC
-            for daily_record in daily_records:
-                status = daily_record.status or ""
-                
-                # Status counting - simplified without Saturday-specific columns
+
+            # -------------------------
+            # Loop Records
+            # -------------------------
+            for row in daily_records:
+                status = row.status or ""
+
+                # ----- Status Count -----
                 if status == "Present":
-                    present_count += 1
+                    present += 1
                 elif status == "Absent":
-                    absent_count += 1
+                    absent += 1
                 elif status == "Late":
-                    late_count += 1
+                    late += 1
                 elif status == "Half Day":
-                    half_day_weekdays_count += 1
+                    half_day_weekdays += 1
                 elif status == "Compensated":
-                    compensated_count += 1
-                
-                # Overtime calculation - UPDATED for Saturday logic
-                daily_overtime = float(daily_record.overtime or 0.0)
-                
-                # For full-timers on Saturday, ensure all hours are counted as OT
-                if (daily_record.date.weekday() == 5 and  # Saturday
-                    is_full_time and 
-                    daily_record.check_in and 
-                    daily_record.check_out):
-                    
-                    # Calculate actual hours worked on Saturday
-                    check_in_dt = datetime.combine(daily_record.date, daily_record.check_in)
-                    check_out_dt = datetime.combine(daily_record.date, daily_record.check_out)
-                    saturday_hours = max(0.0, (check_out_dt - check_in_dt).total_seconds() / 3600.0)
-                    
-                    # Use the actual hours worked as OT (override any previous calculation)
-                    daily_overtime = saturday_hours
-                    logger.debug(f"Saturday OT for {employee_name} on {daily_record.date}: {saturday_hours} hours")
-                
-                overtime_hours += daily_overtime
-            
-            # Create or update monthly report - UPDATED structure
+                    compensated += 1
+                elif status == "Sunday":
+                    sundays += 1
+                elif status == "Half Day (Sat)":  
+                    half_day_sat += 1
+                elif status == "Full Day (Sat)":   
+                    full_day_sat += 1
+
+                # ----- Compensation Type Counts (Code B se) -----
+                if hasattr(row, 'compensation_type') and row.compensation_type:
+                    if row.compensation_type == "By Late":
+                        by_late_count += 1
+                    elif row.compensation_type == "By Half Day":
+                        by_half_day_count += 1
+                    elif row.compensation_type == "By Absent":
+                        by_absent_count += 1
+
+                # ----- Weekday Overtime ONLY -----
+                if is_full_time:
+                    wd = row.date.weekday() 
+
+                    if wd in (0, 1, 2, 3, 4): 
+                        weekday_ot_hours += float(row.overtime or 0.0)
+
+            # -------------------------
+            # Save Monthly Report
+            # -------------------------
             monthly_report = MonthlyReport(
-                emp_id=employee.emp_id or daily_records[0].emp_id,
+                emp_id=employee.emp_id,
                 name=employee_name,
-                department=employee.department or "Cold Calling",
                 joining_date=employee.joining_date,
-                last_updated_date=employee.last_updated_date or datetime.utcnow().date(),
+                department=employee.department or "Cold Calling",
+                last_updated_date=datetime.utcnow().date(),
                 shift=employee.shift,
+                role=employee.role,  
                 report_month=month_str,
                 total_days=total_days,
-                present=present_count,
-                absent=absent_count,
-                late=late_count,
-                half_day_weekdays=half_day_weekdays_count,
-                half_day_sat=0,  # Deprecated column - set to 0
-                full_day_sat=0,  # Deprecated column - set to 0
-                ot_hours=round(overtime_hours, 2),
-                compensated=compensated_count
+                present=present,
+                absent=absent,
+                late=late,
+                half_day_weekdays=half_day_weekdays,
+                half_day_sat=half_day_sat,
+                full_day_sat=full_day_sat,                
+                compensated=compensated,
+                sundays=sundays,
+                ot_hours=round(weekday_ot_hours, 2),
+                by_late_count=by_late_count,
+                by_half_day_count=by_half_day_count,
+                by_absent_count=by_absent_count
             )
-            
+
             db.session.add(monthly_report)
             db.session.commit()
-            
-            logger.info(f"Regenerated monthly report for {employee_name} - {month_str}: "
-                       f"Present={present_count}, OT={overtime_hours}, FullTime={is_full_time}")
-            
+
+            logger.info(
+                f"[MONTHLY REPORT ✔] {employee_name} {month_str} | "
+                f"OT(Weekdays): {weekday_ot_hours:.2f} | "
+                f"Sun: {sundays}, Sat: Half {half_day_sat}, Full {full_day_sat} | "
+                f"Comp Counts: Late={by_late_count}, Half={by_half_day_count}, Absent={by_absent_count}"
+            )
+
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error regenerating monthly report for {employee_name} - {month_str}: {e}")
@@ -347,11 +384,11 @@ class EmployeeService:
 # ===========================================================
 #              EXTERNAL ENTRY POINTS
 # ===========================================================
-def add_or_update_employee(name: str, joining_date_str: str, department: str, 
-                          effective_date_str: str, shift_full: str) -> bool:
-    """External entry point for adding or updating employees."""
+def add_or_update_employee(name: str, joining_date_str: str, department: str,
+                           effective_date_str: str, shift_full: str, role: Optional[str] = None) -> bool:
+    """External entry point for adding or updating employees (supports optional role)."""
     service = EmployeeService()
-    return service.add_or_update_employee(name, joining_date_str, department, effective_date_str, shift_full)
+    return service.add_or_update_employee(name, joining_date_str, department, effective_date_str, shift_full, role)
 
 def get_max_effective_date() -> date:
     """External entry point for getting max effective date."""

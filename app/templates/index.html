@@ -76,7 +76,7 @@
                             </label>
                         </div>
                         <button type="submit" class="upload-btn-compact">
-                            <i class="fas fa-upload"></i>Upload File 
+                            <i class="fas fa-upload"></i> Upload File
                         </button>
                     </form>
                 </div>
@@ -125,6 +125,7 @@
                     </div>
                 </div>
             </div>
+
             <!-- Monthly Summary Table -->
             {% if table %}
                 <div class="action-section">
@@ -141,6 +142,7 @@
                                 <tr>
                                     <th>Emp ID</th>
                                     <th>Name</th>
+                                    <th>Role</th> <!-- Added from Code A -->
                                     <th>Shift</th>
                                     <th>Department</th>
                                     <th>Total Days</th>
@@ -148,11 +150,13 @@
                                     <th>Absent</th>
                                     <th>Late</th>
                                     <th>Half Days</th>
+                                    <!-- <th>Half Day Sat</th> -->
+                                    <!-- <th>Full Day Sat</th> -->
+                                    <!-- <th>Sundays</th> -->
                                     <th>OT Hours</th>
-                                    <th>Comp 
-                                        Late</th>
-                                    <th>Comp Half</th>
-                                    <th>Comp Absent</th>
+                                    <th>Comp Late</th> <!-- From Code B -->
+                                    <th>Comp Half</th> <!-- From Code B -->
+                                    <th>Comp Absent</th> <!-- From Code B -->
                                 </tr>
                             </thead>
                             <tbody>
@@ -160,6 +164,7 @@
                                     <tr>
                                         <td>{{ row.EmpID if row.EmpID is defined else '' }}</td>
                                         <td><strong>{{ row.Name }}</strong></td>
+                                        <td>{{ row.Role if row.Role is defined else 'Full-Timer' }}</td> <!-- Added from Code A -->
                                         <td>{{ row.Shift if row.Shift is defined else '10:00 - 19:00' }}</td>
                                         <td>{{ row.Department if row.Department is defined else 'Cold Calling' }}</td>
                                         <td>{{ row.TotalDays if row.TotalDays is defined else 0 }}</td>
@@ -167,11 +172,12 @@
                                         <td>{{ row.Absent if row.Absent is defined else 0 }}</td>
                                         <td>{{ row.Late if row.Late is defined else 0 }}</td>
                                         <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
-                                        <td>{{ row.Overtime if row.Overtime is defined else 0 }}</td>
-                                        <!-- <td>{{ row.Compensated if row.Compensated is defined else 0 }}</td> -->
-                                        <td>{{ row.ByLateCount if row.ByLateCount is defined else 0 }}</td>
-                                        <td>{{ row.ByHalfDayCount if row.ByHalfDayCount is defined else 0 }}</td>
-                                        <td>{{ row.ByAbsentCount if row.ByAbsentCount is defined else 0 }}</td>
+                                        <!-- <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td> -->
+                                        <!-- <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td> -->
+                                        <!-- <td>{{ row.Sundays if row.Sundays is defined else 0 }}</td> -->
+                                        <td>{{ row.Overtime if row.Overtime is defined else 0.0 }}</td>                                        <td>{{ row.ByLateCount if row.ByLateCount is defined else 0 }}</td> <!-- From Code B -->
+                                        <td>{{ row.ByHalfDayCount if row.ByHalfDayCount is defined else 0 }}</td> <!-- From Code B -->
+                                        <td>{{ row.ByAbsentCount if row.ByAbsentCount is defined else 0 }}</td> <!-- From Code B -->
                                     </tr>
                                 {% endfor %}
                             </tbody>

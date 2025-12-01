@@ -37,6 +37,7 @@ class Employee(db.Model):
     department = db.Column(db.String(100), nullable=False)
     last_updated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50), nullable=True)
+    role = db.Column(db.String(20), nullable=False, default="FullTime")  # Added from Code A
 
     def __repr__(self):
         return f"<Employee {self.emp_id} - {self.name}>"
@@ -66,8 +67,9 @@ class DailyReport(db.Model):
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    compensation_type = db.Column(db.String(20), nullable=True)
-    compensated_date = db.Column(db.Date, nullable=True)
+    role = db.Column(db.String(20), default="Full Timer")  # Added from Code A
+    compensation_type = db.Column(db.String(20), nullable=True)  # Added from Code B
+    compensated_date = db.Column(db.Date, nullable=True)  # Added from Code B
     shift = db.Column(db.String(50))
     check_in = db.Column(db.Time)
     check_out = db.Column(db.Time)
@@ -93,6 +95,7 @@ class MonthlyReport(db.Model):
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
+    role = db.Column(db.String(20), default="Full Timer")  # Added from Code A
     shift = db.Column(db.String(50))
     total_days = db.Column(db.Integer, default=0)
     present = db.Column(db.Integer, default=0)
@@ -103,9 +106,10 @@ class MonthlyReport(db.Model):
     full_day_sat = db.Column(db.Integer, default=0)
     ot_hours = db.Column(db.Float, default=0.0)
     compensated = db.Column(db.Integer, default=0)
-    by_late_count = db.Column(db.Integer, default=0)
-    by_half_day_count = db.Column(db.Integer, default=0)
-    by_absent_count = db.Column(db.Integer, default=0)
+    sundays = db.Column(db.Integer, default=0)  # Added from Code A
+    by_late_count = db.Column(db.Integer, default=0)  # Added from Code B
+    by_half_day_count = db.Column(db.Integer, default=0)  # Added from Code B
+    by_absent_count = db.Column(db.Integer, default=0)  # Added from Code B
     report_month = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 

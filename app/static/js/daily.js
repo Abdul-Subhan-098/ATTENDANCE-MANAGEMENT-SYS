@@ -45,6 +45,7 @@ document.addEventListener("DOMContentLoaded", () => {
         'Half Day': 'status-halfday',
         'Half Day (Sat)': 'status-sat',
         'Full Day (Sat)': 'status-sat',
+        'Holiday': 'status-holiday',
         'Compensated': 'status-compensated',
         'Sunday': 'status-sunday'
     };
@@ -389,10 +390,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const otClass = `ot-${Math.min(parseInt(r.Overtime) || 0, 5)}`;
         const overtimeDisplay = formatOvertime(r.Overtime);
         
-        // Extract shift time from format like "10:00 - 19:00 (08:00 to 05:00)"
-        const shiftTime = extractShiftTime(r.ShiftDisplay || r.Shift);
+        // Format shift time from Code A
+        const shiftTime = formatShift(r.ShiftDisplay || r.Shift);
         
-        // Create compensation display
+        // Add Role column from Code A
+        const role = r.Role || "Full-Timer";
+        
+        // Create compensation display from Code B
         const compensationDisplay = r.CompensationType && r.CompensatedDate 
             ? `<span class="compensation-badge">${r.CompensationType}<br><small>${r.CompensatedDate}</small></span>`
             : `<span class="no-compensation">-</span>`;
@@ -403,6 +407,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td>${r.Date || "N/A"}</td>
                 <td><strong>${r.Name || "N/A"}</strong></td>
                 <td>${shiftTime}</td>
+                <td>${role}</td> <!-- Role column from Code A -->
                 <td>${r.Department || "Cold Calling"}</td>
                 <td>${r.CheckIn || "Missed"}</td>
                 <td>${r.CheckOut || "Missed"}</td>
@@ -424,12 +429,20 @@ document.addEventListener("DOMContentLoaded", () => {
             </tr>
         `);
     }
-    function extractShiftTime(shift) {
+
+    // Format shift exactly like form (from Code A)
+    function formatShift(shift) {
         if (!shift) return "N/A";
-        
-        // Extract the time in parentheses like "(08:00 to 05:00)"
-        const match = shift.match(/\(([^)]+)\)/);
-        return match ? match[1] : shift;
+        const shiftMap = {
+            '09:00 - 18:00': '09:00 - 18:00 (07:00 to 04:00)',
+            '10:00 - 19:00': '10:00 - 19:00 (08:00 to 05:00)',
+            '11:00 - 20:00': '11:00 - 20:00 (09:00 to 06:00)',
+            '11:30 - 20:30': '11:30 - 20:30 (09:30 to 06:30)',
+            '09:00 - 13:30': '09:00 - 13:30 (07:00 to 11:30)',
+            '10:00 - 14:30': '10:00 - 14:30 (08:00 to 12:30)',
+            '09:00 - 14:30': '09:00 - 14:30 (07:00 to 12:30)'
+        };
+        return shiftMap[shift] || shift;
     }
 
     function formatOvertime(value) {
@@ -442,7 +455,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function showEmptyState() {
         elements.tbody.innerHTML = `
             <tr class="empty-state">
-                <td colspan="9">
+                <td colspan="11">
                     <i class="fas fa-search empty-state-icon"></i>
                     <h3>No matching records found</h3>
                     <p>Try adjusting your search criteria</p>
@@ -499,13 +512,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     /* ============================
-       ✅ MARK AS COMPENSATED (OPTIMIZED)
+       ✅ MARK AS COMPENSATED (OPTIMIZED) - Combined from both codes
     ============================ */
     function initCompensationHandler() {
         document.addEventListener("click", e => {
             const badge = e.target.closest(".status-badge");
             if (badge) {
                 state.selectedBadge = badge;
+                
+                // Show dropdown (from Code B)
                 const rect = badge.getBoundingClientRect();
                 elements.dropdown.style.display = "block";
                 elements.dropdown.style.position = "fixed";
@@ -517,7 +532,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 elements.dropdown.style.display = "none";
             }
         });
-
+        // Dropdown compensation button (from Code B)
         elements.compensateBtn.addEventListener("click", async () => {
             if (!state.selectedBadge) return;
             const empName = elements.dropdown.dataset.empName;
