@@ -159,7 +159,7 @@ class AttendanceProcessor:
 #              OPTIMIZED ATTENDANCE CALCULATOR
 # ===========================================================
 class AttendanceCalculator:
-    """Optimized calculation functions"""
+    """Optimized calculation functions — final merged version"""
 
     @staticmethod
     def calculate_status(
@@ -170,27 +170,31 @@ class AttendanceCalculator:
         shift_end: time,
         full_time: bool = True
     ) -> Tuple[str, float]:
-        """Fast status calculation with updated Saturday logic for full-timers"""
+        """Fast status calculation with updated Saturday logic"""
         shift_start_dt = datetime.combine(day, shift_start)
         shift_end_dt = datetime.combine(day, shift_end)
 
-        # Both punches missing
-        if (not check_in) and (not check_out):
+        # -------------------------------
+        # NO PUNCHES
+        # -------------------------------
+        if not check_in and not check_out:
             if day.weekday() == 5 and full_time:
                 return AttendanceStatus.SATURDAY, 0.0
             return AttendanceStatus.ABSENT, 0.0
 
-        # Single missing punch
-        if (not check_in) and check_out:
-            return AttendanceStatus.HALF_DAY, 0.0
-        if check_in and (not check_out):
+        # -------------------------------
+        # ONE PUNCH MISSING
+        # -------------------------------
+        if not check_in or not check_out:
             return AttendanceStatus.HALF_DAY, 0.0
 
-        # Both punches present
+        # Normalize micros
         check_in = check_in.replace(microsecond=0)
         check_out = check_out.replace(microsecond=0)
 
-        # Saturday logic - FULL-TIMERS ONLY
+        # -------------------------------
+        # SATURDAY LOGIC
+        # -------------------------------
         if day.weekday() == 5:
             if full_time:
                 # For full-timers on Saturday, calculate actual hours worked as OT
@@ -210,7 +214,7 @@ class AttendanceCalculator:
             else:
                 # Part-timers on Saturday - regular calculation
                 status, overtime_hours = AttendanceCalculator._calculate_regular_day_status(
-                    check_in, check_out, day, shift_start_dt, shift_end_dt
+                    check_in, check_out, day, shift_start_dt, shift_end_dt, full_time
                 )
                 return status, overtime_hours
 
@@ -232,9 +236,12 @@ class AttendanceCalculator:
     ) -> Tuple[str, float]:
         """Calculate status for regular days (Monday-Friday)"""
         present_limit = shift_start_dt + timedelta(seconds=AttendanceThresholds.GRACE_PERIOD_SECONDS)
-        late_limit = shift_start_dt + timedelta(hours=AttendanceThresholds.LATE_THRESHOLD_HOURS, 
-                                              seconds=AttendanceThresholds.GRACE_PERIOD_SECONDS)
+        late_limit = shift_start_dt + timedelta(
+            hours=AttendanceThresholds.LATE_THRESHOLD_HOURS,
+            seconds=AttendanceThresholds.GRACE_PERIOD_SECONDS,
+        )
 
+        # Determine status
         if check_in <= present_limit:
             status = AttendanceStatus.PRESENT
         elif check_in <= late_limit:
@@ -242,9 +249,9 @@ class AttendanceCalculator:
         else:
             status = AttendanceStatus.HALF_DAY
 
-        # Early checkout
-        early_checkout_limit = shift_end_dt - timedelta(minutes=AttendanceThresholds.EARLY_CHECKOUT_MINUTES)
-        if check_out < early_checkout_limit:
+        # Early checkout makes it half day
+        early_limit = shift_end_dt - timedelta(minutes=AttendanceThresholds.EARLY_CHECKOUT_MINUTES)
+        if check_out < early_limit:
             status = AttendanceStatus.HALF_DAY
 
         # Overtime calculation (only for full-timers on regular days)
@@ -264,7 +271,7 @@ class AttendanceCalculator:
         day: date,
         full_time: bool = True
     ) -> float:
-        """Calculate overtime hours (public method)."""
+        """Calculate overtime hours (public method) - Used by monthly report"""
         if not check_in or not check_out:
             return 0.0
         
@@ -434,6 +441,7 @@ class DailyReportGenerator:
         department = getattr(employee_obj, 'department', 'Cold Calling')
         joining_date = getattr(employee_obj, 'joining_date', None)
         last_updated_date = getattr(employee_obj, 'last_updated_date', datetime.utcnow().date())
+        role = getattr(employee_obj, 'role', 'FullTime')  # Added from Code A
 
         shift_start, shift_end = self._parse_shift(f"{shift_start_str} - {shift_end_str}")
         full_time = self._is_full_time_employee(employee_obj, shift_start, shift_end)
@@ -474,7 +482,8 @@ class DailyReportGenerator:
                 "Overtime": overtime_hours,
                 "Department": department,
                 "JoiningDate": joining_date,
-                "LastUpdatedDate": last_updated_date
+                "LastUpdatedDate": last_updated_date,
+                "Role": role  # Added from Code A
             })
 
         return records
@@ -533,7 +542,7 @@ class DailyReportGenerator:
         try:
             date_obj = datetime.strptime(row["Date"], "%Y-%m-%d").date()
             
-            # Convert check-in/check-out strings to time objects - FIXED
+            # Convert check-in/check-out strings to time objects
             check_in_time = None
             check_out_time = None
             
@@ -574,7 +583,8 @@ class DailyReportGenerator:
                 'overtime': row["Overtime"],
                 'department': row["Department"],
                 'joining_date': row["JoiningDate"],
-                'last_updated_date': row["LastUpdatedDate"]
+                'last_updated_date': row["LastUpdatedDate"],
+                'role': row.get("Role", "FullTime")  # Added from Code A
             }
         except Exception as e:
             logger.error(f"Error preparing record {row}: {e}")

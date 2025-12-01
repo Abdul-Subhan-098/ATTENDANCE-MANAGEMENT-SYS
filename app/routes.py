@@ -1,5 +1,3 @@
-# app/routes.py
-
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from app import db
 from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin
@@ -91,8 +89,6 @@ def _clear_daily_cache():
     global _daily_report_cache
     _daily_report_cache = {"data": None, "timestamp": 0}
 
-# In your routes.py file, update the _format_daily_record function:
-
 def _format_daily_record(record):
     """Format a single daily record for API response"""
     return {
@@ -100,6 +96,7 @@ def _format_daily_record(record):
         "Date": record.date.strftime("%Y-%m-%d"),
         "Name": record.employee_name,
         "Shift": record.shift,
+        "Role": getattr(record, "role", "Full-Timer") or "Full-Timer",  # Added from Code A
         "ShiftDisplay": f"{record.shift} {SHIFT_DISPLAY_MAPPING.get(record.shift, '')}".strip(),
         "CheckIn": record.check_in.strftime("%H:%M") if record.check_in else "",
         "CheckOut": record.check_out.strftime("%H:%M") if record.check_out else "",
@@ -108,8 +105,8 @@ def _format_daily_record(record):
         "MissedCheckOut": "Yes" if record.missed_checkout else "No",
         "Overtime": record.overtime or 0.0,
         "Department": record.department or "Cold Calling",
-        "CompensationType": record.compensation_type or "",
-        "CompensatedDate": record.compensated_date.strftime("%Y-%m-%d") if record.compensated_date else ""
+        "CompensationType": record.compensation_type or "",  # Added from Code B
+        "CompensatedDate": record.compensated_date.strftime("%Y-%m-%d") if record.compensated_date else ""  # Added from Code B
     }
 
 def _format_monthly_record(record):
@@ -117,6 +114,7 @@ def _format_monthly_record(record):
     return {
         "EmpID": record.emp_id or "",
         "Name": record.name or "",
+        "Role": getattr(record, "role", "Full-Timer") or "Full-Timer",  # Added from Code A
         "Shift": record.shift or "",
         "Department": record.department or "Cold Calling",
         "TotalDays": record.total_days or 0,
@@ -124,14 +122,16 @@ def _format_monthly_record(record):
         "Absent": record.absent or 0,
         "Late": record.late or 0,
         "HalfDayWeekdays": record.half_day_weekdays or 0,
-        "HalfDaySat": record.half_day_sat or 0,
-        "FullDaySat": record.full_day_sat or 0,
+        "HalfDaySat": record.half_day_sat or 0,  # Added from Code A
+        "FullDaySat": record.full_day_sat or 0,  # Added from Code A
+        "Sundays": record.sundays or 0,  # Added from Code A
         "Overtime": record.ot_hours or 0.0,
         "JoiningDate": record.joining_date.strftime("%Y-%m-%d") if record.joining_date else "",
         "LastUpdated": record.last_updated_date.strftime("%Y-%m-%d") if record.last_updated_date else "",
-        "ByLateCount": record.by_late_count or 0,         
-        "ByHalfDayCount": record.by_half_day_count or 0,  
-        "ByAbsentCount": record.by_absent_count or 0      
+        "Compensated": record.compensated or 0,  # Added from Code A
+        "ByLateCount": record.by_late_count or 0,  # Added from Code B
+        "ByHalfDayCount": record.by_half_day_count or 0,  # Added from Code B
+        "ByAbsentCount": record.by_absent_count or 0  # Added from Code B
     }
 
 
@@ -232,7 +232,8 @@ def employees():
             joining_date_str=request.form.get("joining_date", "").strip(),
             department=request.form.get("department", "").strip(),
             effective_date_str=request.form.get("effective_date", "").strip(),
-            shift_full=request.form.get("shift", "").strip()
+            shift_full=request.form.get("shift", "").strip(),
+            role=request.form.get("role", "").strip()  # <-- Added from Code A
         )
         return redirect(url_for("main.employees"))
 
@@ -241,11 +242,15 @@ def employees():
     daily_employee_names_query = db.session.query(DailyReport.employee_name).distinct().all()
     daily_employee_names = sorted([name[0] for name in daily_employee_names_query if name[0]])
 
+    # Add role options for the form (from Code A)
+    roles = ["Full-Timer", "Part-Timer"]
+
     return render_template(
         "employees.html",
         employees=employee_list,
         daily_names=daily_employee_names,
-        current_date=datetime.today().strftime("%Y-%m-%d")
+        current_date=datetime.today().strftime("%Y-%m-%d"),
+        roles=roles  # <-- Added from Code A
     )
 
 @main.route("/admin_panel", methods=["GET", "POST"])
@@ -317,56 +322,56 @@ def daily_search():
         "total_count": total_records_count
     })
 
-@main.route("/update_compensate", methods=["POST"])
-@login_required
-def update_compensate():
-    """API endpoint to mark attendance as compensated."""
-    try:
-        request_data = request.get_json(force=True) or {}
-        employee_name = request_data.get("emp_name")
-        date_string = request_data.get("date")
+# @main.route("/update_compensate", methods=["POST"])
+# @login_required
+# def update_compensate():
+#     """API endpoint to mark attendance as compensated."""
+#     try:
+#         request_data = request.get_json(force=True) or {}
+#         employee_name = request_data.get("emp_name")
+#         date_string = request_data.get("date")
         
-        if not employee_name or not date_string:
-            return jsonify({
-                "success": False, 
-                "message": "Missing employee name or date"
-            }), 400
+#         if not employee_name or not date_string:
+#             return jsonify({
+#                 "success": False, 
+#                 "message": "Missing employee name or date"
+#             }), 400
         
-        try:
-            target_date = datetime.strptime(date_string, "%Y-%m-%d").date()
-        except ValueError:
-            return jsonify({
-                "success": False, 
-                "message": "Invalid date format"
-            }), 400
+#         try:
+#             target_date = datetime.strptime(date_string, "%Y-%m-%d").date()
+#         except ValueError:
+#             return jsonify({
+#                 "success": False, 
+#                 "message": "Invalid date format"
+#             }), 400
         
-        target_record = DailyReport.query.filter_by(
-            employee_name=employee_name, 
-            date=target_date
-        ).first()
+#         target_record = DailyReport.query.filter_by(
+#             employee_name=employee_name, 
+#             date=target_date
+#         ).first()
         
-        if not target_record:
-            return jsonify({
-                "success": False, 
-                "message": "Record not found"
-            }), 404
+#         if not target_record:
+#             return jsonify({
+#                 "success": False, 
+#                 "message": "Record not found"
+#             }), 404
         
-        target_record.status = "Compensated"
-        db.session.commit()
-        _clear_daily_cache()
+#         target_record.status = "Compensated"
+#         db.session.commit()
+#         _clear_daily_cache()
         
-        return jsonify({
-            "success": True, 
-            "message": "Marked as compensated"
-        })
+#         return jsonify({
+#             "success": True, 
+#             "message": "Marked as compensated"
+#         })
         
-    except Exception as error:
-        db.session.rollback()
-        print(f"Error in update_compensate: {error}")
-        return jsonify({
-            "success": False, 
-            "message": "Internal server error"
-        }), 500
+#     except Exception as error:
+#         db.session.rollback()
+#         print(f"Error in update_compensate: {error}")
+#         return jsonify({
+#             "success": False, 
+#             "message": "Internal server error"
+#         }), 500
 
 @main.route("/refresh_cache", methods=["POST"])
 @login_required
@@ -530,8 +535,9 @@ def delete_file():
         flash("❌ Error deleting file", "error")
     
     return redirect(url_for("main.index"))
+
 # ===========================================================
-# COMPENSATION ROUTES
+# COMPENSATION ROUTES (Added from Code B)
 # ===========================================================
 
 @main.route("/apply_compensation", methods=["POST"])

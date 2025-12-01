@@ -61,7 +61,7 @@
                 {% endif %}
             {% endwith %}
 
-            <!-- Settings Tabs - Added from Settings page -->
+            <!-- Settings Tabs - Added from Code B -->
             <div class="settings-tabs">
                 <button class="tab-btn active" data-tab="add-employee">Add Employee</button>
                 <button class="tab-btn" data-tab="update-employee">Update Employee</button>
@@ -72,7 +72,7 @@
             </div>
 
             <!-- Tab Contents -->
-            <!-- Add Employee Tab -->
+            <!-- Add Employee Tab - Added from Code B -->
             <div class="tab-content active" id="add-employee">
                 <div class="settings-section">
                     <h3 class="section-title">Add New Employee</h3>
@@ -232,6 +232,17 @@
                                        placeholder="Auto-generated if empty"
                                        value="{{ edit_employee.employee_id if edit_employee else '' }}">
                             </div>
+                            
+                            <!-- Role Field - Added from Code A -->
+                            <div class="form-group">
+                                <label for="role"><i class="fas fa-user-tag"></i> Role</label>
+                                <select id="role" name="role" required>
+                                    <option value="" disabled selected>Select Role</option>
+                                    {% for r in roles %}
+                                        <option value="{{ r }}" {% if edit_employee and edit_employee.role == r %}selected{% endif %}>{{ r }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
 
                         <div class="form-actions">
@@ -249,7 +260,7 @@
                 </div>
             </div>
 
-            <!-- Company Off Days Tab -->
+            <!-- Company Off Days Tab - Added from Code B -->
             <div class="tab-content" id="company-off">
                 <div class="settings-section">
                     <h3 class="section-title">Company Off Days</h3>
@@ -312,82 +323,83 @@
                 </div>
             </div>
 
-                <!-- Compensation Tab -->
-                <div class="tab-content" id="compensation-settings">
-                    <div class="settings-section">
-                        <h3 class="section-title">Attendance Compensation</h3>
-                        
-                        <!-- Compensation Form -->
-                        <div class="settings-form" id="compensationForm">
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">Employee Name *</label>
-                                    <input type="text" class="form-input" id="compensationEmployee" 
-                                        list="employeeSuggestions" placeholder="Select employee">
-                                    <datalist id="employeeSuggestions">
-                                        {% for name in daily_names %}
-                                        <option value="{{ name }}">{{ name }}</option>
-                                        {% endfor %}
-                                    </datalist>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Compensation Type *</label>
-                                    <select class="form-input" id="compensationType" required>
-                                        <option value="">Select Type</option>
-                                        <option value="By Late">By Late</option>
-                                        <option value="By Half Day">By Half Day</option>
-                                        <option value="By Absent">By Absent</option>
-                                        <option value="Sandwich">Sandwich Policy</option>
-                                    </select>
-                                </div>
+            <!-- Compensation Tab - Added from Code B -->
+            <div class="tab-content" id="compensation-settings">
+                <div class="settings-section">
+                    <h3 class="section-title">Attendance Compensation</h3>
+                    
+                    <!-- Compensation Form -->
+                    <div class="settings-form" id="compensationForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Employee Name *</label>
+                                <input type="text" class="form-input" id="compensationEmployee" 
+                                    list="employeeSuggestions" placeholder="Select employee">
+                                <datalist id="employeeSuggestions">
+                                    {% for name in daily_names %}
+                                    <option value="{{ name }}">{{ name }}</option>
+                                    {% endfor %}
+                                </datalist>
                             </div>
-
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label class="form-label">Violation Date *</label>
-                                    <input type="date" class="form-input" id="violationDate" required>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Compensation Date *</label>
-                                    <input type="date" class="form-input" id="compensationDate" required>
-                                </div>
+                            <div class="form-group">
+                                <label class="form-label">Compensation Type *</label>
+                                <select class="form-input" id="compensationType" required>
+                                    <option value="">Select Type</option>
+                                    <option value="By Late">By Late</option>
+                                    <option value="By Half Day">By Half Day</option>
+                                    <option value="By Absent">By Absent</option>
+                                    <option value="Sandwich">Sandwich Policy</option>
+                                </select>
                             </div>
-
-                            <!-- Eligibility Check Result -->
-                            <div id="eligibilityResult" class="eligibility-result" style="display: none;"></div>
-
-                            <!-- Action Buttons -->
-                            <div class="form-actions">
-                                <button type="button" class="btn btn-secondary" id="checkEligibilityBtn">
-                                    <i class="fas fa-check-circle"></i> Check Eligibility
-                                </button>
-                                <button type="button" class="btn btn-primary" id="applyCompensationBtn">
-                                    <i class="fas fa-calculator"></i> Apply Compensation
-                                </button>
-                                <button type="button" class="btn btn-outline" id="clearCompensationForm">
-                                    <i class="fas fa-times"></i> Clear Form
-                                </button>
-                            </div>
-
-                            <!-- Result Message -->
-                            <div id="compensationResult" class="result-message" style="display: none;"></div>
                         </div>
 
-                        <!-- Compensation History -->
-                        <div class="compensation-history-section">
-                            <h4 class="section-subtitle">
-                                <i class="fas fa-history"></i> Recent Compensation History
-                                <button class="btn btn-sm btn-outline" id="refreshHistoryBtn">
-                                    <i class="fas fa-sync-alt"></i> Refresh
-                                </button>
-                            </h4>
-                            <div id="compensationHistoryList" class="compensation-history-list">
-                                <!-- History will be loaded here -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Violation Date *</label>
+                                <input type="date" class="form-input" id="violationDate" required>
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">Compensation Date *</label>
+                                <input type="date" class="form-input" id="compensationDate" required>
+                            </div>
+                        </div>
+
+                        <!-- Eligibility Check Result -->
+                        <div id="eligibilityResult" class="eligibility-result" style="display: none;"></div>
+
+                        <!-- Action Buttons -->
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="checkEligibilityBtn">
+                                <i class="fas fa-check-circle"></i> Check Eligibility
+                            </button>
+                            <button type="button" class="btn btn-primary" id="applyCompensationBtn">
+                                <i class="fas fa-calculator"></i> Apply Compensation
+                            </button>
+                            <button type="button" class="btn btn-outline" id="clearCompensationForm">
+                                <i class="fas fa-times"></i> Clear Form
+                            </button>
+                        </div>
+
+                        <!-- Result Message -->
+                        <div id="compensationResult" class="result-message" style="display: none;"></div>
+                    </div>
+
+                    <!-- Compensation History -->
+                    <div class="compensation-history-section">
+                        <h4 class="section-subtitle">
+                            <i class="fas fa-history"></i> Recent Compensation History
+                            <button class="btn btn-sm btn-outline" id="refreshHistoryBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </h4>
+                        <div id="compensationHistoryList" class="compensation-history-list">
+                            <!-- History will be loaded here -->
                         </div>
                     </div>
                 </div>
-            <!-- Export Tab -->
+            </div>
+
+            <!-- Export Tab - Added from Code B -->
             <div class="tab-content" id="export-settings">
                 <div class="settings-section">
                     <h3 class="section-title">Export Settings</h3>
@@ -453,7 +465,7 @@
                 </div>
             </div>
 
-            <!-- System Tab -->
+            <!-- System Tab - Added from Code B -->
             <div class="tab-content" id="system-settings">
                 <div class="settings-section">
                     <h3 class="section-title">System Information</h3>
@@ -512,7 +524,26 @@
                 </div>
             </div>
 
-            <!-- Employee Table Section -->
+            <!-- Action Buttons - Original from Code A -->
+            <div class="action-buttons-container">
+                <div class="action-header">
+                    <i class="fas fa-user-plus"></i>
+                    <div>
+                        <h3>Employee Actions</h3>
+                        <p>Add new employees or update existing records</p>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn-primary" id="addEmployeeBtn">
+                        <i class="fas fa-plus"></i> Update Employee
+                    </button>
+                    <button class="btn-secondary" id="exportEmployeesBtn">
+                        <i class="fas fa-download"></i> Export to Excel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Employee Table Section - Modified to include Role -->
             <div class="table-section">
                 <div class="section-header">
                     <i class="fas fa-list-alt"></i>
@@ -547,7 +578,7 @@
                                 <th>Joining Date</th>
                                 <th>Department</th>
                                 <th>Shift</th>
-                                <th>Role</th>
+                                <th>Role</th> <!-- Added Role column -->
                                 <th>Effective From</th>
                                 <th>Actions</th>
                             </tr>
@@ -556,17 +587,17 @@
                             {% if employees %}
                                 {% for emp in employees %}
                                 <tr data-name="{{ emp.name }}" data-department="{{ emp.department }}">
-                                    <td><strong>{{ emp.employee_id if emp.employee_id else 'N/A' }}</strong></td>
+                                    <td><strong>{{ emp.emp_id if emp.emp_id else 'N/A' }}</strong></td>
                                     <td><strong>{{ emp.name }}</strong></td>
-                                    <td>{{ emp.joining_date }}</td>
+                                    <td>{{ emp.joining_date.strftime('%Y-%m-%d') if emp.joining_date else '' }}</td>
                                     <td>
                                         <span class="dept-badge dept-{{ emp.department|replace(' ', '-')|replace('&', 'and')|lower }}">
                                             {{ emp.department }}
                                         </span>
                                     </td>
                                     <td>{{ emp.shift if emp.shift else '-' }}</td>
-                                    <td>{{ emp.role if emp.role else '-' }}</td>
-                                    <td>{{ emp.last_updated_date if emp.last_updated_date else emp.joining_date }}</td>
+                                    <td>{{ emp.role if emp.role else '-' }}</td> <!-- Added Role cell -->
+                                    <td>{{ emp.last_updated_date.strftime('%Y-%m-%d') if emp.last_updated_date else (emp.joining_date.strftime('%Y-%m-%d') if emp.joining_date else '') }}</td>
                                     <td>
                                         <div class="action-buttons">
                                             <button class="btn-edit" data-id="{{ emp.id }}" data-name="{{ emp.name }}">
@@ -637,25 +668,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             const sidebar = document.getElementById('sidebar');
             const mainContent = document.getElementById('mainContent');
-            const sidebarToggle = document.getElementById('sidebarToggle');
             
-            if (sidebarToggle) {
-                sidebarToggle.addEventListener('click', function() {
-                    sidebar.classList.toggle('collapsed');
-                    mainContent.classList.toggle('expanded');
-                    
-                    // Change the icon based on sidebar state
-                    const icon = sidebarToggle.querySelector('i');
-                    if (sidebar.classList.contains('collapsed')) {
-                        icon.classList.remove('fa-bars');
-                        icon.classList.add('fa-arrow-right');
-                    } else {
-                        icon.classList.remove('fa-arrow-right');
-                        icon.classList.add('fa-bars');
-                    }
-                });
-            }
-
             // Set today's date as default for effective date
             const effectiveDateInput = document.getElementById('effective_date');
             if (effectiveDateInput && !effectiveDateInput.value) {
@@ -670,7 +683,7 @@
                 joiningDateInput.value = today;
             }
 
-            // Tab switching functionality
+            // Tab switching functionality - Added from Code B
             const tabBtns = document.querySelectorAll('.tab-btn');
             const tabContents = document.querySelectorAll('.tab-content');
             
@@ -688,330 +701,340 @@
                     document.getElementById(tabId).classList.add('active');
                 });
             });
+
+            // Initialize the employee management functionality
+            initEmployeeManagement();
         });
 
-        // employees.js - Enhanced Employee Management Functionality
+        function initEmployeeManagement() {
+            // DOM Elements
+            const elements = {
+                employeeForm: document.getElementById('employeeForm'),
+                employeeSearch: document.getElementById('employeeSearch'),
+                departmentFilter: document.getElementById('departmentFilter'),
+                clearFilters: document.getElementById('clearFilters'),
+                employeesTable: document.getElementById('employeesTable'),
+                tableBody: document.querySelector('#employeesTable tbody'),
+                prevPage: document.getElementById('prevPage'),
+                nextPage: document.getElementById('nextPage'),
+                pageInfo: document.getElementById('pageInfo'),
+                showingCount: document.getElementById('showingCount'),
+                totalCount: document.getElementById('totalCount'),
+                addEmployeeBtn: document.getElementById('addEmployeeBtn'),
+                exportEmployeesBtn: document.getElementById('exportEmployeesBtn'),
+                cancelEditBtn: document.getElementById('cancelEditBtn'),
+                deleteModal: document.getElementById('deleteModal'),
+                cancelDelete: document.getElementById('cancelDelete'),
+                confirmDelete: document.getElementById('confirmDelete'),
+                deleteEmployeeName: document.getElementById('deleteEmployeeName')
+            };
 
-document.addEventListener("DOMContentLoaded", function() {
-    // DOM Elements
-    const elements = {
-        employeeForm: document.getElementById('employeeForm'),
-        employeeSearch: document.getElementById('employeeSearch'),
-        departmentFilter: document.getElementById('departmentFilter'),
-        clearFilters: document.getElementById('clearFilters'),
-        employeesTable: document.getElementById('employeesTable'),
-        tableBody: document.querySelector('#employeesTable tbody'),
-        prevPage: document.getElementById('prevPage'),
-        nextPage: document.getElementById('nextPage'),
-        pageInfo: document.getElementById('pageInfo'),
-        showingCount: document.getElementById('showingCount'),
-        totalCount: document.getElementById('totalCount'),
-        addEmployeeBtn: document.getElementById('addEmployeeBtn'),
-        exportEmployeesBtn: document.getElementById('exportEmployeesBtn'),
-        cancelEditBtn: document.getElementById('cancelEditBtn'),
-        deleteModal: document.getElementById('deleteModal'),
-        cancelDelete: document.getElementById('cancelDelete'),
-        confirmDelete: document.getElementById('confirmDelete'),
-        deleteEmployeeName: document.getElementById('deleteEmployeeName')
-    };
+            // State
+            const state = {
+                currentPage: 1,
+                itemsPerPage: 10,
+                filteredEmployees: [],
+                searchTerm: '',
+                departmentFilter: '',
+                employeeToDelete: null
+            };
 
-    // State
-    const state = {
-        currentPage: 1,
-        itemsPerPage: 10,
-        filteredEmployees: [],
-        searchTerm: '',
-        departmentFilter: '',
-        employeeToDelete: null
-    };
-
-    // Initialize
-    function init() {
-        bindEvents();
-        updateTable();
-        populateDepartmentFilter();
-    }
-
-    // Event Binding
-    function bindEvents() {
-        // Search and Filter
-        elements.employeeSearch.addEventListener('input', handleSearch);
-        elements.departmentFilter.addEventListener('change', handleDepartmentFilter);
-        elements.clearFilters.addEventListener('click', clearFilters);
-
-        // Pagination
-        elements.prevPage.addEventListener('click', goToPrevPage);
-        elements.nextPage.addEventListener('click', goToNextPage);
-
-        // Form Actions
-        if (elements.addEmployeeBtn) {
-            elements.addEmployeeBtn.addEventListener('click', scrollToForm);
-        }
-
-        if (elements.exportEmployeesBtn) {
-            elements.exportEmployeesBtn.addEventListener('click', exportToExcel);
-        }
-
-        if (elements.cancelEditBtn) {
-            elements.cancelEditBtn.addEventListener('click', cancelEdit);
-        }
-
-        // Delete Modal
-        elements.cancelDelete.addEventListener('click', closeDeleteModal);
-        elements.confirmDelete.addEventListener('click', confirmDeleteEmployee);
-
-        // Close modal when clicking outside
-        elements.deleteModal.addEventListener('click', function(e) {
-            if (e.target === elements.deleteModal) {
-                closeDeleteModal();
+            // Initialize
+            function init() {
+                bindEvents();
+                updateTable();
+                populateDepartmentFilter();
             }
-        });
 
-        // Edit and Delete buttons (delegated)
-        elements.tableBody.addEventListener('click', handleTableActions);
-    }
+            // Event Binding
+            function bindEvents() {
+                // Search and Filter
+                elements.employeeSearch.addEventListener('input', handleSearch);
+                elements.departmentFilter.addEventListener('change', handleDepartmentFilter);
+                elements.clearFilters.addEventListener('click', clearFilters);
 
-    // Table Actions Handler
-    function handleTableActions(e) {
-        const target = e.target.closest('.btn-edit, .btn-delete');
-        if (!target) return;
+                // Pagination
+                elements.prevPage.addEventListener('click', goToPrevPage);
+                elements.nextPage.addEventListener('click', goToNextPage);
 
-        const row = target.closest('tr');
-        const employeeId = target.dataset.id;
-        const employeeName = target.dataset.name;
+                // Form Actions
+                if (elements.addEmployeeBtn) {
+                    elements.addEmployeeBtn.addEventListener('click', scrollToForm);
+                }
 
-        if (target.classList.contains('btn-edit')) {
-            editEmployee(employeeId, employeeName);
-        } else if (target.classList.contains('btn-delete')) {
-            showDeleteModal(employeeId, employeeName);
-        }
-    }
+                if (elements.exportEmployeesBtn) {
+                    elements.exportEmployeesBtn.addEventListener('click', exportToExcel);
+                }
 
-    // Search Handler
-    function handleSearch(e) {
-        state.searchTerm = e.target.value.toLowerCase();
-        state.currentPage = 1;
-        updateTable();
-    }
+                if (elements.cancelEditBtn) {
+                    elements.cancelEditBtn.addEventListener('click', cancelEdit);
+                }
 
-    // Department Filter Handler
-    function handleDepartmentFilter(e) {
-        state.departmentFilter = e.target.value;
-        state.currentPage = 1;
-        updateTable();
-    }
+                // Delete Modal
+                elements.cancelDelete.addEventListener('click', closeDeleteModal);
+                elements.confirmDelete.addEventListener('click', confirmDeleteEmployee);
 
-    // Clear Filters
-    function clearFilters() {
-        elements.employeeSearch.value = '';
-        elements.departmentFilter.value = '';
-        state.searchTerm = '';
-        state.departmentFilter = '';
-        state.currentPage = 1;
-        updateTable();
-    }
+                // Close modal when clicking outside
+                elements.deleteModal.addEventListener('click', function(e) {
+                    if (e.target === elements.deleteModal) {
+                        closeDeleteModal();
+                    }
+                });
 
-    // Pagination
-    function goToPrevPage() {
-        if (state.currentPage > 1) {
-            state.currentPage--;
-            updateTable();
-        }
-    }
+                // Edit and Delete buttons (delegated)
+                elements.tableBody.addEventListener('click', handleTableActions);
 
-    function goToNextPage() {
-        const totalPages = Math.ceil(state.filteredEmployees.length / state.itemsPerPage);
-        if (state.currentPage < totalPages) {
-            state.currentPage++;
-            updateTable();
-        }
-    }
-
-    // Update Table
-    function updateTable() {
-        const allRows = Array.from(elements.tableBody.querySelectorAll('tr:not(.empty-state)'));
-        
-        // Filter employees
-        state.filteredEmployees = allRows.filter(row => {
-            const name = row.dataset.name.toLowerCase();
-            const department = row.dataset.department.toLowerCase();
-            
-            const matchesSearch = !state.searchTerm || 
-                name.includes(state.searchTerm) || 
-                department.includes(state.searchTerm);
-            
-            const matchesDepartment = !state.departmentFilter || 
-                department.includes(state.departmentFilter.toLowerCase());
-            
-            return matchesSearch && matchesDepartment;
-        });
-
-        // Hide all rows first
-        allRows.forEach(row => row.style.display = 'none');
-
-        // Show filtered rows with pagination
-        const startIndex = (state.currentPage - 1) * state.itemsPerPage;
-        const endIndex = startIndex + state.itemsPerPage;
-        const employeesToShow = state.filteredEmployees.slice(startIndex, endIndex);
-
-        employeesToShow.forEach(row => row.style.display = '');
-
-        // Update pagination controls
-        updatePagination();
-
-        // Show empty state if no results
-        const emptyState = elements.tableBody.querySelector('.empty-state');
-        if (emptyState) {
-            emptyState.style.display = state.filteredEmployees.length === 0 ? '' : 'none';
-        }
-    }
-
-    // Update Pagination
-    function updatePagination() {
-        const totalEmployees = state.filteredEmployees.length;
-        const totalPages = Math.ceil(totalEmployees / state.itemsPerPage);
-        const startCount = totalEmployees === 0 ? 0 : (state.currentPage - 1) * state.itemsPerPage + 1;
-        const endCount = Math.min(state.currentPage * state.itemsPerPage, totalEmployees);
-
-        // Update counts
-        elements.showingCount.textContent = `${startCount}-${endCount}`;
-        elements.totalCount.textContent = totalEmployees;
-
-        // Update page info
-        elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages || 1}`;
-
-        // Update button states
-        elements.prevPage.disabled = state.currentPage === 1;
-        elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
-    }
-
-    // Populate Department Filter
-    function populateDepartmentFilter() {
-        const departments = new Set();
-        const rows = elements.tableBody.querySelectorAll('tr:not(.empty-state)');
-        
-        rows.forEach(row => {
-            const department = row.dataset.department;
-            if (department) {
-                departments.add(department);
+                // Tab switching - Added for settings tabs
+                const tabBtns = document.querySelectorAll('.tab-btn');
+                tabBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const tabId = btn.getAttribute('data-tab');
+                        // You can add additional logic for tab-specific actions here
+                    });
+                });
             }
-        });
 
-        // Departments are already in the HTML, no need to populate dynamically
-    }
+            // Table Actions Handler
+            function handleTableActions(e) {
+                const target = e.target.closest('.btn-edit, .btn-delete');
+                if (!target) return;
 
-    // Scroll to Form
-    function scrollToForm() {
-        document.getElementById('employeeFormSection').scrollIntoView({ 
-            behavior: 'smooth' 
-        });
-    }
+                const row = target.closest('tr');
+                const employeeId = target.dataset.id;
+                const employeeName = target.dataset.name;
 
-    // Export to Excel
-    function exportToExcel() {
-        // Simple CSV export implementation
-        const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Role', 'Effective From'];
-        const rows = state.filteredEmployees.map(row => {
-            const cells = row.querySelectorAll('td');
-            return [
-                cells[1].textContent.trim(),
-                cells[0].textContent.trim(),
-                cells[2].textContent.trim(),
-                cells[3].textContent.trim(),
-                cells[4].textContent.trim(),
-                cells[5].textContent.trim(),
-                cells[6].textContent.trim()
-            ];
-        });
+                if (target.classList.contains('btn-edit')) {
+                    editEmployee(employeeId, employeeName);
+                } else if (target.classList.contains('btn-delete')) {
+                    showDeleteModal(employeeId, employeeName);
+                }
+            }
 
-        const csvContent = [headers, ...rows]
-            .map(row => row.map(cell => `"${cell}"`).join(','))
-            .join('\n');
+            // Search Handler
+            function handleSearch(e) {
+                state.searchTerm = e.target.value.toLowerCase();
+                state.currentPage = 1;
+                updateTable();
+            }
 
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
+            // Department Filter Handler
+            function handleDepartmentFilter(e) {
+                state.departmentFilter = e.target.value;
+                state.currentPage = 1;
+                updateTable();
+            }
 
-    // Edit Employee
-    function editEmployee(employeeId, employeeName) {
-        // This would typically involve fetching employee data and populating the form
-        // For now, we'll just scroll to the form
-        scrollToForm();
-        
-        // Show notification
-        showNotification(`Ready to edit ${employeeName}`, 'success');
-    }
+            // Clear Filters
+            function clearFilters() {
+                elements.employeeSearch.value = '';
+                elements.departmentFilter.value = '';
+                state.searchTerm = '';
+                state.departmentFilter = '';
+                state.currentPage = 1;
+                updateTable();
+            }
 
-    // Cancel Edit
-    function cancelEdit() {
-        // Reset form and redirect to regular add mode
-        window.location.href = "{{ url_for('main.employees') }}";
-    }
+            // Pagination
+            function goToPrevPage() {
+                if (state.currentPage > 1) {
+                    state.currentPage--;
+                    updateTable();
+                }
+            }
 
-    // Delete Employee Modal
-    function showDeleteModal(employeeId, employeeName) {
-        state.employeeToDelete = { id: employeeId, name: employeeName };
-        elements.deleteEmployeeName.textContent = employeeName;
-        elements.deleteModal.style.display = 'flex';
-    }
+            function goToNextPage() {
+                const totalPages = Math.ceil(state.filteredEmployees.length / state.itemsPerPage);
+                if (state.currentPage < totalPages) {
+                    state.currentPage++;
+                    updateTable();
+                }
+            }
 
-    function closeDeleteModal() {
-        elements.deleteModal.style.display = 'none';
-        state.employeeToDelete = null;
-    }
+            // Update Table
+            function updateTable() {
+                const allRows = Array.from(elements.tableBody.querySelectorAll('tr:not(.empty-state)'));
+                
+                // Filter employees
+                state.filteredEmployees = allRows.filter(row => {
+                    const name = row.dataset.name.toLowerCase();
+                    const department = row.dataset.department.toLowerCase();
+                    
+                    const matchesSearch = !state.searchTerm || 
+                        name.includes(state.searchTerm) || 
+                        department.includes(state.searchTerm);
+                    
+                    const matchesDepartment = !state.departmentFilter || 
+                        department.includes(state.departmentFilter.toLowerCase());
+                    
+                    return matchesSearch && matchesDepartment;
+                });
 
-    function confirmDeleteEmployee() {
-        if (state.employeeToDelete) {
-            // In a real implementation, you would send a DELETE request to the server
-            console.log('Deleting employee:', state.employeeToDelete);
-            
-            // For now, just show a notification
-            showNotification(`Employee ${state.employeeToDelete.name} deleted successfully`, 'success');
-            
-            closeDeleteModal();
-            
-            // Reload the page to reflect changes
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
+                // Hide all rows first
+                allRows.forEach(row => row.style.display = 'none');
+
+                // Show filtered rows with pagination
+                const startIndex = (state.currentPage - 1) * state.itemsPerPage;
+                const endIndex = startIndex + state.itemsPerPage;
+                const employeesToShow = state.filteredEmployees.slice(startIndex, endIndex);
+
+                employeesToShow.forEach(row => row.style.display = '');
+
+                // Update pagination controls
+                updatePagination();
+
+                // Show empty state if no results
+                const emptyState = elements.tableBody.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.style.display = state.filteredEmployees.length === 0 ? '' : 'none';
+                }
+            }
+
+            // Update Pagination
+            function updatePagination() {
+                const totalEmployees = state.filteredEmployees.length;
+                const totalPages = Math.ceil(totalEmployees / state.itemsPerPage);
+                const startCount = totalEmployees === 0 ? 0 : (state.currentPage - 1) * state.itemsPerPage + 1;
+                const endCount = Math.min(state.currentPage * state.itemsPerPage, totalEmployees);
+
+                // Update counts
+                elements.showingCount.textContent = `${startCount}-${endCount}`;
+                elements.totalCount.textContent = totalEmployees;
+
+                // Update page info
+                elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages || 1}`;
+
+                // Update button states
+                elements.prevPage.disabled = state.currentPage === 1;
+                elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
+            }
+
+            // Populate Department Filter
+            function populateDepartmentFilter() {
+                const departments = new Set();
+                const rows = elements.tableBody.querySelectorAll('tr:not(.empty-state)');
+                
+                rows.forEach(row => {
+                    const department = row.dataset.department;
+                    if (department) {
+                        departments.add(department);
+                    }
+                });
+
+                // Departments are already in the HTML, no need to populate dynamically
+            }
+
+            // Scroll to Form
+            function scrollToForm() {
+                document.getElementById('employeeFormSection').scrollIntoView({ 
+                    behavior: 'smooth' 
+                });
+            }
+
+            // Export to Excel
+            function exportToExcel() {
+                // Simple CSV export implementation
+                const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Role', 'Effective From'];
+                const rows = state.filteredEmployees.map(row => {
+                    const cells = row.querySelectorAll('td');
+                    return [
+                        cells[1].textContent.trim(),
+                        cells[0].textContent.trim(),
+                        cells[2].textContent.trim(),
+                        cells[3].textContent.trim(),
+                        cells[4].textContent.trim(),
+                        cells[5].textContent.trim(),
+                        cells[6].textContent.trim()
+                    ];
+                });
+
+                const csvContent = [headers, ...rows]
+                    .map(row => row.map(cell => `"${cell}"`).join(','))
+                    .join('\n');
+
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            // Edit Employee
+            function editEmployee(employeeId, employeeName) {
+                // This would typically involve fetching employee data and populating the form
+                // For now, we'll just scroll to the form
+                scrollToForm();
+                
+                // Show notification
+                showNotification(`Ready to edit ${employeeName}`, 'success');
+            }
+
+            // Cancel Edit
+            function cancelEdit() {
+                // Reset form and redirect to regular add mode
+                window.location.href = "{{ url_for('main.employees') }}";
+            }
+
+            // Delete Employee Modal
+            function showDeleteModal(employeeId, employeeName) {
+                state.employeeToDelete = { id: employeeId, name: employeeName };
+                elements.deleteEmployeeName.textContent = employeeName;
+                elements.deleteModal.style.display = 'flex';
+            }
+
+            function closeDeleteModal() {
+                elements.deleteModal.style.display = 'none';
+                state.employeeToDelete = null;
+            }
+
+            function confirmDeleteEmployee() {
+                if (state.employeeToDelete) {
+                    // In a real implementation, you would send a DELETE request to the server
+                    console.log('Deleting employee:', state.employeeToDelete);
+                    
+                    // For now, just show a notification
+                    showNotification(`Employee ${state.employeeToDelete.name} deleted successfully`, 'success');
+                    
+                    closeDeleteModal();
+                    
+                    // Reload the page to reflect changes
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                }
+            }
+
+            // Notification System
+            function showNotification(message, type = 'success') {
+                // Remove existing notifications
+                const existingNotif = document.querySelector('.custom-notification');
+                if (existingNotif) existingNotif.remove();
+
+                const notif = document.createElement('div');
+                notif.className = `custom-notification ${type}`;
+                notif.innerHTML = `
+                    <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
+                    <span>${message}</span>
+                `;
+
+                document.body.appendChild(notif);
+
+                // Animate in
+                setTimeout(() => notif.classList.add('show'), 100);
+
+                // Remove after delay
+                setTimeout(() => {
+                    notif.classList.remove('show');
+                    setTimeout(() => notif.remove(), 300);
+                }, 3000);
+            }
+
+            // Initialize the application
+            init();
         }
-    }
-
-    // Notification System
-    function showNotification(message, type = 'success') {
-        // Remove existing notifications
-        const existingNotif = document.querySelector('.custom-notification');
-        if (existingNotif) existingNotif.remove();
-
-        const notif = document.createElement('div');
-        notif.className = `custom-notification ${type}`;
-        notif.innerHTML = `
-            <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
-            <span>${message}</span>
-        `;
-
-        document.body.appendChild(notif);
-
-        // Animate in
-        setTimeout(() => notif.classList.add('show'), 100);
-
-        // Remove after delay
-        setTimeout(() => {
-            notif.classList.remove('show');
-            setTimeout(() => notif.remove(), 300);
-        }, 3000);
-    }
-
-    // Initialize the application
-    init();
-});
     </script>
 </body>
 </html>

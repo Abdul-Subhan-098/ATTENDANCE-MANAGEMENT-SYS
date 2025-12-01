@@ -10,7 +10,7 @@
     --primary-dark: #2563eb;
     --primary-light: #60a5fa;
     --secondary: #7c3aed;
-    --success: #1bcf5d;
+    --success: #0d8138;
     --success-dark: #0a6d2e;
     --error: #dc2626;
     --error-dark: #b91c1c;
@@ -175,7 +175,7 @@ body {
 
 .container {
     padding: 24px;
-    max-width: 1400px;
+    max-width: 2100px;
     margin: 0 auto;
 }
 

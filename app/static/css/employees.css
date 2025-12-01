@@ -12,7 +12,7 @@
     --primary-dark: #2563eb;
     --primary-light: #60a5fa;
     --secondary: #7c3aed;
-    --success: #16a34a;
+    --success: #0d8138;
     --success-dark: #15803d;
     --error: #dc2626;
     --error-dark: #b91c1c;
@@ -181,7 +181,7 @@ body {
 
 .container {
     padding: 24px;
-    max-width: 1400px;
+    max-width: 2100 px;
     margin: 0 auto;
 }
 

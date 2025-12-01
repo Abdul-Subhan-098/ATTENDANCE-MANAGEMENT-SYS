@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Daily Attendance Report | Attendance System</title>
-
-    <!-- External CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/daily.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
@@ -32,7 +30,6 @@
                 <i class="fas fa-user-shield"></i> Admin
             </a>
 
-            <!-- 🚀 Logout Button at Bottom -->
             <div class="sidebar-bottom">
                 <a href="{{ url_for('main.logout') }}" class="logout-btn">
                     <i class="fas fa-sign-out-alt"></i> Logout
@@ -146,6 +143,7 @@
                             <option value="Half Day (Sat)">Half Day (Sat)</option>
                             <option value="Full Day (Sat)">Full Day (Sat)</option>
                             <option value="Compensated">Compensated</option>
+                            <option value="Sunday">Sunday</option>
                         </select>
                     </div>
 
@@ -166,6 +164,7 @@
                             <th>Date</th>
                             <th>Employee Name</th>
                             <th>Shift</th>
+                            <th>Role</th>
                             <th>Department</th>
                             <th>Check-In</th>
                             <th>Check-Out</th>
@@ -185,6 +184,7 @@
                                 <td>{{ record.Date }}</td>
                                 <td><strong>{{ record.Name }}</strong></td>
                                 <td>{{ record.Shift | convert_shift_display }}</td>
+                                <td>{{ record.Role if record.Role else 'Full-Timer' }}</td>
                                 <td>{{ record.Department if record.Department else 'Cold Calling' }}</td>
                                 <td>{{ record.CheckIn if record.CheckIn else 'Missed' }}</td>
                                 <td>{{ record.CheckOut if record.CheckOut else 'Missed' }}</td>
@@ -196,9 +196,11 @@
                                         'Half Day': 'status-halfday',
                                         'Half Day (Sat)': 'status-sat',
                                         'Full Day (Sat)': 'status-sat',
-                                        'Compensated': 'status-compensated'
+                                        'Compensated': 'status-compensated',
+                                        'Holiday': 'status-holiday',
+                                        'Sunday': 'status-sunday'
                                     } %}
-                                    <span class="status-badge {{ status_class.get(record.Status, 'status-absent') }}"
+                                    <span class="status-badge {{ status_class.get(record.Status.strip() if record.Status else 'Absent', 'status-absent') }}"
                                           data-emp-name="{{ record.Name }}"
                                           data-date="{{ record.Date }}">
                                         {{ record.Status }}
@@ -223,7 +225,7 @@
                             {% endfor %}
                         {% else %}
                             <tr class="empty-state">
-                                <td colspan="10">
+                                <td colspan="11">
                                     <i class="fas fa-clipboard-list empty-state-icon"></i>
                                     <h3>No Daily Records Found</h3>
                                     <p>Upload attendance data to view daily records</p>
@@ -236,6 +238,7 @@
         </div>
     </div>
 
+    <!-- JS -->
     <script src="{{ url_for('static', filename='js/daily.js') }}"></script>
    
     <script>
