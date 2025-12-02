@@ -617,7 +617,7 @@ body {
 .dept-dialer-switching-team { background: rgba(249, 115, 22, 0.1); color: #ea580c; }
 .dept-leads-transfer-team { background: rgba(14, 165, 233, 0.1); color: #0284c7; }
 .dept-quality-control { background: rgba(168, 85, 247, 0.1); color: #9333ea; }
-.dept-leads-effectiveness-team { background: rgba(34, 197, 94, 0.1); color: #16a34a; }
+.dept-leads-effectiveness-team { background: rgba(34, 197, 94, 0.1); color: #002fff; }
 .dept-leads-quality-assurance-team { background: rgba(59, 130, 246, 0.1); color: var(--primary); }
 .dept-transaction-coordinator { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
 .dept-other-campaigns-cold-callers { background: rgba(239, 68, 68, 0.1); color: var(--error); }

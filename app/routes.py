@@ -219,6 +219,73 @@ def daily():
             pagination=None, 
             message=f"❌ Failed to load daily report: {error}"
         )
+# ===========================================================
+# COMPANY DAY OFF ROUTES
+# ===========================================================
+
+@main.route("/company_day_off", methods=["POST"])
+@login_required
+def company_day_off():
+    """Handle Company Day Off operations"""
+    try:
+        data = request.get_json()
+        action = data.get("action")  # "add" or "remove"
+        date_str = data.get("date")
+        reason = data.get("reason", "Company Day Off")
+        
+        if not action or not date_str:
+            return jsonify({"success": False, "message": "Missing required parameters"}), 400
+        
+        from app.service.employee_service import EmployeeService
+        service = EmployeeService()
+        
+        if action == "add":
+            success, message = service.apply_company_day_off(date_str, reason)
+        elif action == "remove":
+            success, message = service.remove_company_day_off(date_str)
+        else:
+            return jsonify({"success": False, "message": "Invalid action"}), 400
+        
+        if success:
+            # Clear cache to reflect changes
+            _clear_daily_cache()
+            
+            # Regenerate monthly report
+            from app.service.monthly_service import generate_monthly_report_from_daily
+            generate_monthly_report_from_daily()
+            
+            logger.info(f"Company Day Off {action} successful: {date_str}")
+            return jsonify({"success": True, "message": message})
+        else:
+            return jsonify({"success": False, "message": message}), 400
+            
+    except Exception as e:
+        logger.error(f"Company Day Off error: {e}")
+        return jsonify({"success": False, "message": "Internal server error"}), 500
+
+@main.route("/api/company_off_days", methods=["GET"])
+@login_required
+def get_company_off_days():
+    """Get list of Company Day Off dates"""
+    try:
+        from app.service.employee_service import EmployeeService
+        service = EmployeeService()
+        
+        # Get date range parameters
+        start_date_str = request.args.get("start_date")
+        end_date_str = request.args.get("end_date")
+        
+        start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date() if start_date_str else None
+        end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date() if end_date_str else None
+        
+        off_days = service.get_company_off_days(start_date, end_date)
+        
+        return jsonify({"success": True, "off_days": off_days})
+        
+    except Exception as e:
+        logger.error(f"Error getting Company Day Off days: {e}")
+        return jsonify({"success": False, "message": "Internal server error"}), 500
+    
 
 @main.route("/employees", methods=["GET", "POST"])
 @login_required

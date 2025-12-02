@@ -18,7 +18,7 @@
     --white: #ffffff;
     --success: #13640bc2; /* Dark Green */
     --error: #d60e0ed5; /* Red */
-    --warning: #e0a015; /* Dark Yellow */
+    --warning: #ffb81d; /* Dark Yellow */
     --purple: #7c3aed; /* Purple */
     --dark-blue: #1e40af; /* Dark Blue */
     --dark-yellow: #ca8a04; /* Dark Yellowish */
@@ -527,15 +527,15 @@ body {
 }
 
 /* COLOR CODING - 4 COLUMNS WITH COLORS */
-#summaryTable td:nth-child(6) { /* Present - DARK GREEN */
+#summaryTable td:nth-child(7) { /* Present - DARK GREEN */
     color: var(--success);
 }
 
-#summaryTable td:nth-child(7) { /* Absent - RED */
+#summaryTable td:nth-child(8) { /* Absent - RED */
     color: var(--error);
 }
 
-#summaryTable td:nth-child(8) { /* Late - YELLOW */
+#summaryTable td:nth-child(9) { /* Late - YELLOW */
     color: var(--warning);
 }
 

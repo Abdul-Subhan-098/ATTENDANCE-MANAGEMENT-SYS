@@ -260,68 +260,63 @@
                 </div>
             </div>
 
-            <!-- Company Off Days Tab - Added from Code B -->
-            <div class="tab-content" id="company-off">
-                <div class="settings-section">
-                    <h3 class="section-title">Company Off Days</h3>
-                    <div class="settings-form">
-                        <div class="form-group">
-                            <label class="form-label">Add Company Off Day</label>
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <input type="date" class="form-input" id="offDayDate">
-                                </div>
-                                <div class="form-group">
-                                    <input type="text" class="form-input" id="offDayReason" placeholder="Reason for off day">
-                                </div>
-                                <div class="form-group">
-                                    <button class="btn btn-primary" id="addOffDay">
-                                        <i class="fas fa-plus"></i> Add Off Day
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Scheduled Off Days</label>
-                            <div class="off-days-list" id="offDaysList">
-                                <!-- Off days will be listed here -->
-                                <div class="empty-state">
-                                    <i class="fas fa-calendar-times"></i>
-                                    <p>No off days scheduled</p>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Recurring Weekly Off</label>
-                            <div class="checkbox-group">
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="weeklyOff" value="sunday"> Sunday
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="weeklyOff" value="monday"> Monday
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="weeklyOff" value="tuesday"> Tuesday
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="weeklyOff" value="wednesday"> Wednesday
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="weeklyOff" value="thursday"> Thursday
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="weeklyOff" value="friday"> Friday
-                                </label>
-                                <label class="checkbox-label">
-                                    <input type="checkbox" name="weeklyOff" value="saturday" checked> Saturday
-                                </label>
-                            </div>
-                        </div>
+<!-- In the Company Off Days tab section -->
+<div class="tab-content" id="company-off">
+    <div class="settings-section">
+        <h3 class="section-title">Company Day Off Management</h3>
+        
+        <!-- Add Company Day Off Form -->
+        <div class="settings-form">
+            <div class="form-group">
+                <label class="form-label">Add Company Day Off</label>
+                <div class="form-row">
+                    <div class="form-group">
+                        <input type="date" class="form-input" id="companyOffDate">
+                    </div>
+                    <div class="form-group">
+                        <input type="text" class="form-input" id="companyOffReason" 
+                               placeholder="Reason (e.g., Company Holiday, Festival)">
+                    </div>
+                    <div class="form-group">
+                        <button class="btn btn-primary" id="addCompanyOffDay">
+                            <i class="fas fa-plus"></i> Add Company Day Off
+                        </button>
                     </div>
                 </div>
             </div>
+            
+            <!-- Remove Company Day Off Form -->
+            <div class="form-group">
+                <label class="form-label">Remove Company Day Off</label>
+                <div class="form-row">
+                    <div class="form-group">
+                        <select class="form-input" id="removeCompanyOffDate">
+                            <option value="">Select date to remove</option>
+                            <!-- Dates will be populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button class="btn btn-danger" id="removeCompanyOffDay">
+                            <i class="fas fa-trash"></i> Remove Company Day Off
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Company Off Days List -->
+            <div class="form-group">
+                <label class="form-label">Scheduled Company Days Off</label>
+                <div class="company-off-days-list" id="companyOffDaysList">
+                    <!-- List will be populated by JavaScript -->
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-times"></i>
+                        <p>No company days off scheduled</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
             <!-- Compensation Tab - Added from Code B -->
             <div class="tab-content" id="compensation-settings">
@@ -662,379 +657,6 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/employees.js') }}"></script>
-    
-    <script>
-        // Sidebar toggle functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            
-            // Set today's date as default for effective date
-            const effectiveDateInput = document.getElementById('effective_date');
-            if (effectiveDateInput && !effectiveDateInput.value) {
-                const today = new Date().toISOString().split('T')[0];
-                effectiveDateInput.value = today;
-            }
 
-            // Set joining date to today if empty
-            const joiningDateInput = document.getElementById('joining_date');
-            if (joiningDateInput && !joiningDateInput.value) {
-                const today = new Date().toISOString().split('T')[0];
-                joiningDateInput.value = today;
-            }
-
-            // Tab switching functionality - Added from Code B
-            const tabBtns = document.querySelectorAll('.tab-btn');
-            const tabContents = document.querySelectorAll('.tab-content');
-            
-            tabBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    // Remove active class from all buttons and contents
-                    tabBtns.forEach(b => b.classList.remove('active'));
-                    tabContents.forEach(c => c.classList.remove('active'));
-                    
-                    // Add active class to clicked button
-                    btn.classList.add('active');
-                    
-                    // Show corresponding content
-                    const tabId = btn.getAttribute('data-tab');
-                    document.getElementById(tabId).classList.add('active');
-                });
-            });
-
-            // Initialize the employee management functionality
-            initEmployeeManagement();
-        });
-
-        function initEmployeeManagement() {
-            // DOM Elements
-            const elements = {
-                employeeForm: document.getElementById('employeeForm'),
-                employeeSearch: document.getElementById('employeeSearch'),
-                departmentFilter: document.getElementById('departmentFilter'),
-                clearFilters: document.getElementById('clearFilters'),
-                employeesTable: document.getElementById('employeesTable'),
-                tableBody: document.querySelector('#employeesTable tbody'),
-                prevPage: document.getElementById('prevPage'),
-                nextPage: document.getElementById('nextPage'),
-                pageInfo: document.getElementById('pageInfo'),
-                showingCount: document.getElementById('showingCount'),
-                totalCount: document.getElementById('totalCount'),
-                addEmployeeBtn: document.getElementById('addEmployeeBtn'),
-                exportEmployeesBtn: document.getElementById('exportEmployeesBtn'),
-                cancelEditBtn: document.getElementById('cancelEditBtn'),
-                deleteModal: document.getElementById('deleteModal'),
-                cancelDelete: document.getElementById('cancelDelete'),
-                confirmDelete: document.getElementById('confirmDelete'),
-                deleteEmployeeName: document.getElementById('deleteEmployeeName')
-            };
-
-            // State
-            const state = {
-                currentPage: 1,
-                itemsPerPage: 10,
-                filteredEmployees: [],
-                searchTerm: '',
-                departmentFilter: '',
-                employeeToDelete: null
-            };
-
-            // Initialize
-            function init() {
-                bindEvents();
-                updateTable();
-                populateDepartmentFilter();
-            }
-
-            // Event Binding
-            function bindEvents() {
-                // Search and Filter
-                elements.employeeSearch.addEventListener('input', handleSearch);
-                elements.departmentFilter.addEventListener('change', handleDepartmentFilter);
-                elements.clearFilters.addEventListener('click', clearFilters);
-
-                // Pagination
-                elements.prevPage.addEventListener('click', goToPrevPage);
-                elements.nextPage.addEventListener('click', goToNextPage);
-
-                // Form Actions
-                if (elements.addEmployeeBtn) {
-                    elements.addEmployeeBtn.addEventListener('click', scrollToForm);
-                }
-
-                if (elements.exportEmployeesBtn) {
-                    elements.exportEmployeesBtn.addEventListener('click', exportToExcel);
-                }
-
-                if (elements.cancelEditBtn) {
-                    elements.cancelEditBtn.addEventListener('click', cancelEdit);
-                }
-
-                // Delete Modal
-                elements.cancelDelete.addEventListener('click', closeDeleteModal);
-                elements.confirmDelete.addEventListener('click', confirmDeleteEmployee);
-
-                // Close modal when clicking outside
-                elements.deleteModal.addEventListener('click', function(e) {
-                    if (e.target === elements.deleteModal) {
-                        closeDeleteModal();
-                    }
-                });
-
-                // Edit and Delete buttons (delegated)
-                elements.tableBody.addEventListener('click', handleTableActions);
-
-                // Tab switching - Added for settings tabs
-                const tabBtns = document.querySelectorAll('.tab-btn');
-                tabBtns.forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const tabId = btn.getAttribute('data-tab');
-                        // You can add additional logic for tab-specific actions here
-                    });
-                });
-            }
-
-            // Table Actions Handler
-            function handleTableActions(e) {
-                const target = e.target.closest('.btn-edit, .btn-delete');
-                if (!target) return;
-
-                const row = target.closest('tr');
-                const employeeId = target.dataset.id;
-                const employeeName = target.dataset.name;
-
-                if (target.classList.contains('btn-edit')) {
-                    editEmployee(employeeId, employeeName);
-                } else if (target.classList.contains('btn-delete')) {
-                    showDeleteModal(employeeId, employeeName);
-                }
-            }
-
-            // Search Handler
-            function handleSearch(e) {
-                state.searchTerm = e.target.value.toLowerCase();
-                state.currentPage = 1;
-                updateTable();
-            }
-
-            // Department Filter Handler
-            function handleDepartmentFilter(e) {
-                state.departmentFilter = e.target.value;
-                state.currentPage = 1;
-                updateTable();
-            }
-
-            // Clear Filters
-            function clearFilters() {
-                elements.employeeSearch.value = '';
-                elements.departmentFilter.value = '';
-                state.searchTerm = '';
-                state.departmentFilter = '';
-                state.currentPage = 1;
-                updateTable();
-            }
-
-            // Pagination
-            function goToPrevPage() {
-                if (state.currentPage > 1) {
-                    state.currentPage--;
-                    updateTable();
-                }
-            }
-
-            function goToNextPage() {
-                const totalPages = Math.ceil(state.filteredEmployees.length / state.itemsPerPage);
-                if (state.currentPage < totalPages) {
-                    state.currentPage++;
-                    updateTable();
-                }
-            }
-
-            // Update Table
-            function updateTable() {
-                const allRows = Array.from(elements.tableBody.querySelectorAll('tr:not(.empty-state)'));
-                
-                // Filter employees
-                state.filteredEmployees = allRows.filter(row => {
-                    const name = row.dataset.name.toLowerCase();
-                    const department = row.dataset.department.toLowerCase();
-                    
-                    const matchesSearch = !state.searchTerm || 
-                        name.includes(state.searchTerm) || 
-                        department.includes(state.searchTerm);
-                    
-                    const matchesDepartment = !state.departmentFilter || 
-                        department.includes(state.departmentFilter.toLowerCase());
-                    
-                    return matchesSearch && matchesDepartment;
-                });
-
-                // Hide all rows first
-                allRows.forEach(row => row.style.display = 'none');
-
-                // Show filtered rows with pagination
-                const startIndex = (state.currentPage - 1) * state.itemsPerPage;
-                const endIndex = startIndex + state.itemsPerPage;
-                const employeesToShow = state.filteredEmployees.slice(startIndex, endIndex);
-
-                employeesToShow.forEach(row => row.style.display = '');
-
-                // Update pagination controls
-                updatePagination();
-
-                // Show empty state if no results
-                const emptyState = elements.tableBody.querySelector('.empty-state');
-                if (emptyState) {
-                    emptyState.style.display = state.filteredEmployees.length === 0 ? '' : 'none';
-                }
-            }
-
-            // Update Pagination
-            function updatePagination() {
-                const totalEmployees = state.filteredEmployees.length;
-                const totalPages = Math.ceil(totalEmployees / state.itemsPerPage);
-                const startCount = totalEmployees === 0 ? 0 : (state.currentPage - 1) * state.itemsPerPage + 1;
-                const endCount = Math.min(state.currentPage * state.itemsPerPage, totalEmployees);
-
-                // Update counts
-                elements.showingCount.textContent = `${startCount}-${endCount}`;
-                elements.totalCount.textContent = totalEmployees;
-
-                // Update page info
-                elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages || 1}`;
-
-                // Update button states
-                elements.prevPage.disabled = state.currentPage === 1;
-                elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
-            }
-
-            // Populate Department Filter
-            function populateDepartmentFilter() {
-                const departments = new Set();
-                const rows = elements.tableBody.querySelectorAll('tr:not(.empty-state)');
-                
-                rows.forEach(row => {
-                    const department = row.dataset.department;
-                    if (department) {
-                        departments.add(department);
-                    }
-                });
-
-                // Departments are already in the HTML, no need to populate dynamically
-            }
-
-            // Scroll to Form
-            function scrollToForm() {
-                document.getElementById('employeeFormSection').scrollIntoView({ 
-                    behavior: 'smooth' 
-                });
-            }
-
-            // Export to Excel
-            function exportToExcel() {
-                // Simple CSV export implementation
-                const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Role', 'Effective From'];
-                const rows = state.filteredEmployees.map(row => {
-                    const cells = row.querySelectorAll('td');
-                    return [
-                        cells[1].textContent.trim(),
-                        cells[0].textContent.trim(),
-                        cells[2].textContent.trim(),
-                        cells[3].textContent.trim(),
-                        cells[4].textContent.trim(),
-                        cells[5].textContent.trim(),
-                        cells[6].textContent.trim()
-                    ];
-                });
-
-                const csvContent = [headers, ...rows]
-                    .map(row => row.map(cell => `"${cell}"`).join(','))
-                    .join('\n');
-
-                const blob = new Blob([csvContent], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-
-            // Edit Employee
-            function editEmployee(employeeId, employeeName) {
-                // This would typically involve fetching employee data and populating the form
-                // For now, we'll just scroll to the form
-                scrollToForm();
-                
-                // Show notification
-                showNotification(`Ready to edit ${employeeName}`, 'success');
-            }
-
-            // Cancel Edit
-            function cancelEdit() {
-                // Reset form and redirect to regular add mode
-                window.location.href = "{{ url_for('main.employees') }}";
-            }
-
-            // Delete Employee Modal
-            function showDeleteModal(employeeId, employeeName) {
-                state.employeeToDelete = { id: employeeId, name: employeeName };
-                elements.deleteEmployeeName.textContent = employeeName;
-                elements.deleteModal.style.display = 'flex';
-            }
-
-            function closeDeleteModal() {
-                elements.deleteModal.style.display = 'none';
-                state.employeeToDelete = null;
-            }
-
-            function confirmDeleteEmployee() {
-                if (state.employeeToDelete) {
-                    // In a real implementation, you would send a DELETE request to the server
-                    console.log('Deleting employee:', state.employeeToDelete);
-                    
-                    // For now, just show a notification
-                    showNotification(`Employee ${state.employeeToDelete.name} deleted successfully`, 'success');
-                    
-                    closeDeleteModal();
-                    
-                    // Reload the page to reflect changes
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                }
-            }
-
-            // Notification System
-            function showNotification(message, type = 'success') {
-                // Remove existing notifications
-                const existingNotif = document.querySelector('.custom-notification');
-                if (existingNotif) existingNotif.remove();
-
-                const notif = document.createElement('div');
-                notif.className = `custom-notification ${type}`;
-                notif.innerHTML = `
-                    <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
-                    <span>${message}</span>
-                `;
-
-                document.body.appendChild(notif);
-
-                // Animate in
-                setTimeout(() => notif.classList.add('show'), 100);
-
-                // Remove after delay
-                setTimeout(() => {
-                    notif.classList.remove('show');
-                    setTimeout(() => notif.remove(), 300);
-                }, 3000);
-            }
-
-            // Initialize the application
-            init();
-        }
-    </script>
 </body>
 </html>

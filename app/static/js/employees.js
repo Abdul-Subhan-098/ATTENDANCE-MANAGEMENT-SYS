@@ -1,5 +1,5 @@
 // =======================================
-// EMPLOYEE MANAGEMENT JS - FIXED VERSION
+// EMPLOYEE MANAGEMENT JS 
 // =======================================
 
 // Global State for Settings
@@ -19,12 +19,11 @@ document.addEventListener("DOMContentLoaded", () => {
     console.log("🚀 Employee Management System Started");
     initializeEmployeeSystem();
     initializeSettingsSystem();
-    initializeCompensationSystem(); // Fixed: Added this line
+    initializeCompensationSystem();
 });
 
 // Employee Management Functions
 function initializeEmployeeSystem() {
-    // Auto-fill form when editing employee
     const employeeRows = document.querySelectorAll(".employee-row");
     const nameInput = document.getElementById("name");
     const phoneInput = document.getElementById("phone");
@@ -52,7 +51,7 @@ function initializeEmployeeSystem() {
         });
     });
 
-    // Auto reset form button
+
     const resetBtn = document.getElementById("reset-btn");
     if (resetBtn) {
         resetBtn.addEventListener("click", () => {
@@ -61,7 +60,6 @@ function initializeEmployeeSystem() {
         });
     }
 
-    // Smooth table animations
     const rows = document.querySelectorAll("table tbody tr");
     rows.forEach((row, index) => {
         row.style.opacity = "0";
@@ -74,14 +72,14 @@ function initializeEmployeeSystem() {
     });
 }
 
-// Settings System Functions
+
 function initializeSettingsSystem() {
     initializeThemeSystem();
     initializeSettingsTabs();
     loadSelectedEmployees();
 }
 
-// Theme System
+
 function initializeThemeSystem() {
     document.documentElement.setAttribute('data-theme', settingsState.currentTheme);
     updateThemeIcon();
@@ -92,22 +90,6 @@ function initializeThemeSystem() {
     }
 }
 
-function toggleTheme() {
-    settingsState.currentTheme = settingsState.currentTheme === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', settingsState.currentTheme);
-    localStorage.setItem('theme', settingsState.currentTheme);
-    updateThemeIcon();
-    showToast(`🌙 ${settingsState.currentTheme === 'dark' ? 'Dark' : 'Light'} theme activated`, 'success');
-}
-
-function updateThemeIcon() {
-    const themeIcon = document.getElementById('themeIcon');
-    if (themeIcon) {
-        themeIcon.className = settingsState.currentTheme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
-    }
-}
-
-// Settings Tabs
 function initializeSettingsTabs() {
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabContents = document.querySelectorAll('.tab-content');
@@ -184,7 +166,7 @@ function setupCompensationEventListeners() {
 }
 
 function initializeDateFields() {
-    // Set default dates for new compensation form
+
     const today = new Date().toISOString().split('T')[0];
     const compensationDate = document.getElementById('compensationDate');
     if (compensationDate) {
@@ -201,7 +183,6 @@ function initializeDateFields() {
 }
 
 function loadEmployeeSuggestions() {
-    // Load employee names for autocomplete
     fetch('/api/daily_search?limit=1000')
         .then(response => response.json())
         .then(data => {
@@ -229,14 +210,11 @@ function checkEligibility() {
         showCompensationResult('Please fill all required fields', 'error');
         return;
     }
-    
-    // Show loading state
     const eligibilityResult = document.getElementById('eligibilityResult');
     eligibilityResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking eligibility...';
     eligibilityResult.className = 'eligibility-result';
     eligibilityResult.style.display = 'block';
     
-    // Check eligibility via API
     fetch('/check_compensation_eligibility', {
         method: 'POST',
         headers: {
@@ -463,7 +441,590 @@ function renderSelectedEmployees() {
         </div>
     `).join('');
 }
+// Company Day Off Functions
+function initializeCompanyDayOffSystem() {
+    loadCompanyOffDays();
+    setupCompanyDayOffEventListeners();
+}
 
+function setupCompanyDayOffEventListeners() {
+    // Add Company Day Off
+    const addBtn = document.getElementById('addCompanyOffDay');
+    if (addBtn) {
+        addBtn.addEventListener('click', addCompanyDayOff);
+    }
+    
+    // Remove Company Day Off
+    const removeBtn = document.getElementById('removeCompanyOffDay');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', removeCompanyDayOff);
+    }
+    
+    // Set today's date as default
+    const dateInput = document.getElementById('companyOffDate');
+    if (dateInput) {
+        const today = new Date().toISOString().split('T')[0];
+        dateInput.value = today;
+    }
+}
+
+function loadCompanyOffDays() {
+    // Load company off days for dropdown and list
+    fetch('/api/company_off_days?start_date=2023-01-01')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                populateCompanyOffDropdown(data.off_days);
+                renderCompanyOffDaysList(data.off_days);
+            }
+        })
+        .catch(error => {
+            console.error('Error loading company off days:', error);
+        });
+}
+
+function populateCompanyOffDropdown(offDays) {
+    const dropdown = document.getElementById('removeCompanyOffDate');
+    if (!dropdown) return;
+    
+    // Clear existing options except the first one
+    dropdown.innerHTML = '<option value="">Select date to remove</option>';
+    
+    offDays.forEach(day => {
+        const option = document.createElement('option');
+        option.value = day.date;
+        option.textContent = `${day.date} - ${day.reason}`;
+        dropdown.appendChild(option);
+    });
+}
+
+function renderCompanyOffDaysList(offDays) {
+    const listContainer = document.getElementById('companyOffDaysList');
+    if (!listContainer) return;
+    
+    if (offDays.length === 0) {
+        listContainer.innerHTML = `
+            <div class="empty-state">
+                <i class="fas fa-calendar-times"></i>
+                <p>No company days off scheduled</p>
+            </div>
+        `;
+        return;
+    }
+    
+    listContainer.innerHTML = offDays.map(day => `
+        <div class="company-off-day-item">
+            <div class="company-off-day-info">
+                <i class="fas fa-calendar-day"></i>
+                <div>
+                    <strong>${day.date}</strong>
+                    <p>${day.reason || 'Company Day Off'}</p>
+                    <small>Added: ${day.created_at}</small>
+                </div>
+            </div>
+            <button class="btn btn-sm btn-outline" onclick="removeCompanyDayOffByDate('${day.date}')">
+                <i class="fas fa-trash"></i> Remove
+            </button>
+        </div>
+    `).join('');
+}
+//=========================
+// COMPANY DAY OFF
+//==========================
+function addCompanyDayOff() {
+    const dateInput = document.getElementById('companyOffDate');
+    const reasonInput = document.getElementById('companyOffReason');
+    
+    const date = dateInput.value;
+    const reason = reasonInput.value.trim() || 'Company Day Off';
+    
+    if (!date) {
+        showToast('❌ Please select a date', 'error');
+        return;
+    }
+    
+    // Show loading
+    const addBtn = document.getElementById('addCompanyOffDay');
+    const originalText = addBtn.innerHTML;
+    addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+    addBtn.disabled = true;
+    
+    // Send request
+    fetch('/company_day_off', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            action: 'add',
+            date: date,
+            reason: reason
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(`✅ ${data.message}`, 'success');
+            // Clear form
+            dateInput.value = new Date().toISOString().split('T')[0];
+            reasonInput.value = '';
+            // Reload lists
+            loadCompanyOffDays();
+        } else {
+            showToast(`❌ ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('❌ Error adding company day off', 'error');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        // Restore button
+        addBtn.innerHTML = originalText;
+        addBtn.disabled = false;
+    });
+}
+
+function removeCompanyDayOff() {
+    const dropdown = document.getElementById('removeCompanyOffDate');
+    const selectedDate = dropdown.value;
+    
+    if (!selectedDate) {
+        showToast('❌ Please select a date to remove', 'error');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to remove Company Day Off status from ${selectedDate}?`)) {
+        return;
+    }
+    
+    // Show loading
+    const removeBtn = document.getElementById('removeCompanyOffDay');
+    const originalText = removeBtn.innerHTML;
+    removeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
+    removeBtn.disabled = true;
+    
+    // Send request
+    fetch('/company_day_off', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            action: 'remove',
+            date: selectedDate
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(`✅ ${data.message}`, 'success');
+            // Reset dropdown
+            dropdown.value = '';
+            // Reload lists
+            loadCompanyOffDays();
+        } else {
+            showToast(`❌ ${data.message}`, 'error');
+        }
+    })
+    .catch(error => {
+        showToast('❌ Error removing company day off', 'error');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        // Restore button
+        removeBtn.innerHTML = originalText;
+        removeBtn.disabled = false;
+    });
+}
+
+function removeCompanyDayOffByDate(date) {
+    if (!confirm(`Are you sure you want to remove Company Day Off status from ${date}?`)) {
+        return;
+    }
+    
+    // Set dropdown value and trigger removal
+    const dropdown = document.getElementById('removeCompanyOffDate');
+    dropdown.value = date;
+    removeCompanyDayOff();
+}
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            
+            // Set today's date as default for effective date
+            const effectiveDateInput = document.getElementById('effective_date');
+            if (effectiveDateInput && !effectiveDateInput.value) {
+                const today = new Date().toISOString().split('T')[0];
+                effectiveDateInput.value = today;
+            }
+
+            // Set joining date to today if empty
+            const joiningDateInput = document.getElementById('joining_date');
+            if (joiningDateInput && !joiningDateInput.value) {
+                const today = new Date().toISOString().split('T')[0];
+                joiningDateInput.value = today;
+            }
+
+            // Tab switching functionality - Added from Code B
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = document.querySelectorAll('.tab-content');
+            
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    // Remove active class from all buttons and contents
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    tabContents.forEach(c => c.classList.remove('active'));
+                    
+                    // Add active class to clicked button
+                    btn.classList.add('active');
+                    
+                    // Show corresponding content
+                    const tabId = btn.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+
+            // Initialize the employee management functionality
+            initEmployeeManagement();
+        });
+
+        function initEmployeeManagement() {
+            // DOM Elements
+            const elements = {
+                employeeForm: document.getElementById('employeeForm'),
+                employeeSearch: document.getElementById('employeeSearch'),
+                departmentFilter: document.getElementById('departmentFilter'),
+                clearFilters: document.getElementById('clearFilters'),
+                employeesTable: document.getElementById('employeesTable'),
+                tableBody: document.querySelector('#employeesTable tbody'),
+                prevPage: document.getElementById('prevPage'),
+                nextPage: document.getElementById('nextPage'),
+                pageInfo: document.getElementById('pageInfo'),
+                showingCount: document.getElementById('showingCount'),
+                totalCount: document.getElementById('totalCount'),
+                addEmployeeBtn: document.getElementById('addEmployeeBtn'),
+                exportEmployeesBtn: document.getElementById('exportEmployeesBtn'),
+                cancelEditBtn: document.getElementById('cancelEditBtn'),
+                deleteModal: document.getElementById('deleteModal'),
+                cancelDelete: document.getElementById('cancelDelete'),
+                confirmDelete: document.getElementById('confirmDelete'),
+                deleteEmployeeName: document.getElementById('deleteEmployeeName')
+            };
+
+            // State
+            const state = {
+                currentPage: 1,
+                itemsPerPage: 10,
+                filteredEmployees: [],
+                searchTerm: '',
+                departmentFilter: '',
+                employeeToDelete: null
+            };
+
+            // Initialize
+            function init() {
+                bindEvents();
+                updateTable();
+                populateDepartmentFilter();
+            }
+
+            // Event Binding
+            function bindEvents() {
+                // Search and Filter
+                elements.employeeSearch.addEventListener('input', handleSearch);
+                elements.departmentFilter.addEventListener('change', handleDepartmentFilter);
+                elements.clearFilters.addEventListener('click', clearFilters);
+
+                // Pagination
+                elements.prevPage.addEventListener('click', goToPrevPage);
+                elements.nextPage.addEventListener('click', goToNextPage);
+
+                // Form Actions
+                if (elements.addEmployeeBtn) {
+                    elements.addEmployeeBtn.addEventListener('click', scrollToForm);
+                }
+
+                if (elements.exportEmployeesBtn) {
+                    elements.exportEmployeesBtn.addEventListener('click', exportToExcel);
+                }
+
+                if (elements.cancelEditBtn) {
+                    elements.cancelEditBtn.addEventListener('click', cancelEdit);
+                }
+
+                // Delete Modal
+                elements.cancelDelete.addEventListener('click', closeDeleteModal);
+                elements.confirmDelete.addEventListener('click', confirmDeleteEmployee);
+
+                // Close modal when clicking outside
+                elements.deleteModal.addEventListener('click', function(e) {
+                    if (e.target === elements.deleteModal) {
+                        closeDeleteModal();
+                    }
+                });
+
+                // Edit and Delete buttons (delegated)
+                elements.tableBody.addEventListener('click', handleTableActions);
+
+                // Tab switching - Added for settings tabs
+                const tabBtns = document.querySelectorAll('.tab-btn');
+                tabBtns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const tabId = btn.getAttribute('data-tab');
+                        // You can add additional logic for tab-specific actions here
+                    });
+                });
+            }
+
+            // Table Actions Handler
+            function handleTableActions(e) {
+                const target = e.target.closest('.btn-edit, .btn-delete');
+                if (!target) return;
+
+                const row = target.closest('tr');
+                const employeeId = target.dataset.id;
+                const employeeName = target.dataset.name;
+
+                if (target.classList.contains('btn-edit')) {
+                    editEmployee(employeeId, employeeName);
+                } else if (target.classList.contains('btn-delete')) {
+                    showDeleteModal(employeeId, employeeName);
+                }
+            }
+
+            // Search Handler
+            function handleSearch(e) {
+                state.searchTerm = e.target.value.toLowerCase();
+                state.currentPage = 1;
+                updateTable();
+            }
+
+            // Department Filter Handler
+            function handleDepartmentFilter(e) {
+                state.departmentFilter = e.target.value;
+                state.currentPage = 1;
+                updateTable();
+            }
+
+            // Clear Filters
+            function clearFilters() {
+                elements.employeeSearch.value = '';
+                elements.departmentFilter.value = '';
+                state.searchTerm = '';
+                state.departmentFilter = '';
+                state.currentPage = 1;
+                updateTable();
+            }
+
+            // Pagination
+            function goToPrevPage() {
+                if (state.currentPage > 1) {
+                    state.currentPage--;
+                    updateTable();
+                }
+            }
+
+            function goToNextPage() {
+                const totalPages = Math.ceil(state.filteredEmployees.length / state.itemsPerPage);
+                if (state.currentPage < totalPages) {
+                    state.currentPage++;
+                    updateTable();
+                }
+            }
+
+            // Update Table
+            function updateTable() {
+                const allRows = Array.from(elements.tableBody.querySelectorAll('tr:not(.empty-state)'));
+                
+                // Filter employees
+                state.filteredEmployees = allRows.filter(row => {
+                    const name = row.dataset.name.toLowerCase();
+                    const department = row.dataset.department.toLowerCase();
+                    
+                    const matchesSearch = !state.searchTerm || 
+                        name.includes(state.searchTerm) || 
+                        department.includes(state.searchTerm);
+                    
+                    const matchesDepartment = !state.departmentFilter || 
+                        department.includes(state.departmentFilter.toLowerCase());
+                    
+                    return matchesSearch && matchesDepartment;
+                });
+
+                // Hide all rows first
+                allRows.forEach(row => row.style.display = 'none');
+
+                // Show filtered rows with pagination
+                const startIndex = (state.currentPage - 1) * state.itemsPerPage;
+                const endIndex = startIndex + state.itemsPerPage;
+                const employeesToShow = state.filteredEmployees.slice(startIndex, endIndex);
+
+                employeesToShow.forEach(row => row.style.display = '');
+
+                // Update pagination controls
+                updatePagination();
+
+                // Show empty state if no results
+                const emptyState = elements.tableBody.querySelector('.empty-state');
+                if (emptyState) {
+                    emptyState.style.display = state.filteredEmployees.length === 0 ? '' : 'none';
+                }
+            }
+
+            // Update Pagination
+            function updatePagination() {
+                const totalEmployees = state.filteredEmployees.length;
+                const totalPages = Math.ceil(totalEmployees / state.itemsPerPage);
+                const startCount = totalEmployees === 0 ? 0 : (state.currentPage - 1) * state.itemsPerPage + 1;
+                const endCount = Math.min(state.currentPage * state.itemsPerPage, totalEmployees);
+
+                // Update counts
+                elements.showingCount.textContent = `${startCount}-${endCount}`;
+                elements.totalCount.textContent = totalEmployees;
+
+                // Update page info
+                elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages || 1}`;
+
+                // Update button states
+                elements.prevPage.disabled = state.currentPage === 1;
+                elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
+            }
+
+            // Populate Department Filter
+            function populateDepartmentFilter() {
+                const departments = new Set();
+                const rows = elements.tableBody.querySelectorAll('tr:not(.empty-state)');
+                
+                rows.forEach(row => {
+                    const department = row.dataset.department;
+                    if (department) {
+                        departments.add(department);
+                    }
+                });
+
+                // Departments are already in the HTML, no need to populate dynamically
+            }
+
+            // Scroll to Form
+            function scrollToForm() {
+                document.getElementById('employeeFormSection').scrollIntoView({ 
+                    behavior: 'smooth' 
+                });
+            }
+
+            // Export to Excel
+            function exportToExcel() {
+                // Simple CSV export implementation
+                const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Role', 'Effective From'];
+                const rows = state.filteredEmployees.map(row => {
+                    const cells = row.querySelectorAll('td');
+                    return [
+                        cells[1].textContent.trim(),
+                        cells[0].textContent.trim(),
+                        cells[2].textContent.trim(),
+                        cells[3].textContent.trim(),
+                        cells[4].textContent.trim(),
+                        cells[5].textContent.trim(),
+                        cells[6].textContent.trim()
+                    ];
+                });
+
+                const csvContent = [headers, ...rows]
+                    .map(row => row.map(cell => `"${cell}"`).join(','))
+                    .join('\n');
+
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+
+            // Edit Employee
+            function editEmployee(employeeId, employeeName) {
+                // This would typically involve fetching employee data and populating the form
+                // For now, we'll just scroll to the form
+                scrollToForm();
+                
+                // Show notification
+                showNotification(`Ready to edit ${employeeName}`, 'success');
+            }
+
+            // Cancel Edit
+            function cancelEdit() {
+                // Reset form and redirect to regular add mode
+                window.location.href = "{{ url_for('main.employees') }}";
+            }
+
+            // Delete Employee Modal
+            function showDeleteModal(employeeId, employeeName) {
+                state.employeeToDelete = { id: employeeId, name: employeeName };
+                elements.deleteEmployeeName.textContent = employeeName;
+                elements.deleteModal.style.display = 'flex';
+            }
+
+            function closeDeleteModal() {
+                elements.deleteModal.style.display = 'none';
+                state.employeeToDelete = null;
+            }
+
+            function confirmDeleteEmployee() {
+                if (state.employeeToDelete) {
+                    // In a real implementation, you would send a DELETE request to the server
+                    console.log('Deleting employee:', state.employeeToDelete);
+                    
+                    // For now, just show a notification
+                    showNotification(`Employee ${state.employeeToDelete.name} deleted successfully`, 'success');
+                    
+                    closeDeleteModal();
+                    
+                    // Reload the page to reflect changes
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1500);
+                }
+            }
+
+            // Notification System
+            function showNotification(message, type = 'success') {
+                // Remove existing notifications
+                const existingNotif = document.querySelector('.custom-notification');
+                if (existingNotif) existingNotif.remove();
+
+                const notif = document.createElement('div');
+                notif.className = `custom-notification ${type}`;
+                notif.innerHTML = `
+                    <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
+                    <span>${message}</span>
+                `;
+
+                document.body.appendChild(notif);
+
+                // Animate in
+                setTimeout(() => notif.classList.add('show'), 100);
+
+                // Remove after delay
+                setTimeout(() => {
+                    notif.classList.remove('show');
+                    setTimeout(() => notif.remove(), 300);
+                }, 3000);
+            }
+
+            // Initialize the application
+            init();
+        }
+// Initialize when DOM is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // ... existing initialization code ...
+    
+    // Initialize Company Day Off system
+    initializeCompanyDayOffSystem();
+});
 // Data Management Functions
 function loadCompensationData() {
     try {

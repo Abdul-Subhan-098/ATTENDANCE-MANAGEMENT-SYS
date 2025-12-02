@@ -1,9 +1,9 @@
 import re
 from datetime import datetime, date, timedelta, time
-from typing import Optional, Tuple, Set
+from typing import Optional, Tuple, Set, List, Dict
 from flask import flash
 from app import db
-from app.models import Employee, DailyReport, MonthlyReport
+from app.models import DailyReport, MonthlyReport, Employee, CompanyDayOff  # REMOVE extra 'db' from here
 from app.service.daily_service import AttendanceCalculator, DailyReportGenerator
 import logging
 
@@ -11,7 +11,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # ===========================================================
-#              EMPLOYEE SERVICE
+#              EMPLOYEE SERVICE 
 # ===========================================================
 class EmployeeService:
     """Service for handling employee operations including CRUD and report updates."""
@@ -379,6 +379,327 @@ class EmployeeService:
         except Exception as e:
             logger.error(f"Error fetching all employees: {e}")
             return []
+
+    # ==================== COMPANY DAY OFF METHODS ====================
+    # YEH WALA SECTION PEHLE WAALE CODE SE ADD KARNA HAI
+    
+    def apply_company_day_off(self, date_str: str, reason: str = "Company Day Off") -> Tuple[bool, str]:
+        """
+        Mark a date as Company Day Off and update all employee records
+        """
+        try:
+            # Parse date
+            try:
+                off_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            except ValueError:
+                return False, "Invalid date format. Use YYYY-MM-DD"
+            
+            # Check if date is in the future (optional validation)
+            if off_date > datetime.today().date():
+                return False, "Cannot set future dates as Company Day Off"
+            
+            # Check if already marked as Company Day Off
+            existing_off = CompanyDayOff.query.filter_by(date=off_date).first()
+            if existing_off:
+                return False, f"{off_date} is already marked as Company Day Off"
+            
+            # Save Company Day Off record
+            company_off = CompanyDayOff(
+                date=off_date,
+                reason=reason
+            )
+            db.session.add(company_off)
+            
+            # Get all employees who have records for this date
+            daily_records = DailyReport.query.filter_by(date=off_date).all()
+            
+            if daily_records:
+                # Update existing records
+                for record in daily_records:
+                    record.is_company_off = True
+                    record.company_off_reason = reason
+                    record.working_day = False
+                    record.status = "Company Day Off"
+                    record.overtime = 0.0
+                    record.missed_checkin = False
+                    record.missed_checkout = False
+            
+            # Also create records for employees who don't have records for this date
+            # This ensures all employees are marked as Company Day Off
+            all_employees = Employee.query.all()
+            existing_employee_names = {r.employee_name for r in daily_records}
+            
+            for employee in all_employees:
+                if employee.name not in existing_employee_names:
+                    # Create a new record for this employee
+                    daily_record = DailyReport(
+                        emp_id=employee.emp_id,
+                        employee_name=employee.name,
+                        date=off_date,
+                        shift=employee.shift,
+                        department=employee.department,
+                        joining_date=employee.joining_date,
+                        last_updated_date=employee.last_updated_date,
+                        role=employee.role,
+                        is_company_off=True,
+                        company_off_reason=reason,
+                        working_day=False,
+                        status="Company Day Off",
+                        overtime=0.0,
+                        missed_checkin=False,
+                        missed_checkout=False
+                    )
+                    db.session.add(daily_record)
+            
+            db.session.commit()
+            
+            # Update monthly reports for affected months
+            self._update_monthly_reports_for_company_off(off_date)
+            
+            logger.info(f"Company Day Off applied for {off_date}: {reason}")
+            return True, f"Successfully marked {off_date} as Company Day Off"
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error applying Company Day Off: {e}")
+            return False, f"Error: {str(e)}"
+    
+    def _update_monthly_reports_for_company_off(self, off_date: date):
+        """
+        Update monthly reports when a day is marked as Company Day Off
+        """
+        try:
+            month_str = off_date.strftime("%Y-%m")
+            
+            # Get all employees who have records for this month
+            employees = Employee.query.all()
+            
+            for employee in employees:
+                # Get daily records for this employee for the month
+                start_date = datetime.strptime(f"{month_str}-01", "%Y-%m-%d").date()
+                next_month = start_date.replace(day=28) + timedelta(days=4)
+                end_date = next_month.replace(day=1)
+                
+                daily_records = DailyReport.query.filter(
+                    DailyReport.employee_name == employee.name,
+                    DailyReport.date >= start_date,
+                    DailyReport.date < end_date
+                ).all()
+                
+                if not daily_records:
+                    continue
+                
+                # Count company off days
+                company_off_days = sum(1 for r in daily_records if r.is_company_off)
+                
+                # Count other statuses (excluding company off days)
+                present = absent = late = half_day_weekdays = 0
+                half_day_sat = full_day_sat = sundays = compensated = 0
+                weekday_ot_hours = 0.0
+                
+                for row in daily_records:
+                    if row.is_company_off:
+                        continue  # Skip company off days from regular counts
+                    
+                    status = row.status or ""
+                    weekday = row.date.weekday()
+                    
+                    if status == "Present":
+                        present += 1
+                    elif status == "Absent":
+                        absent += 1
+                    elif status == "Late":
+                        late += 1
+                    elif status == "Half Day":
+                        half_day_weekdays += 1
+                    elif status == "Full Day (Sat)":
+                        full_day_sat += 1
+                    elif status == "Half Day (Sat)":
+                        half_day_sat += 1
+                    elif status == "Sunday":
+                        sundays += 1
+                    elif status == "Compensated":
+                        compensated += 1
+                    
+                    # Weekday overtime
+                    if weekday in (0, 1, 2, 3, 4) and row.overtime:
+                        weekday_ot_hours += float(row.overtime)
+                
+                # Update or create monthly report
+                monthly_report = MonthlyReport.query.filter_by(
+                    name=employee.name,
+                    report_month=month_str
+                ).first()
+                
+                if monthly_report:
+                    # Update existing monthly report
+                    monthly_report.total_days = len(daily_records)
+                    monthly_report.present = present
+                    monthly_report.absent = absent
+                    monthly_report.late = late
+                    monthly_report.half_day_weekdays = half_day_weekdays
+                    monthly_report.half_day_sat = half_day_sat
+                    monthly_report.full_day_sat = full_day_sat
+                    monthly_report.sundays = sundays
+                    monthly_report.compensated = compensated
+                    monthly_report.company_off_days = company_off_days
+                    monthly_report.ot_hours = round(weekday_ot_hours, 2)
+                    
+                    # Store company off info in remarks
+                    if company_off_days > 0:
+                        company_off_record = CompanyDayOff.query.filter_by(date=off_date).first()
+                        if company_off_record:
+                            remarks_text = f"Company Day Off on {off_date}: {company_off_record.reason}"
+                            if monthly_report.remarks:
+                                monthly_report.remarks += f"\n{remarks_text}"
+                            else:
+                                monthly_report.remarks = remarks_text
+                else:
+                    # Create new monthly report
+                    monthly_report = MonthlyReport(
+                        emp_id=employee.emp_id,
+                        name=employee.name,
+                        department=employee.department or "Cold Calling",
+                        joining_date=employee.joining_date,
+                        last_updated_date=datetime.utcnow().date(),
+                        shift=employee.shift,
+                        role=employee.role,
+                        report_month=month_str,
+                        total_days=len(daily_records),
+                        present=present,
+                        absent=absent,
+                        late=late,
+                        half_day_weekdays=half_day_weekdays,
+                        half_day_sat=half_day_sat,
+                        full_day_sat=full_day_sat,
+                        sundays=sundays,
+                        compensated=compensated,
+                        company_off_days=company_off_days,
+                        ot_hours=round(weekday_ot_hours, 2)
+                    )
+                    
+                    if company_off_days > 0:
+                        company_off_record = CompanyDayOff.query.filter_by(date=off_date).first()
+                        if company_off_record:
+                            monthly_report.remarks = f"Company Day Off on {off_date}: {company_off_record.reason}"
+                    
+                    db.session.add(monthly_report)
+            
+            db.session.commit()
+            logger.info(f"Updated monthly reports for {month_str} after Company Day Off")
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating monthly reports for Company Day Off: {e}")
+    
+    def get_company_off_days(self, start_date: date = None, end_date: date = None) -> List[Dict]:
+        """
+        Get list of Company Day Off dates
+        """
+        try:
+            query = CompanyDayOff.query.order_by(CompanyDayOff.date.desc())
+            
+            if start_date:
+                query = query.filter(CompanyDayOff.date >= start_date)
+            if end_date:
+                query = query.filter(CompanyDayOff.date <= end_date)
+            
+            off_days = query.all()
+            
+            return [{
+                "id": day.id,
+                "date": day.date.strftime("%Y-%m-%d"),
+                "reason": day.reason,
+                "created_at": day.created_at.strftime("%Y-%m-%d %H:%M")
+            } for day in off_days]
+            
+        except Exception as e:
+            logger.error(f"Error getting Company Day Off days: {e}")
+            return []
+    
+    def remove_company_day_off(self, date_str: str) -> Tuple[bool, str]:
+        """
+        Remove Company Day Off status from a date and regenerate records
+        """
+        try:
+            off_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            
+            # Find Company Day Off record
+            company_off = CompanyDayOff.query.filter_by(date=off_date).first()
+            if not company_off:
+                return False, f"{off_date} is not marked as Company Day Off"
+            
+            # Delete Company Day Off record
+            db.session.delete(company_off)
+            
+            # Get all daily records for this date
+            daily_records = DailyReport.query.filter_by(date=off_date).all()
+            
+            # Regenerate attendance for these records
+            for record in daily_records:
+                # Reset company off flags
+                record.is_company_off = False
+                record.company_off_reason = None
+                record.working_day = True
+                
+                # Skip Sunday handling as it's already in the system
+                if record.date.weekday() == 6:
+                    record.status = "Sunday"
+                    continue
+                
+                # Recalculate status using existing logic
+                employee = Employee.query.filter_by(name=record.employee_name).first()
+                if not employee:
+                    continue
+                
+                # Parse shift - yaha fix karna hoga
+                try:
+                    if employee.shift:
+                        shift_parts = employee.shift.split('-')
+                        if len(shift_parts) == 2:
+                            shift_start = datetime.strptime(shift_parts[0].strip(), "%H:%M").time()
+                            shift_end = datetime.strptime(shift_parts[1].strip(), "%H:%M").time()
+                        else:
+                            shift_start = datetime.strptime("10:00", "%H:%M").time()
+                            shift_end = datetime.strptime("19:00", "%H:%M").time()
+                    else:
+                        shift_start = datetime.strptime("10:00", "%H:%M").time()
+                        shift_end = datetime.strptime("19:00", "%H:%M").time()
+                except:
+                    shift_start = datetime.strptime("10:00", "%H:%M").time()
+                    shift_end = datetime.strptime("19:00", "%H:%M").time()
+                
+                # Determine if full-time
+                shift_start_dt = datetime.combine(record.date, shift_start)
+                shift_end_dt = datetime.combine(record.date, shift_end)
+                shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
+                is_full_time = shift_duration >= 9.0
+                
+                # Recalculate status
+                check_in_dt = datetime.combine(record.date, record.check_in) if record.check_in else None
+                check_out_dt = datetime.combine(record.date, record.check_out) if record.check_out else None
+                
+                record.status, record.overtime = self.calculator.calculate_status(
+                    check_in_dt, check_out_dt, record.date, shift_start, shift_end, is_full_time
+                )
+                
+                # Update missed punches
+                missed_in, missed_out = self.calculator.determine_missed_punches(check_in_dt, check_out_dt)
+                record.missed_checkin = (missed_in == "Yes")
+                record.missed_checkout = (missed_out == "Yes")
+            
+            db.session.commit()
+            
+            # Update monthly reports
+            self._update_monthly_reports_for_company_off(off_date)
+            
+            logger.info(f"Company Day Off removed for {off_date}")
+            return True, f"Successfully removed Company Day Off status from {off_date}"
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error removing Company Day Off: {e}")
+            return False, f"Error: {str(e)}"
 
 
 # ===========================================================

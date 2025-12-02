@@ -7,6 +7,7 @@ import pandas as pd
 import logging
 import numpy as np
 import time as time_module
+from app.models import db, DailyReport, MonthlyReport, Employee, CompanyDayOff
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -636,6 +637,114 @@ class DailyReportGenerator:
         check_in = day_data["CheckIn"].iloc[0] if not pd.isna(day_data["CheckIn"].iloc[0]) else None
         check_out = day_data["CheckOut"].iloc[0] if not pd.isna(day_data["CheckOut"].iloc[0]) else None
         return check_in, check_out
+    
+    def _fast_generate_employee_records(
+        self,
+        employee_name: str,
+        df: pd.DataFrame,
+        all_dates: List[date],
+        employees_data: Dict,
+        compensated_dates: Dict
+    ) -> List[Dict[str, Any]]:
+        """Fast employee record generation"""
+        emp_data = df[df["Name"] == employee_name]
+        if emp_data.empty:
+            return []
+
+        emp_id = str(emp_data["Emp ID"].iloc[0]) if not emp_data["Emp ID"].isna().all() else ""
+
+        # Get employee configuration
+        employee_obj = employees_data.get(employee_name)
+        shift_start_str, shift_end_str = self._get_employee_shift(employee_obj, employee_name)
+        department = getattr(employee_obj, 'department', 'Cold Calling')
+        joining_date = getattr(employee_obj, 'joining_date', None)
+        last_updated_date = getattr(employee_obj, 'last_updated_date', datetime.utcnow().date())
+        role = getattr(employee_obj, 'role', 'FullTime')
+
+        shift_start, shift_end = self._parse_shift(f"{shift_start_str} - {shift_end_str}")
+        full_time = self._is_full_time_employee(employee_obj, shift_start, shift_end)
+        
+        # Check for Company Day Off dates
+        company_off_dates = self._get_company_off_dates(all_dates)
+        
+        records = []
+
+        for day in all_dates:
+            # Check if this is a Company Day Off
+            if day in company_off_dates:
+                reason = company_off_dates[day]
+                records.append({
+                    "EmpID": emp_id,
+                    "Date": day.strftime("%Y-%m-%d"),
+                    "Name": employee_name,
+                    "Shift": f"{shift_start_str} - {shift_end_str}",
+                    "CheckIn": "",
+                    "CheckOut": "",
+                    "Status": "Company Day Off",
+                    "MissedCheckIn": "",
+                    "MissedCheckOut": "",
+                    "Overtime": 0.0,
+                    "Department": department,
+                    "JoiningDate": joining_date,
+                    "LastUpdatedDate": last_updated_date,
+                    "Role": role,
+                    "IsCompanyOff": True,
+                    "CompanyOffReason": reason
+                })
+                continue
+            
+            day_data = emp_data[emp_data["Date"] == day]
+            check_in, check_out = self._extract_check_times(day_data)
+
+            # Sunday handling
+            if day.weekday() == 6:
+                status = AttendanceStatus.SUNDAY
+                overtime_hours = 0.0
+                missed_in, missed_out = "", ""
+            else:
+                status, overtime_hours = self.calculator.calculate_status(
+                    check_in, check_out, day, shift_start, shift_end, full_time
+                )
+                
+                # Compensated date override
+                if str(day) in compensated_dates.get(employee_name, set()):
+                    status = AttendanceStatus.COMPENSATED
+                    overtime_hours = 0.0
+                    
+                missed_in, missed_out = self.calculator.determine_missed_punches(check_in, check_out)
+
+            records.append({
+                "EmpID": emp_id,
+                "Date": day.strftime("%Y-%m-%d"),
+                "Name": employee_name,
+                "Shift": f"{shift_start_str} - {shift_end_str}",
+                "CheckIn": check_in.strftime("%H:%M:%S") if check_in else "",
+                "CheckOut": check_out.strftime("%H:%M:%S") if check_out else "",
+                "Status": status,
+                "MissedCheckIn": missed_in,
+                "MissedCheckOut": missed_out,
+                "Overtime": overtime_hours,
+                "Department": department,
+                "JoiningDate": joining_date,
+                "LastUpdatedDate": last_updated_date,
+                "Role": role,
+                "IsCompanyOff": False,
+                "CompanyOffReason": None
+            })
+
+        return records
+    
+    def _get_company_off_dates(self, dates: List[date]) -> Dict[date, str]:
+        """Get Company Day Off dates from database"""
+        try:
+            company_off_records = CompanyDayOff.query.filter(
+                CompanyDayOff.date.in_(dates)
+            ).all()
+            
+            return {record.date: record.reason for record in company_off_records}
+        except Exception as e:
+            logger.error(f"Error fetching Company Day Off dates: {e}")
+            return {}
 
 # ===========================================================
 #              EXTERNAL ENTRY POINT

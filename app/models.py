@@ -1,7 +1,8 @@
 from datetime import datetime
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
-
+from datetime import datetime
+from app import db
 
 # ===========================================================
 #               ATTENDANCE RAW 
@@ -60,18 +61,21 @@ class Employee(db.Model):
 class DailyReport(db.Model):
     __tablename__ = "daily_report"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    id = db.Column(db.Integer, primary_key=True) 
     emp_id = db.Column(db.Integer, nullable=False)
     date = db.Column(db.Date, nullable=False)
     employee_name = db.Column(db.String(100), nullable=False)
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    role = db.Column(db.String(20), default="Full Timer")  # Added from Code A
-    compensation_type = db.Column(db.String(20), nullable=True)  # Added from Code B
-    compensated_date = db.Column(db.Date, nullable=True)  # Added from Code B
+    role = db.Column(db.String(20), default="Full Timer") 
+    compensation_type = db.Column(db.String(20), nullable=True) 
+    compensated_date = db.Column(db.Date, nullable=True)  
     shift = db.Column(db.String(50))
     check_in = db.Column(db.Time)
+    is_company_off = db.Column(db.Boolean, default=False)
+    company_off_reason = db.Column(db.String(200))
+    working_day = db.Column(db.Boolean, default=True)  
     check_out = db.Column(db.Time)
     status = db.Column(db.String(50))
     missed_checkin = db.Column(db.Boolean, default=False)
@@ -95,7 +99,7 @@ class MonthlyReport(db.Model):
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    role = db.Column(db.String(20), default="Full Timer")  # Added from Code A
+    role = db.Column(db.String(20), default="Full Timer") 
     shift = db.Column(db.String(50))
     total_days = db.Column(db.Integer, default=0)
     present = db.Column(db.Integer, default=0)
@@ -106,15 +110,26 @@ class MonthlyReport(db.Model):
     full_day_sat = db.Column(db.Integer, default=0)
     ot_hours = db.Column(db.Float, default=0.0)
     compensated = db.Column(db.Integer, default=0)
-    sundays = db.Column(db.Integer, default=0)  # Added from Code A
-    by_late_count = db.Column(db.Integer, default=0)  # Added from Code B
-    by_half_day_count = db.Column(db.Integer, default=0)  # Added from Code B
-    by_absent_count = db.Column(db.Integer, default=0)  # Added from Code B
+    company_off_days = db.Column(db.Integer, default=0)
+    sundays = db.Column(db.Integer, default=0)  
+    by_late_count = db.Column(db.Integer, default=0)  
+    by_half_day_count = db.Column(db.Integer, default=0)  
+    by_absent_count = db.Column(db.Integer, default=0)  
     report_month = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<MonthlyReport {self.name} - {self.report_month}>"
+    
+# ===========================================================
+#               COMPANY DAY OFF
+# ===========================================================
+class CompanyDayOff(db.Model):
+    __tablename__ = 'company_day_off'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, unique=True)
+    reason = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 # ===========================================================
@@ -134,3 +149,4 @@ class Admin(db.Model):
 
     def __repr__(self):
         return f"<Admin {self.username}>"
+    
