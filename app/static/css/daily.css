@@ -203,9 +203,7 @@ body {
 .page-header p {
     color: var(--gray);
     font-size: 1rem;
-    font-weight: 500;
-    text-align: center;
-    margin: 0 auto;
+    text-align:left;
 }
 
 /* Summary Cards */

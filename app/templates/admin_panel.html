@@ -1,126 +1,556 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin Panel</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel | Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Sidebar Toggle Button */
+        .sidebar-toggle {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            background: var(--primary);
+            color: var(--white);
+            border: none;
+            border-radius: 6px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1001;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
 
-<!-- CSS -->
-<link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        .sidebar-toggle:hover {
+            background: var(--primary-dark);
+        }
 
+        .sidebar-toggle.collapsed {
+            left: 16px;
+        }
 
+        /* Sidebar Styles */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: var(--white);
+            padding: 24px 16px;
+            box-shadow: var(--shadow-lg);
+            position: fixed;
+            height: 100vh;
+            overflow-y: auto;
+            z-index: 1000;
+            border-right: 1px solid var(--gray-lighter);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-header {
+            text-align: center;
+            margin-bottom: 32px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--gray-lighter);
+        }
+
+        .sidebar-header h2 {
+            color: var(--dark);
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            color: var(--gray);
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .sidebar-nav {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            gap: 6px;
+        }
+
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            padding: 12px 16px;
+            color: var(--gray-dark);
+            text-decoration: none;
+            border-radius: var(--border-radius);
+            transition: all 0.2s ease;
+            font-weight: 500;
+            gap: 12px;
+            border: 1px solid transparent;
+        }
+
+        .sidebar-nav a:hover {
+            background: var(--gray-lightest);
+            color: var(--primary);
+        }
+
+        .sidebar-nav a.active {
+            background: var(--primary);
+            color: var(--white);
+            box-shadow: var(--shadow-md);
+        }
+
+        .sidebar-nav i {
+            font-size: 1rem;
+            width: 18px;
+            text-align: center;
+        }
+
+        .sidebar-bottom {
+            margin-top: auto;
+            padding: 16px 0;
+        }
+
+        .logout-btn {
+            color: var(--error) !important;
+            font-weight: 600;
+        }
+
+        .logout-btn:hover {
+            background: var(--gray-lightest) !important;
+            color: var(--error-dark) !important;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
+            background: var(--gray-lightest);
+            transition: margin-left 0.3s ease;
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
+        }
+
+        /* CSS Variables */
+        :root {
+            --primary: #394894;
+            --primary-dark: #2563eb;
+            --primary-light: #60a5fa;
+            --secondary: #7c3aed;
+            --secondary-dark: #6d28d9;
+            --success: #16a34a;
+            --success-dark: #15803d;
+            --success-light: rgba(22, 163, 74, 0.1);
+            --error: #dc2626;
+            --error-dark: #b91c1c;
+            --error-light: rgba(220, 38, 38, 0.1);
+            --warning: #d97706;
+            --warning-dark: #b45309;
+            --warning-light: rgba(217, 119, 6, 0.1);
+            --purple: #7c3aed;
+            --purple-dark: #6d28d9;
+            --purple-light: rgba(124, 58, 237, 0.1);
+            --dark: #1f2937;
+            --gray-dark: #374151;
+            --gray: #6b7280;
+            --gray-light: #9ca3af;
+            --gray-lighter: #e5e7eb;
+            --gray-lightest: #f9fafb;
+            --white: #ffffff;
+            --sidebar-width: 240px;
+            --border-radius: 8px;
+            --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05);
+            --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Admin Specific Styles */
+        .admin-card {
+            background: var(--white);
+            border-radius: var(--border-radius);
+            padding: 20px;
+            box-shadow: var(--shadow-md);
+            margin-bottom: 20px;
+            border: 1px solid var(--gray-lighter);
+        }
+
+        .admin-card h3 {
+            color: var(--dark);
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .admin-card h3 i {
+            color: var(--primary);
+        }
+
+        .password-strength {
+            margin-top: 10px;
+            height: 4px;
+            background: var(--gray-lighter);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .password-strength-bar {
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 2px;
+        }
+
+        .password-strength.weak .password-strength-bar {
+            width: 30%;
+            background: var(--error);
+        }
+
+        .password-strength.medium .password-strength-bar {
+            width: 60%;
+            background: var(--warning);
+        }
+
+        .password-strength.strong .password-strength-bar {
+            width: 100%;
+            background: var(--success);
+        }
+
+        .password-hint {
+            font-size: 0.8rem;
+            color: var(--gray);
+            margin-top: 5px;
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .admin-table th {
+            background: var(--primary);
+            color: var(--white);
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .admin-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--gray-lighter);
+            color: var(--dark);
+        }
+
+        .admin-table tr:hover {
+            background: var(--gray-lightest);
+        }
+
+        .delete-admin-btn {
+            background: var(--error);
+            color: var(--white);
+            border: none;
+            padding: 8px 15px;
+            border-radius: var(--border-radius);
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.85rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .delete-admin-btn:hover {
+            background: var(--error-dark);
+            transform: translateY(-2px);
+        }
+
+        .current-admin {
+            background: rgba(22, 163, 74, 0.1);
+            border-left: 3px solid var(--success);
+        }
+
+        .current-admin td:first-child {
+            color: var(--success);
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
+    <!-- Sidebar Navigation -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Attendance</h2>
+            <p>Admin Panel</p>
+        </div>
 
-<!-- Sidebar -->
-<div class="sidebar">
-    <div class="sidebar-header">
-        <h2>Attendance</h2>
-        <p>Admin Panel</p>
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('main.employees') }}">
+                <i class="fas fa-users"></i> Employee Manage
+            </a>
+            <a href="{{ url_for('main.index') }}">
+                <i class="fas fa-chart-bar"></i> Monthly Report
+            </a>
+            <a href="{{ url_for('main.daily') }}">
+                <i class="fas fa-calendar-day"></i> Daily Report
+            </a>
+            <a href="{{ url_for('main.admin_panel') }}" class="active">
+                <i class="fas fa-user-shield"></i> Admin
+            </a>
+            <div class="sidebar-bottom">
+                <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </nav>
     </div>
 
-    <nav class="sidebar-nav">
-        <a href="{{ url_for('main.employees') }}"><i class="fas fa-users"></i> Employee Manage</a>
-        <a href="{{ url_for('main.index') }}"><i class="fas fa-chart-pie"></i> Monthly Report</a>
-        <a href="{{ url_for('main.daily') }}"><i class="fas fa-calendar-day"></i> Daily Report</a>
-        <a href="{{ url_for('main.admin_panel') }}" class="active"><i class="fas fa-user-shield"></i> Admin</a>
-        <div class="sidebar-bottom">
-            <a href="{{ url_for('main.logout') }}" class="logout-btn"><i class="fas fa-sign-out-alt"></i> Logout</a>
-        </div>
-    </nav>
-</div>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
 
-<!-- Main Content -->
-<div class="main-content">
-<div class="container">
-
-    <!-- Page Header -->
-    <div class="page-header">
-        <h1><i class="fas fa-user-shield"></i> Admin Panel</h1>
-        <p>Create new admin users and manage existing ones</p>
-    </div>
-
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category,msg in messages %}
-                <div class="message {{ category }}">{{ msg }}</div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
-    <!-- Form Section: Add Admin -->
-    <div class="form-section">
-        <div class="section-header">
-            <i class="fas fa-user-plus"></i>
-            <h3>Add New Admin</h3>
-        </div>
-        <form method="POST" class="employee-form">
-            <div class="form-group">
-                <label for="username"><i class="fas fa-user"></i> Username:</label>
-                <input type="text" id="username" name="username" required placeholder="Enter username">
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="fas fa-user-shield"></i> Admin Panel</h1>
+                <p>Create new admin users and manage existing ones</p>
             </div>
 
-            <div class="form-group">
-                <label for="password"><i class="fas fa-lock"></i> Password:</label>
-                <input type="password" id="password" name="password" required placeholder="Enter password">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, msg in messages %}
+                        <div class="message {{ category }}">
+                            <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' if category == 'error' else 'exclamation-triangle' }}"></i>
+                            {{ msg }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Form Section: Add Admin -->
+            <div class="admin-card">
+                <h3><i class="fas fa-user-plus"></i> Add New Admin</h3>
+                <form method="POST" class="employee-form" id="adminForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="username"><i class="fas fa-user"></i> Username:</label>
+                            <input type="text" id="username" name="username" required 
+                                   placeholder="Enter username" minlength="3" maxlength="50">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="password"><i class="fas fa-lock"></i> Password:</label>
+                            <input type="password" id="password" name="password" required 
+                                   placeholder="Enter password (min. 6 characters)" minlength="6">
+                            <div class="password-strength" id="passwordStrength">
+                                <div class="password-strength-bar"></div>
+                            </div>
+                            <div class="password-hint" id="passwordHint"></div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="confirm_password"><i class="fas fa-lock"></i> Confirm Password:</label>
+                            <input type="password" id="confirm_password" name="confirm_password" required 
+                                   placeholder="Confirm password">
+                            <div class="password-hint" id="confirmHint"></div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary" id="createAdminBtn">
+                            <i class="fas fa-user-shield"></i> Create Admin
+                        </button>
+                    </div>
+                </form>
             </div>
 
-            <div class="form-group">
-                <label for="confirm_password"><i class="fas fa-lock"></i> Confirm Password:</label>
-                <input type="password" id="confirm_password" name="confirm_password" required placeholder="Confirm password">
+            <!-- Table Section: Existing Admins -->
+            <div class="admin-card">
+                <h3><i class="fas fa-list-alt"></i> Existing Admins ({{ admins|length }})</h3>
+                <div class="table-container">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Created Date</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if admins %}
+                                {% for admin in admins %}
+                                <tr class="{% if admin.username == current_user %}current-admin{% endif %}">
+                                    <td>
+                                        <strong>{{ admin.username }}</strong>
+                                        {% if admin.username == current_user %}
+                                            <span style="color: var(--success); font-size: 0.8rem; margin-left: 8px;">
+                                                <i class="fas fa-circle"></i> Current User
+                                            </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ admin.created_at.strftime('%Y-%m-%d') if admin.created_at else 'N/A' }}</td>
+                                    <td>
+                                        {% if admin.username != current_user %}
+                                        <form method="POST" action="{{ url_for('main.delete_admin') }}" 
+                                              onsubmit="return confirm('Are you sure you want to delete admin: {{ admin.username }}?');">
+                                            <input type="hidden" name="admin_id" value="{{ admin.id }}">
+                                            <button type="submit" class="delete-admin-btn">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        </form>
+                                        {% else %}
+                                        <span style="color: var(--gray); font-size: 0.85rem;">Cannot delete current user</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="3" class="empty-state">
+                                        <div class="empty-state-icon"><i class="fas fa-user-shield"></i></div>
+                                        <h3>No Admins Found</h3>
+                                        <p>Add your first admin using the form above</p>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
-            <button type="submit"><i class="fas fa-user-shield"></i> Create Admin</button>
-        </form>
-    </div>
-
-    <!-- Table Section: Existing Admins -->
-    <div class="table-section">
-        <div class="section-header">
-            <i class="fas fa-list-alt"></i>
-            <h3>Existing Admins</h3>
-        </div>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% if admins %}
-                        {% for admin in admins %}
-                        <tr>
-                            <td>{{ admin.username }}</td>
-                            <td>
-                                <form method="POST" action="{{ url_for('main.delete_admin') }}" style="display:inline;">
-                                    <input type="hidden" name="admin_id" value="{{ admin.id }}">
-                                    <button type="submit" class="delete-btn">
-                                        <i class="fas fa-trash"></i> Delete
-                                    </button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td colspan="2" class="empty-state">
-                                <div class="empty-state-icon"><i class="fas fa-user-shield"></i></div>
-                                <h3>No Admins Found</h3>
-                                <p>Add your first admin using the form above</p>
-                            </td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
         </div>
     </div>
 
-</div>
-</div>
+    <script>
+        // Sidebar toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            
+            sidebarToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('expanded');
+                
+                // Change the icon based on sidebar state
+                const icon = sidebarToggle.querySelector('i');
+                if (sidebar.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-arrow-right');
+                } else {
+                    icon.classList.remove('fa-arrow-right');
+                    icon.classList.add('fa-bars');
+                }
+            });
 
+            // Password strength checker
+            const passwordInput = document.getElementById('password');
+            const passwordStrength = document.getElementById('passwordStrength');
+            const passwordHint = document.getElementById('passwordHint');
+            const confirmPasswordInput = document.getElementById('confirm_password');
+            const confirmHint = document.getElementById('confirmHint');
+            const createAdminBtn = document.getElementById('createAdminBtn');
+
+            if (passwordInput) {
+                passwordInput.addEventListener('input', function() {
+                    const password = this.value;
+                    let strength = 0;
+                    let hint = '';
+
+                    if (password.length >= 6) strength++;
+                    if (password.length >= 8) strength++;
+                    if (/[A-Z]/.test(password)) strength++;
+                    if (/[0-9]/.test(password)) strength++;
+                    if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+                    // Update strength bar
+                    passwordStrength.className = 'password-strength';
+                    if (strength <= 2) {
+                        passwordStrength.classList.add('weak');
+                        hint = 'Weak password';
+                    } else if (strength <= 4) {
+                        passwordStrength.classList.add('medium');
+                        hint = 'Medium password';
+                    } else {
+                        passwordStrength.classList.add('strong');
+                        hint = 'Strong password';
+                    }
+
+                    passwordHint.textContent = hint;
+                });
+            }
+
+            // Password confirmation checker
+            if (confirmPasswordInput) {
+                confirmPasswordInput.addEventListener('input', function() {
+                    const password = passwordInput.value;
+                    const confirmPassword = this.value;
+
+                    if (confirmPassword === '') {
+                        confirmHint.textContent = '';
+                        confirmHint.style.color = '';
+                    } else if (password === confirmPassword) {
+                        confirmHint.textContent = '✓ Passwords match';
+                        confirmHint.style.color = 'var(--success)';
+                    } else {
+                        confirmHint.textContent = '✗ Passwords do not match';
+                        confirmHint.style.color = 'var(--error)';
+                    }
+                });
+            }
+
+            // Form validation
+            const adminForm = document.getElementById('adminForm');
+            if (adminForm) {
+                adminForm.addEventListener('submit', function(e) {
+                    const password = passwordInput.value;
+                    const confirmPassword = confirmPasswordInput.value;
+                    const username = document.getElementById('username').value;
+
+                    if (password !== confirmPassword) {
+                        e.preventDefault();
+                        alert('Passwords do not match!');
+                        confirmPasswordInput.focus();
+                        return false;
+                    }
+
+                    if (password.length < 6) {
+                        e.preventDefault();
+                        alert('Password must be at least 6 characters long!');
+                        passwordInput.focus();
+                        return false;
+                    }
+
+                    if (username.length < 3) {
+                        e.preventDefault();
+                        alert('Username must be at least 3 characters long!');
+                        document.getElementById('username').focus();
+                        return false;
+                    }
+
+                    // Disable button to prevent double submission
+                    createAdminBtn.disabled = true;
+                    createAdminBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating...';
+                    return true;
+                });
+            }
+        });
+    </script>
 </body>
 </html>

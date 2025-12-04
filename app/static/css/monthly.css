@@ -527,19 +527,19 @@ body {
 }
 
 /* COLOR CODING - 4 COLUMNS WITH COLORS */
-#summaryTable td:nth-child(7) { /* Present - DARK GREEN */
+#summaryTable td:nth-child(8) { /* Present - DARK GREEN */
     color: var(--success);
 }
 
-#summaryTable td:nth-child(8) { /* Absent - RED */
+#summaryTable td:nth-child(9) { /* Absent - RED */
     color: var(--error);
 }
 
-#summaryTable td:nth-child(9) { /* Late - YELLOW */
+#summaryTable td:nth-child(10) { /* Late - YELLOW */
     color: var(--warning);
 }
 
-#summaryTable td:nth-child(11) { /* OT Hours - GOLDEN */
+#summaryTable td:nth-child(14) { /* OT Hours - GOLDEN */
     color: #bba10b;
     font-weight: 700;
 }

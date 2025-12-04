@@ -208,8 +208,8 @@ class EmployeeService:
             self._regenerate_monthly_report(employee.name, month)
 
     def _regenerate_monthly_report(self, employee_name: str, month_str: str):
-        """Regenerate monthly report with correct Sunday count, Sat types,
-        and weekday-only OT (Saturday OT excluded)."""
+        """Regenerate monthly report with correct WorkingDays based on shift,
+        Sunday/Saturday counts, weekday-only OT, and mid-month joiners for latest month."""
 
         try:
             # -------------------------
@@ -247,26 +247,25 @@ class EmployeeService:
                     if len(parts) == 2:
                         st = datetime.strptime(parts[0].strip(), "%H:%M").time()
                         et = datetime.strptime(parts[1].strip(), "%H:%M").time()
-                        hrs = (datetime.combine(date.today(), et) - 
-                            datetime.combine(date.today(), st)).total_seconds() / 3600
-
+                        hrs = (datetime.combine(datetime.today(), et) -
+                            datetime.combine(datetime.today(), st)).total_seconds() / 3600
                         is_full_time = hrs >= 9
                 except:
                     pass
 
             # -------------------------
-            # Counters - UPDATED with all Code A + Code B fields
+            # Counters
             # -------------------------
             present = absent = late = 0
             half_day_weekdays = 0
-            half_day_sat = 0          
-            full_day_sat = 0          
+            half_day_sat = 0
+            full_day_sat = 0
             compensated = 0
-            sundays = 0                
+            sundays = 0
             by_late_count = 0
             by_half_day_count = 0
             by_absent_count = 0
-            weekday_ot_hours = 0.0     
+            weekday_ot_hours = 0.0
             total_days = len(daily_records)
 
             # -------------------------
@@ -275,7 +274,7 @@ class EmployeeService:
             for row in daily_records:
                 status = row.status or ""
 
-                # ----- Status Count -----
+                # Status count
                 if status == "Present":
                     present += 1
                 elif status == "Absent":
@@ -288,12 +287,12 @@ class EmployeeService:
                     compensated += 1
                 elif status == "Sunday":
                     sundays += 1
-                elif status == "Half Day (Sat)":  
+                elif status == "Half Day (Sat)":
                     half_day_sat += 1
-                elif status == "Full Day (Sat)":   
+                elif status == "Full Day (Sat)":
                     full_day_sat += 1
 
-                # ----- Compensation Type Counts (Code B se) -----
+                # Compensation type
                 if hasattr(row, 'compensation_type') and row.compensation_type:
                     if row.compensation_type == "By Late":
                         by_late_count += 1
@@ -302,12 +301,38 @@ class EmployeeService:
                     elif row.compensation_type == "By Absent":
                         by_absent_count += 1
 
-                # ----- Weekday Overtime ONLY -----
-                if is_full_time:
-                    wd = row.date.weekday() 
+                # Weekday OT only for full-timers
+                if is_full_time and row.date.weekday() < 5:
+                    weekday_ot_hours += float(row.overtime or 0.0)
 
-                    if wd in (0, 1, 2, 3, 4): 
-                        weekday_ot_hours += float(row.overtime or 0.0)
+            # -------------------------
+            # Calendar-based Working Days with joining date adjustment
+            # -------------------------
+            from calendar import monthrange
+            year, month = map(int, month_str.split('-'))
+            total_days_in_month = monthrange(year, month)[1]
+            working_days = 0
+
+            # Determine if this is the latest month
+            latest_daily_date = db.session.query(db.func.max(DailyReport.date)).scalar()
+            latest_month_str = latest_daily_date.strftime("%Y-%m") if latest_daily_date else None
+            is_latest_month = month_str == latest_month_str
+
+            for day in range(1, total_days_in_month + 1):
+                current_date = datetime(year, month, day).date()
+                weekday = current_date.weekday()
+
+                # Adjust start date if mid-month joiner AND latest month
+                if is_latest_month and employee.joining_date and employee.joining_date > start_date:
+                    if current_date < employee.joining_date:
+                        continue
+
+                if is_full_time:
+                    if weekday < 5:
+                        working_days += 1
+                else:
+                    if weekday != 6:
+                        working_days += 1
 
             # -------------------------
             # Save Monthly Report
@@ -319,7 +344,7 @@ class EmployeeService:
                 department=employee.department or "Cold Calling",
                 last_updated_date=datetime.utcnow().date(),
                 shift=employee.shift,
-                role=employee.role,  
+                role=employee.role,
                 report_month=month_str,
                 total_days=total_days,
                 present=present,
@@ -327,10 +352,11 @@ class EmployeeService:
                 late=late,
                 half_day_weekdays=half_day_weekdays,
                 half_day_sat=half_day_sat,
-                full_day_sat=full_day_sat,                
+                full_day_sat=full_day_sat,
                 compensated=compensated,
                 sundays=sundays,
                 ot_hours=round(weekday_ot_hours, 2),
+                working_days=working_days,
                 by_late_count=by_late_count,
                 by_half_day_count=by_half_day_count,
                 by_absent_count=by_absent_count
@@ -343,6 +369,7 @@ class EmployeeService:
                 f"[MONTHLY REPORT ✔] {employee_name} {month_str} | "
                 f"OT(Weekdays): {weekday_ot_hours:.2f} | "
                 f"Sun: {sundays}, Sat: Half {half_day_sat}, Full {full_day_sat} | "
+                f"WorkingDays: {working_days} | "
                 f"Comp Counts: Late={by_late_count}, Half={by_half_day_count}, Absent={by_absent_count}"
             )
 

@@ -110,9 +110,16 @@ function initializeSettingsTabs() {
 }
 
 // =======================================
-// COMPENSATION SYSTEM - FIXED VERSION
+// COMPENSATION SYSTEM - FULL UPDATED VERSION
 // =======================================
 
+document.addEventListener('DOMContentLoaded', () => {
+    initializeCompensationSystem();
+});
+
+// =======================================
+// Initialization
+// =======================================
 function initializeCompensationSystem() {
     setupCompensationEventListeners();
     loadEmployeeSuggestions();
@@ -123,65 +130,60 @@ function initializeCompensationSystem() {
     renderSelectedEmployees();
 }
 
+// =======================================
+// Compensation System - Complete JS
+// =======================================
+
+// =======================================
+// Event Listeners Setup
+// =======================================
 function setupCompensationEventListeners() {
     // Apply Compensation Button
     const applyBtn = document.getElementById('applyCompensationBtn');
-    if (applyBtn) {
-        applyBtn.addEventListener('click', applyCompensation);
-    }
-    
+    if (applyBtn) applyBtn.addEventListener('click', applyCompensation);
+
     // Check Eligibility Button
     const checkEligibilityBtn = document.getElementById('checkEligibilityBtn');
-    if (checkEligibilityBtn) {
-        checkEligibilityBtn.addEventListener('click', checkEligibility);
-    }
-    
+    if (checkEligibilityBtn) checkEligibilityBtn.addEventListener('click', checkEligibility);
+
     // Clear Form Button
     const clearBtn = document.getElementById('clearCompensationForm');
-    if (clearBtn) {
-        clearBtn.addEventListener('click', clearCompensationForm);
-    }
-    
+    if (clearBtn) clearBtn.addEventListener('click', clearCompensationForm);
+
     // Refresh History Button
     const refreshBtn = document.getElementById('refreshHistoryBtn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', loadCompensationHistory);
-    }
-    
+    if (refreshBtn) refreshBtn.addEventListener('click', loadCompensationHistory);
+
     // Add manual employee button
     const addManualBtn = document.getElementById('addManualEmployee');
-    if (addManualBtn) {
-        addManualBtn.addEventListener('click', addManualEmployee);
-    }
-    
+    if (addManualBtn) addManualBtn.addEventListener('click', addManualEmployee);
+
     // Enter key for manual input
     const manualInput = document.getElementById('manualEmployeeInput');
     if (manualInput) {
         manualInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                addManualEmployee();
-            }
+            if (e.key === 'Enter') addManualEmployee();
         });
     }
 }
 
+// =======================================
+// Date Fields Initialization
+// =======================================
 function initializeDateFields() {
-
     const today = new Date().toISOString().split('T')[0];
     const compensationDate = document.getElementById('compensationDate');
-    if (compensationDate) {
-        compensationDate.value = today;
-    }
-    
-    // Set violation date to yesterday by default
+    if (compensationDate) compensationDate.value = today;
+
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const violationDate = document.getElementById('violationDate');
-    if (violationDate) {
-        violationDate.value = yesterday.toISOString().split('T')[0];
-    }
+    if (violationDate) violationDate.value = yesterday.toISOString().split('T')[0];
 }
 
+// =======================================
+// Employee Suggestions
+// =======================================
 function loadEmployeeSuggestions() {
     fetch('/api/daily_search?limit=1000')
         .then(response => response.json())
@@ -190,39 +192,39 @@ function loadEmployeeSuggestions() {
                 const uniqueNames = [...new Set(data.data.map(record => record.Name))].sort();
                 const datalist = document.getElementById('employeeSuggestions');
                 if (datalist) {
-                    datalist.innerHTML = uniqueNames.map(name => 
-                        `<option value="${name}">${name}</option>`
-                    ).join('');
+                    datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">${name}</option>`).join('');
                 }
             }
         })
-        .catch(error => {
-            console.error('Error loading employee suggestions:', error);
-        });
+        .catch(error => console.error('Error loading employee suggestions:', error));
 }
 
+// =======================================
+// Eligibility Check
+// =======================================
 function checkEligibility() {
     const employee = document.getElementById('compensationEmployee').value.trim();
     const violationDate = document.getElementById('violationDate').value;
+    const compensationDate = document.getElementById('compensationDate').value; // Fixed
     const compensationType = document.getElementById('compensationType').value;
-    
-    if (!employee || !violationDate || !compensationType) {
+
+    if (!employee || !violationDate || !compensationType || !compensationDate) {
         showCompensationResult('Please fill all required fields', 'error');
         return;
     }
+
     const eligibilityResult = document.getElementById('eligibilityResult');
     eligibilityResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking eligibility...';
     eligibilityResult.className = 'eligibility-result';
     eligibilityResult.style.display = 'block';
-    
+
     fetch('/check_compensation_eligibility', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             employee_name: employee,
             violation_date: violationDate,
+            compensation_date: compensationDate,
             compensation_type: compensationType
         })
     })
@@ -243,29 +245,28 @@ function checkEligibility() {
     });
 }
 
+// =======================================
+// Apply Compensation
+// =======================================
 function applyCompensation() {
     const employee = document.getElementById('compensationEmployee').value.trim();
     const violationDate = document.getElementById('violationDate').value;
     const compensationDate = document.getElementById('compensationDate').value;
     const compensationType = document.getElementById('compensationType').value;
-    
+
     if (!employee || !violationDate || !compensationDate || !compensationType) {
         showCompensationResult('Please fill all required fields', 'error');
         return;
     }
-    
-    // Show loading state
+
     const applyBtn = document.getElementById('applyCompensationBtn');
     const originalText = applyBtn.innerHTML;
     applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
     applyBtn.disabled = true;
-    
-    // Apply compensation via API
+
     fetch('/apply_compensation', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             employee_name: employee,
             violation_date: violationDate,
@@ -278,7 +279,7 @@ function applyCompensation() {
         if (data.success) {
             showCompensationResult(data.message, 'success');
             clearCompensationForm();
-            loadCompensationHistory(); // Refresh history
+            loadCompensationHistory();
         } else {
             showCompensationResult(data.message, 'error');
         }
@@ -288,26 +289,27 @@ function applyCompensation() {
         console.error('Compensation application error:', error);
     })
     .finally(() => {
-        // Restore button state
         applyBtn.innerHTML = originalText;
         applyBtn.disabled = false;
     });
 }
 
+// =======================================
+// Show Result Messages
+// =======================================
 function showCompensationResult(message, type) {
     const resultDiv = document.getElementById('compensationResult');
     if (resultDiv) {
         resultDiv.innerHTML = message;
         resultDiv.className = `result-message ${type}`;
         resultDiv.style.display = 'block';
-        
-        // Auto-hide after 5 seconds
-        setTimeout(() => {
-            resultDiv.style.display = 'none';
-        }, 5000);
+        setTimeout(() => resultDiv.style.display = 'none', 5000);
     }
 }
 
+// =======================================
+// Clear Form
+// =======================================
 function clearCompensationForm() {
     document.getElementById('compensationEmployee').value = '';
     document.getElementById('violationDate').value = '';
@@ -317,43 +319,34 @@ function clearCompensationForm() {
     document.getElementById('compensationResult').style.display = 'none';
 }
 
+// =======================================
+// Compensation History
+// =======================================
 function loadCompensationHistory() {
     const historyList = document.getElementById('compensationHistoryList');
     if (!historyList) return;
-    
-    // Show loading
+
     historyList.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading history...</p></div>';
-    
-    // Fetch compensation history
+
     fetch('/api/compensation_history')
         .then(response => response.json())
         .then(data => {
             if (data.history && data.history.length > 0) {
                 renderCompensationHistory(data.history);
             } else {
-                historyList.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-history"></i>
-                        <p>No compensation records yet</p>
-                    </div>
-                `;
+                historyList.innerHTML = `<div class="empty-state"><i class="fas fa-history"></i><p>No compensation records yet</p></div>`;
             }
         })
         .catch(error => {
             console.error('Error loading compensation history:', error);
-            historyList.innerHTML = `
-                <div class="empty-state">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <p>Error loading history</p>
-                </div>
-            `;
+            historyList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Error loading history</p></div>`;
         });
 }
 
 function renderCompensationHistory(history) {
     const historyList = document.getElementById('compensationHistoryList');
     if (!historyList) return;
-    
+
     historyList.innerHTML = history.map(record => `
         <div class="compensation-record">
             <div class="record-info">
@@ -374,6 +367,27 @@ function renderCompensationHistory(history) {
         </div>
     `).join('');
 }
+
+// =======================================
+// Placeholder Functions
+// =======================================
+function loadCompensationData() { /* implement your data loading */ }
+function updateCompensationStats() { /* implement stats calculation */ }
+function renderSelectedEmployees() { /* implement render selected employees */ }
+function addManualEmployee() { /* implement add manual employee */ }
+
+// =======================================
+// Initialize All
+// =======================================
+document.addEventListener('DOMContentLoaded', () => {
+    setupCompensationEventListeners();
+    initializeDateFields();
+    loadEmployeeSuggestions();
+    loadCompensationHistory();
+    loadCompensationData();
+    updateCompensationStats();
+    renderSelectedEmployees();
+});
 
 // Manual Employee Functions
 function addManualEmployee() {

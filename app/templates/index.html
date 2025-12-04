@@ -7,10 +7,216 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
+    <style>
+        /* Additional styles for the filter section */
+        .filter-section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding: 20px;
+            margin-bottom: 25px;
+            border-left: 4px solid #4a6ee0;
+        }
+        
+        .filter-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .filter-header i {
+            font-size: 1.5rem;
+            color: #4a6ee0;
+            margin-right: 12px;
+        }
+        
+        .filter-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 1.3rem;
+        }
+        
+        .filter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .filter-group label {
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #555;
+            display: flex;
+            align-items: center;
+        }
+        
+        .filter-group label i {
+            margin-right: 8px;
+            color: #4a6ee0;
+            font-size: 0.9rem;
+        }
+        
+        .filter-dropdown {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            background-color: #f9f9f9;
+            transition: all 0.3s ease;
+        }
+        
+        .filter-dropdown:focus {
+            outline: none;
+            border-color: #4a6ee0;
+            box-shadow: 0 0 0 3px rgba(74, 110, 224, 0.1);
+            background-color: white;
+        }
+        
+        .filter-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        
+        .filter-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        
+        .apply-filter-btn {
+            background-color: #4a6ee0;
+            color: white;
+        }
+        
+        .apply-filter-btn:hover {
+            background-color: #3a5ecf;
+            transform: translateY(-2px);
+        }
+        
+        .reset-filter-btn {
+            background-color: #f1f3f9;
+            color: #666;
+        }
+        
+        .reset-filter-btn:hover {
+            background-color: #e4e7f4;
+            color: #333;
+        }
+        
+        .filter-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .filter-tag {
+            display: inline-flex;
+            align-items: center;
+            background-color: #eef2ff;
+            color: #4a6ee0;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .filter-tag i {
+            margin-left: 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        
+        .filter-tag i:hover {
+            color: #ff4757;
+        }
+        
+        .select2-container--default .select2-selection--single {
+            height: 46px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 46px;
+            padding-left: 15px;
+        }
+        
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 46px;
+        }
+        
+        @media (max-width: 768px) {
+            .filter-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .filter-actions {
+                flex-direction: column;
+            }
+            
+            .filter-btn {
+                width: 100%;
+            }
+        }
+        
+        /* Filter indicator in table header */
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .section-header h3 {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .filter-indicator {
+            background-color: #eef2ff;
+            color: #4a6ee0;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+    </style>
 </head>
 <body>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
     <!-- Sidebar -->
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h2>Attendance</h2>
             <p>Monthly Report</p>
@@ -39,7 +245,7 @@
     </div>
 
     <!-- Main Content -->
-    <div class="main-content">
+    <div class="main-content" id="mainContent">
         <div class="container">
             <!-- Page Header -->
             <div class="page-header">
@@ -126,12 +332,111 @@
                 </div>
             </div>
 
+            <!-- Filter Section (Moved Below File Management) -->
+            <div class="filter-section">
+                <div class="filter-header">
+                    <i class="fas fa-filter"></i>
+                    <h3>Filter Data</h3>
+                </div>
+                
+                <div class="filter-grid">
+                    <!-- Employee Name Filter -->
+                    <div class="filter-group">
+                        <label for="employeeFilter"><i class="fas fa-user"></i> Employee Name</label>
+                        <select id="employeeFilter" class="filter-dropdown">
+                            <option value="">All Employees</option>
+                            {% if table %}
+                                {% set unique_names = [] %}
+                                {% for row in table %}
+                                    {% if row.Name not in unique_names %}
+                                        {% set _ = unique_names.append(row.Name) %}
+                                        <option value="{{ row.Name }}">{{ row.Name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <!-- Department Filter -->
+                    <div class="filter-group">
+                        <label for="departmentFilter"><i class="fas fa-building"></i> Department</label>
+                        <select id="departmentFilter" class="filter-dropdown">
+                            <option value="">All Departments</option>
+                            {% if table %}
+                                {% set unique_depts = [] %}
+                                {% for row in table %}
+                                    {% if row.Department is defined and row.Department not in unique_depts %}
+                                        {% set _ = unique_depts.append(row.Department) %}
+                                        <option value="{{ row.Department }}">{{ row.Department }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <!-- Role Filter -->
+                    <div class="filter-group">
+                        <label for="roleFilter"><i class="fas fa-user-tag"></i> Role</label>
+                        <select id="roleFilter" class="filter-dropdown">
+                            <option value="">All Roles</option>
+                            {% if table %}
+                                {% set unique_roles = [] %}
+                                {% for row in table %}
+                                    {% if row.Role is defined and row.Role not in unique_roles %}
+                                        {% set _ = unique_roles.append(row.Role) %}
+                                        <option value="{{ row.Role }}">{{ row.Role }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    </div>
+                    
+                    <!-- Month Filter -->
+                    <div class="filter-group">
+                        <label for="monthFilter"><i class="fas fa-calendar-alt"></i> Month</label>
+                        <select id="monthFilter" class="filter-dropdown">
+                            <option value="">All Months</option>
+                            <option value="1">January</option>
+                            <option value="2">February</option>
+                            <option value="3">March</option>
+                            <option value="4">April</option>
+                            <option value="5">May</option>
+                            <option value="6">June</option>
+                            <option value="7">July</option>
+                            <option value="8">August</option>
+                            <option value="9">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Active Filter Tags -->
+                <div class="filter-tags" id="filterTags"></div>
+                
+                <!-- Filter Actions -->
+                <div class="filter-actions">
+                    <button type="button" class="filter-btn reset-filter-btn" id="resetFilters">
+                        <i class="fas fa-redo"></i> Reset Filters
+                    </button>
+                    <button type="button" class="filter-btn apply-filter-btn" id="applyFilters">
+                        <i class="fas fa-check"></i> Apply Filters
+                    </button>
+                </div>
+            </div>
+
             <!-- Monthly Summary Table -->
             {% if table %}
                 <div class="action-section">
                     <div class="section-header">
-                        <i class="fas fa-table"></i>
-                        <h3>Monthly Summary Report</h3>
+                        <div class="section-title">
+                            <i class="fas fa-table"></i>
+                            <h3>Monthly Summary Report</h3>
+                        </div>
+                        <div class="filter-indicator" id="filterIndicator">
+                            <span id="filterCount">Showing all {{ table|length }} employees</span>
+                        </div>
                     </div>
                     <div class="search-box">
                         <input type="text" id="agentSearch" placeholder="🔍 Search employee name...">
@@ -142,42 +447,49 @@
                                 <tr>
                                     <th>Emp ID</th>
                                     <th>Name</th>
+                                    <th>Emp Joining</th>
                                     <th>Role</th> 
                                     <th>Shift</th>
                                     <th>Department</th>
                                     <th>Total Days</th>
+                                    <th>Working Days</th>
                                     <th>Present</th>
                                     <th>Absent</th>
                                     <th>Late</th>
                                     <th>Half Days</th>
-                                    <!-- <th>Half Day Sat</th> -->
-                                    <!-- <th>Full Day Sat</th> -->
-                                    <!-- <th>Sundays</th> -->
+                                    <th>Half Sat</th> 
+                                    <th>Full Sat</th>
                                     <th>OT Hours</th>
-                                    <th>Comp Late</th> <!-- From Code B -->
-                                    <th>Comp Half</th> <!-- From Code B -->
-                                    <th>Comp Absent</th> <!-- From Code B -->
+                                    <th>Comp Late</th>
+                                    <th>Comp Half</th>
+                                    <th>Comp Absent</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody id="tableBody">
                                 {% for row in table %}
-                                    <tr>
+                                    <tr class="data-row" 
+                                        data-name="{{ row.Name }}" 
+                                        data-department="{{ row.Department if row.Department is defined else '' }}" 
+                                        data-role="{{ row.Role if row.Role is defined else '' }}"
+                                        data-month="{{ row.Month if row.Month is defined else '' }}">
                                         <td>{{ row.EmpID if row.EmpID is defined else '' }}</td>
                                         <td><strong>{{ row.Name }}</strong></td>
-                                        <td>{{ row.Role if row.Role is defined else 'Full-Timer' }}</td> <!-- Added from Code A -->
+                                        <td>{{ row.JoiningDate if row.JoiningDate is defined else '' }}</td>
+                                        <td>{{ row.Role if row.Role is defined else 'Full-Timer' }}</td>
                                         <td>{{ row.Shift if row.Shift is defined else '10:00 - 19:00' }}</td>
                                         <td>{{ row.Department if row.Department is defined else 'Cold Calling' }}</td>
                                         <td>{{ row.TotalDays if row.TotalDays is defined else 0 }}</td>
+                                        <td>{{ row.WorkingDays if row.WorkingDays is defined else 0 }}</td>
                                         <td>{{ row.Present if row.Present is defined else 0 }}</td>
                                         <td>{{ row.Absent if row.Absent is defined else 0 }}</td>
                                         <td>{{ row.Late if row.Late is defined else 0 }}</td>
                                         <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
-                                        <!-- <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td> -->
-                                        <!-- <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td> -->
-                                        <!-- <td>{{ row.Sundays if row.Sundays is defined else 0 }}</td> -->
-                                        <td>{{ row.Overtime if row.Overtime is defined else 0.0 }}</td>                                        <td>{{ row.ByLateCount if row.ByLateCount is defined else 0 }}</td> <!-- From Code B -->
-                                        <td>{{ row.ByHalfDayCount if row.ByHalfDayCount is defined else 0 }}</td> <!-- From Code B -->
-                                        <td>{{ row.ByAbsentCount if row.ByAbsentCount is defined else 0 }}</td> <!-- From Code B -->
+                                        <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td>
+                                        <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td>
+                                        <td>{{ row.OverTime if row.OverTime is defined else 0.0 }}</td>
+                                        <td>{{ row.ByLateCount if row.ByLateCount is defined else 0 }}</td>
+                                        <td>{{ row.ByHalfDayCount if row.ByHalfDayCount is defined else 0 }}</td>
+                                        <td>{{ row.ByAbsentCount if row.ByAbsentCount is defined else 0 }}</td>
                                     </tr>
                                 {% endfor %}
                             </tbody>
@@ -194,11 +506,221 @@
         </div>
     </div>
 
-    <!-- Mobile Menu Toggle -->
-    <button class="mobile-menu-toggle" aria-label="Toggle navigation">
-        <i class="fas fa-bars"></i>
-    </button>
-
     <script src="{{ url_for('static', filename='js/monthly.js') }}"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
+    
+    <script>
+        // Sidebar toggle functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            
+            sidebarToggle.addEventListener('click', function() {
+                sidebar.classList.toggle('collapsed');
+                mainContent.classList.toggle('expanded');
+                
+                // Change the icon based on sidebar state
+                const icon = sidebarToggle.querySelector('i');
+                if (sidebar.classList.contains('collapsed')) {
+                    icon.classList.remove('fa-bars');
+                    icon.classList.add('fa-arrow-right');
+                } else {
+                    icon.classList.remove('fa-arrow-right');
+                    icon.classList.add('fa-bars');
+                }
+            });
+            
+            // Initialize Select2 for dropdowns
+            $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').select2({
+                placeholder: "Select...",
+                allowClear: true,
+                width: '100%'
+            });
+            
+            // Filter functionality
+            const applyFiltersBtn = document.getElementById('applyFilters');
+            const resetFiltersBtn = document.getElementById('resetFilters');
+            const filterTagsContainer = document.getElementById('filterTags');
+            const tableRows = document.querySelectorAll('.data-row');
+            const filterCount = document.getElementById('filterCount');
+            const searchInput = document.getElementById('agentSearch');
+            
+            let activeFilters = {
+                employee: '',
+                department: '',
+                role: '',
+                month: ''
+            };
+            
+            // Apply filters
+            applyFiltersBtn.addEventListener('click', function() {
+                activeFilters = {
+                    employee: document.getElementById('employeeFilter').value,
+                    department: document.getElementById('departmentFilter').value,
+                    role: document.getElementById('roleFilter').value,
+                    month: document.getElementById('monthFilter').value
+                };
+                
+                applyTableFilters();
+                updateFilterTags();
+            });
+            
+            // Reset filters
+            resetFiltersBtn.addEventListener('click', function() {
+                // Reset dropdowns
+                $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').val('').trigger('change');
+                
+                activeFilters = {
+                    employee: '',
+                    department: '',
+                    role: '',
+                    month: ''
+                };
+                
+                applyTableFilters();
+                updateFilterTags();
+            });
+            
+            // Apply table filters
+            function applyTableFilters() {
+                let visibleCount = 0;
+                
+                tableRows.forEach(row => {
+                    let showRow = true;
+                    
+                    // Check each filter
+                    if (activeFilters.employee && row.dataset.name !== activeFilters.employee) {
+                        showRow = false;
+                    }
+                    
+                    if (activeFilters.department && row.dataset.department !== activeFilters.department) {
+                        showRow = false;
+                    }
+                    
+                    if (activeFilters.role && row.dataset.role !== activeFilters.role) {
+                        showRow = false;
+                    }
+                    
+                    if (activeFilters.month) {
+                        // Extract month from date if available
+                        const dateStr = row.dataset.month;
+                        if (dateStr) {
+                            const date = new Date(dateStr);
+                            const month = date.getMonth() + 1; // getMonth returns 0-11
+                            if (month.toString() !== activeFilters.month) {
+                                showRow = false;
+                            }
+                        } else {
+                            // If no month data, hide if month filter is applied
+                            showRow = false;
+                        }
+                    }
+                    
+                    // Apply search filter if any
+                    const searchTerm = searchInput.value.toLowerCase();
+                    if (searchTerm) {
+                        const name = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                        if (!name.includes(searchTerm)) {
+                            showRow = false;
+                        }
+                    }
+                    
+                    // Show/hide row
+                    if (showRow) {
+                        row.style.display = '';
+                        visibleCount++;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+                
+                // Update filter count
+                filterCount.textContent = `Showing ${visibleCount} of ${tableRows.length} employees`;
+            }
+            
+            // Update filter tags
+            function updateFilterTags() {
+                filterTagsContainer.innerHTML = '';
+                
+                for (const [key, value] of Object.entries(activeFilters)) {
+                    if (value) {
+                        let label = '';
+                        let displayValue = value;
+                        
+                        switch(key) {
+                            case 'employee':
+                                label = 'Employee';
+                                break;
+                            case 'department':
+                                label = 'Department';
+                                break;
+                            case 'role':
+                                label = 'Role';
+                                break;
+                            case 'month':
+                                label = 'Month';
+                                displayValue = getMonthName(value);
+                                break;
+                        }
+                        
+                        const tag = document.createElement('div');
+                        tag.className = 'filter-tag';
+                        tag.innerHTML = `${label}: ${displayValue} <i class="fas fa-times" data-filter="${key}"></i>`;
+                        filterTagsContainer.appendChild(tag);
+                    }
+                }
+                
+                // Add click events to remove individual filters
+                filterTagsContainer.querySelectorAll('.fa-times').forEach(icon => {
+                    icon.addEventListener('click', function() {
+                        const filterKey = this.getAttribute('data-filter');
+                        activeFilters[filterKey] = '';
+                        
+                        // Reset the corresponding dropdown
+                        if (filterKey === 'month') {
+                            $('#monthFilter').val('').trigger('change');
+                        } else {
+                            $(`#${filterKey}Filter`).val('').trigger('change');
+                        }
+                        
+                        applyTableFilters();
+                        updateFilterTags();
+                    });
+                });
+            }
+            
+            // Helper function to get month name from number
+            function getMonthName(monthNumber) {
+                const months = [
+                    'January', 'February', 'March', 'April', 'May', 'June',
+                    'July', 'August', 'September', 'October', 'November', 'December'
+                ];
+                return months[parseInt(monthNumber) - 1] || monthNumber;
+            }
+            
+            // Search functionality
+            searchInput.addEventListener('input', function() {
+                applyTableFilters();
+            });
+            
+            // Initialize with no filters
+            applyTableFilters();
+            
+            // Auto-apply filters when dropdown values change (optional)
+            $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').on('change', function() {
+                // Don't auto-apply, wait for the apply button
+                // Uncomment below if you want auto-apply on change
+                // applyFiltersBtn.click();
+            });
+        });
+        
+        // File input label update
+        document.getElementById('excelFile').addEventListener('change', function(e) {
+            const fileName = e.target.files[0] ? e.target.files[0].name : 'Choose File';
+            document.getElementById('fileText').textContent = fileName;
+        });
+    </script>
 </body>
 </html>

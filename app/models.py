@@ -115,12 +115,13 @@ class MonthlyReport(db.Model):
     by_late_count = db.Column(db.Integer, default=0)  
     by_half_day_count = db.Column(db.Integer, default=0)  
     by_absent_count = db.Column(db.Integer, default=0)  
+    working_days = db.Column(db.Integer, default=0)
     report_month = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<MonthlyReport {self.name} - {self.report_month}>"
-    
+
 # ===========================================================
 #               COMPANY DAY OFF
 # ===========================================================
