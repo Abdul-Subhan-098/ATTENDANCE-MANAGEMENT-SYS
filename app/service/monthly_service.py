@@ -1,6 +1,7 @@
 from collections import defaultdict
-from datetime import datetime, timedelta, time, date
-from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from calendar import monthrange
 from app import db
 from app.models import DailyReport, MonthlyReport, Employee
 from app.service.daily_service import AttendanceCalculator
@@ -37,6 +38,11 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     # All employees
     all_emps = {e.name: e for e in Employee.query.all()}
 
+    # Determine latest month in DB
+    latest_daily_date = db.session.query(db.func.max(DailyReport.date)).scalar()
+    latest_month_str = latest_daily_date.strftime("%Y-%m") if latest_daily_date else None
+    is_latest_month = month_str == latest_month_str
+
     # Delete old monthly reports
     try:
         MonthlyReport.query.filter(MonthlyReport.report_month == month_str).delete()
@@ -46,7 +52,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         db.session.rollback()
         logger.error(f"Error deleting monthly report: {e}")
 
-    # Employee data storage - UPDATED structure with compensation counts
+    # Employee data storage
     employees_data = defaultdict(lambda: {
         "EmpID": "",
         "Name": "",
@@ -57,13 +63,13 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         "HalfDayWeekdays": 0,
         "HalfDaySat": 0,
         "FullDaySat": 0,
-        "OverTime": 0.0,  # ONLY Mon-Fri OT for full-timers
+        "OverTime": 0.0,
         "Sundays": 0,
         "Compensated": 0,
-        # COMPENSATION COUNTS FOR ALL EMPLOYEES
         "ByLateCount": 0,
         "ByHalfDayCount": 0,
-        "ByAbsentCount": 0
+        "ByAbsentCount": 0,
+        "CompanyOff": set()  # ⭐ NEW: store company off dates
     })
 
     # ========================
@@ -79,7 +85,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         emp_data["Name"] = emp_name
         emp_data["TotalDays"] += 1
 
-        # Determine full-time
+        # Determine full-time based on shift duration
         is_full_time = True
         if emp and emp.shift:
             try:
@@ -92,9 +98,14 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
                 logger.warning(f"Error parsing shift for {emp_name}: {e}")
 
         status = row.status or ""
-        weekday = row.date.weekday()  # 0=Mon ... 5=Sat, 6=Sun
+        weekday = row.date.weekday()
 
-        # Count attendance status - FOR ALL EMPLOYEES
+        # Capture company off
+        if status == "Company Day Off":
+            emp_data["CompanyOff"].add(row.date)  # ⭐ NEW
+            continue  # Company Off → skip counts except working days
+
+        # Count attendance status
         if status == "Present":
             emp_data["Present"] += 1
         elif status == "Absent":
@@ -112,19 +123,12 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         elif status == "Compensated":
             emp_data["Compensated"] += 1
 
-        # ========================
-        # Overtime logic - ONLY for full-timers on weekdays (Mon-Fri)
-        # ========================
-        if is_full_time and weekday != 5:  # Full-timers only, not Saturday
-            weekday_ot = float(row.overtime or 0.0)
-            emp_data["OverTime"] += weekday_ot
+        # OT logic for full-timers Mon–Fri
+        if is_full_time and weekday < 5:
+            emp_data["OverTime"] += float(row.overtime or 0.0)
 
-        # ========================
-        # Compensation counting - FOR ALL EMPLOYEES (Full-time AND Part-time)
-        # ========================
-        # Get compensation_type from daily record
+        # Compensation counting
         compensation_type = getattr(row, 'compensation_type', None)
-        
         if compensation_type:
             if compensation_type == "By Late":
                 emp_data["ByLateCount"] += 1
@@ -132,19 +136,50 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
                 emp_data["ByHalfDayCount"] += 1
             elif compensation_type == "By Absent":
                 emp_data["ByAbsentCount"] += 1
-        
-        # Debug: Log compensation found
-        if compensation_type:
-            logger.debug(f"Compensation for {emp_name} on {row.date}: {compensation_type}")
 
     # ========================
     # Save monthly report
     # ========================
     inserted = 0
+    year, month = map(int, month_str.split('-'))
+    total_days_in_month = monthrange(year, month)[1]
+
     for name, data in employees_data.items():
         emp = all_emps.get(name)
-        
-        # Create monthly record
+
+        # Determine full-time based on shift for working days calculation
+        is_full_time_emp = True
+        if emp and emp.shift:
+            try:
+                shift_parts = emp.shift.split('-')
+                if len(shift_parts) == 2:
+                    shift_start = datetime.strptime(shift_parts[0].strip(), "%H:%M").time()
+                    shift_end = datetime.strptime(shift_parts[1].strip(), "%H:%M").time()
+                    is_full_time_emp = calculator.is_full_time_employee(shift_start, shift_end)
+            except Exception:
+                pass
+
+        # ⭐ UPDATED WORKING DAY LOGIC ⭐
+        working_days = 0
+        for day in range(1, total_days_in_month + 1):
+            current_date = datetime(year, month, day).date()
+            weekday = current_date.weekday()
+
+            # Skip days before joining
+            if is_latest_month and emp and emp.joining_date and current_date < emp.joining_date:
+                continue
+
+            # ⭐ NEW: If "Company Off" in daily → skip working day ⭐
+            if current_date in data["CompanyOff"]:
+                continue
+
+            if is_full_time_emp:
+                if weekday < 5:
+                    working_days += 1
+            else:
+                if weekday != 6:
+                    working_days += 1
+
         monthly_rec = MonthlyReport(
             emp_id=data["EmpID"],
             name=name,
@@ -161,40 +196,36 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             half_day_weekdays=data["HalfDayWeekdays"],
             half_day_sat=data["HalfDaySat"],
             full_day_sat=data["FullDaySat"],
-            ot_hours=round(data["OverTime"], 2),  
+            ot_hours=round(data["OverTime"], 2),
             compensated=data["Compensated"],
-            sundays=data["Sundays"]
+            sundays=data["Sundays"],
+            working_days=working_days
         )
-        
-        # Set compensation counts - FOR ALL EMPLOYEES
+
         monthly_rec.by_late_count = data["ByLateCount"]
         monthly_rec.by_half_day_count = data["ByHalfDayCount"]
         monthly_rec.by_absent_count = data["ByAbsentCount"]
-        
-        # Debug logging
-        if data["ByLateCount"] > 0 or data["ByHalfDayCount"] > 0 or data["ByAbsentCount"] > 0:
-            logger.info(f"Compensation counts for {name}: Late={data['ByLateCount']}, HalfDay={data['ByHalfDayCount']}, Absent={data['ByAbsentCount']}")
-        
+
         db.session.add(monthly_rec)
         inserted += 1
 
     try:
         db.session.commit()
-        logger.info(f"Monthly report saved: {inserted} rows.")
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Commit error: {e}")
+        logger.error(f"Error inserting monthly reports: {e}")
         return []
 
+    # ========================
     # Prepare results for display
+    # ========================
     def safe(val, default=""):
         return val if val is not None else default
 
     results = []
     for name, data in employees_data.items():
         emp = all_emps.get(name)
-        
-        # Check if part-time or full-time for logging
+
         is_full_time_emp = True
         if emp and emp.shift:
             try:
@@ -205,16 +236,32 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
                     is_full_time_emp = calculator.is_full_time_employee(shift_start, shift_end)
             except Exception:
                 pass
-        
-        emp_type = "Full-Time" if is_full_time_emp else "Part-Time"
-        
+
+        # ⭐ Same Company Off Skip for API response ⭐
+        working_days = 0
+        for day in range(1, total_days_in_month + 1):
+            current_date = datetime(year, month, day).date()
+            weekday = current_date.weekday()
+
+            if is_latest_month and emp and emp.joining_date and current_date < emp.joining_date:
+                continue
+
+            # ⭐ NEW
+            if current_date in data["CompanyOff"]:
+                continue
+
+            if is_full_time_emp and weekday < 5:
+                working_days += 1
+            elif not is_full_time_emp and weekday != 6:
+                working_days += 1
+
         results.append({
             "EmpID": safe(data["EmpID"], ""),
             "Name": safe(data["Name"]),
             "Department": safe(emp.department) if emp else "Cold Calling",
             "Shift": safe(emp.shift) if emp else "10:00 - 19:00",
             "Role": safe(getattr(emp, 'role', 'FullTime')) if emp else "FullTime",
-            "EmployeeType": emp_type,  # Added for debugging
+            "EmployeeType": "Full-Time" if is_full_time_emp else "Part-Time",
             "JoiningDate": emp.joining_date.strftime("%Y-%m-%d") if emp and emp.joining_date else "",
             "LastUpdated": emp.last_updated_date.strftime("%Y-%m-%d") if emp and emp.last_updated_date else "",
             "TotalDays": safe(data["TotalDays"], 0),
@@ -224,15 +271,13 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             "HalfDayWeekdays": safe(data["HalfDayWeekdays"], 0),
             "HalfDaySat": safe(data["HalfDaySat"], 0),
             "FullDaySat": safe(data["FullDaySat"], 0),
-            "OverTime": round(float(data["OverTime"] or 0.0), 2),  
+            "OverTime": round(float(data["OverTime"] or 0.0), 2),
             "Sundays": safe(data["Sundays"], 0),
             "Compensated": safe(data["Compensated"], 0),
             "ByLateCount": safe(data["ByLateCount"], 0),
             "ByHalfDayCount": safe(data["ByHalfDayCount"], 0),
-            "ByAbsentCount": safe(data["ByAbsentCount"], 0)
+            "ByAbsentCount": safe(data["ByAbsentCount"], 0),
+            "WorkingDays": working_days
         })
-
-        if data["ByLateCount"] > 0 or data["ByHalfDayCount"] > 0 or data["ByAbsentCount"] > 0:
-            logger.info(f"✅ {emp_type} Employee {name}: Late={data['ByLateCount']}, HalfDay={data['ByHalfDayCount']}, Absent={data['ByAbsentCount']}")
 
     return results

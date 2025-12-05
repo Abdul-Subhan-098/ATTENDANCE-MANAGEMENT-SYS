@@ -114,7 +114,7 @@ def _format_monthly_record(record):
     return {
         "EmpID": record.emp_id or "",
         "Name": record.name or "",
-        "Role": getattr(record, "role", "Full-Timer") or "Full-Timer",  # Added from Code A
+        "Role": getattr(record, "role", "Full-Timer") or "Full-Timer",
         "Shift": record.shift or "",
         "Department": record.department or "Cold Calling",
         "TotalDays": record.total_days or 0,
@@ -122,16 +122,19 @@ def _format_monthly_record(record):
         "Absent": record.absent or 0,
         "Late": record.late or 0,
         "HalfDayWeekdays": record.half_day_weekdays or 0,
-        "HalfDaySat": record.half_day_sat or 0,  # Added from Code A
-        "FullDaySat": record.full_day_sat or 0,  # Added from Code A
-        "Sundays": record.sundays or 0,  # Added from Code A
-        "Overtime": record.ot_hours or 0.0,
+        "HalfDaySat": record.half_day_sat or 0,
+        "FullDaySat": record.full_day_sat or 0,
+        "Sundays": record.sundays or 0,
+        "OverTime": record.ot_hours or 0.0,
         "JoiningDate": record.joining_date.strftime("%Y-%m-%d") if record.joining_date else "",
         "LastUpdated": record.last_updated_date.strftime("%Y-%m-%d") if record.last_updated_date else "",
-        "Compensated": record.compensated or 0,  # Added from Code A
-        "ByLateCount": record.by_late_count or 0,  # Added from Code B
-        "ByHalfDayCount": record.by_half_day_count or 0,  # Added from Code B
-        "ByAbsentCount": record.by_absent_count or 0  # Added from Code B
+        "Compensated": record.compensated or 0,
+        "ByLateCount": record.by_late_count or 0,
+        "ByHalfDayCount": record.by_half_day_count or 0,
+        "ByAbsentCount": record.by_absent_count or 0,
+
+        # ⭐ NEW FIELD ADDED
+        "WorkingDays": getattr(record, "working_days", 0) or 0
     }
 
 
@@ -389,57 +392,6 @@ def daily_search():
         "total_count": total_records_count
     })
 
-# @main.route("/update_compensate", methods=["POST"])
-# @login_required
-# def update_compensate():
-#     """API endpoint to mark attendance as compensated."""
-#     try:
-#         request_data = request.get_json(force=True) or {}
-#         employee_name = request_data.get("emp_name")
-#         date_string = request_data.get("date")
-        
-#         if not employee_name or not date_string:
-#             return jsonify({
-#                 "success": False, 
-#                 "message": "Missing employee name or date"
-#             }), 400
-        
-#         try:
-#             target_date = datetime.strptime(date_string, "%Y-%m-%d").date()
-#         except ValueError:
-#             return jsonify({
-#                 "success": False, 
-#                 "message": "Invalid date format"
-#             }), 400
-        
-#         target_record = DailyReport.query.filter_by(
-#             employee_name=employee_name, 
-#             date=target_date
-#         ).first()
-        
-#         if not target_record:
-#             return jsonify({
-#                 "success": False, 
-#                 "message": "Record not found"
-#             }), 404
-        
-#         target_record.status = "Compensated"
-#         db.session.commit()
-#         _clear_daily_cache()
-        
-#         return jsonify({
-#             "success": True, 
-#             "message": "Marked as compensated"
-#         })
-        
-#     except Exception as error:
-#         db.session.rollback()
-#         print(f"Error in update_compensate: {error}")
-#         return jsonify({
-#             "success": False, 
-#             "message": "Internal server error"
-#         }), 500
-
 @main.route("/refresh_cache", methods=["POST"])
 @login_required
 def refresh_cache():
@@ -542,7 +494,7 @@ def convert_shift_display(shift_text):
     return f"{shift_text} {SHIFT_DISPLAY_MAPPING.get(shift_text, '')}".strip()
 
 # ===========================================================
-# Selected file deleete routes 
+# FILE SELECTED ROUTES
 # ===========================================================
 
 
@@ -604,7 +556,7 @@ def delete_file():
     return redirect(url_for("main.index"))
 
 # ===========================================================
-# COMPENSATION ROUTES (Added from Code B)
+# COMPENSATION ROUTES
 # ===========================================================
 
 @main.route("/apply_compensation", methods=["POST"])
@@ -639,44 +591,44 @@ def apply_compensation():
         logger.error(f"Compensation API error: {e}")
         return jsonify({"success": False, "message": "Internal server error"}), 500
 
-@main.route("/check_compensation_eligibility", methods=["POST"])
-@login_required
+from flask import request, jsonify
+from app.service.compensation_service import CompensationService
+from datetime import datetime
+
+comp_service = CompensationService()
+
+@main.route('/check_compensation_eligibility', methods=['POST'])
 def check_compensation_eligibility():
-    """Check if employee is eligible for compensation"""
     try:
-        data = request.get_json()
-        
-        employee_name = data.get("employee_name")
-        violation_date_str = data.get("violation_date")
-        compensation_type = data.get("compensation_type")
-        
-        if not all([employee_name, violation_date_str, compensation_type]):
-            return jsonify({"eligible": False, "message": "All fields are required"})
-        
+        data = request.json
+        employee_name = data.get('employee_name')
+        violation_date_str = data.get('violation_date')
+        compensation_date_str = data.get('compensation_date')  # <-- Make sure this is included
+        compensation_type = data.get('compensation_type')
+
+        if not all([employee_name, violation_date_str, compensation_date_str, compensation_type]):
+            return jsonify({"eligible": False, "message": "Missing required fields"}), 400
+
         violation_date = datetime.strptime(violation_date_str, "%Y-%m-%d").date()
-        
-        from app.service.compensation_service import CompensationService
-        service = CompensationService()
-        
-        # For eligibility check, we use compensation_date = violation_date (same day)
-        employee, violation_record, _ = service._fetch_records(
-            employee_name, violation_date, violation_date
-        )
-        
+        compensation_date = datetime.strptime(compensation_date_str, "%Y-%m-%d").date()
+
+        # Fetch employee and violation record
+        employee, violation_record, _ = comp_service._fetch_records(employee_name, violation_date, compensation_date)
         if not employee:
             return jsonify({"eligible": False, "message": "Employee not found"})
         if not violation_record:
             return jsonify({"eligible": False, "message": "Violation record not found"})
-        
-        is_eligible, message = service._check_eligibility(
-            employee, violation_record, compensation_type
+
+        # Pass compensation_date to _check_eligibility
+        eligible, message = comp_service._check_eligibility(
+            employee, violation_record, compensation_type, compensation_date
         )
-        
-        return jsonify({"eligible": is_eligible, "message": message})
-        
+
+        return jsonify({"eligible": eligible, "message": message})
+    
     except Exception as e:
-        logger.error(f"Eligibility check error: {e}")
-        return jsonify({"eligible": False, "message": "Error checking eligibility"})
+        return jsonify({"eligible": False, "message": f"Error: {str(e)}"})
+
 
 @main.route("/api/compensation_history")
 @login_required

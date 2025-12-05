@@ -156,11 +156,11 @@ class AttendanceProcessor:
 
         return result
 
-# ===========================================================
-#              OPTIMIZED ATTENDANCE CALCULATOR
-# ===========================================================
+from datetime import datetime, date, time, timedelta
+from typing import Optional, Tuple
+
 class AttendanceCalculator:
-    """Optimized calculation functions — final merged version"""
+    """FINAL — Fully updated with correct part-timer & Saturday OT logic."""
 
     @staticmethod
     def calculate_status(
@@ -170,8 +170,13 @@ class AttendanceCalculator:
         shift_start: time,
         shift_end: time,
         full_time: bool = True
-    ) -> Tuple[str, float]:
-        """Fast status calculation with updated Saturday logic"""
+    ) -> Tuple[str, Optional[float]]:
+        """
+        Returns (status, daily OT hours)
+        - Daily OT is always None for Saturday.
+        - Handles missing punches correctly for part-timers and full-timers.
+        """
+
         shift_start_dt = datetime.combine(day, shift_start)
         shift_end_dt = datetime.combine(day, shift_end)
 
@@ -180,16 +185,25 @@ class AttendanceCalculator:
         # -------------------------------
         if not check_in and not check_out:
             if day.weekday() == 5 and full_time:
-                return AttendanceStatus.SATURDAY, 0.0
+                return AttendanceStatus.SATURDAY, None
             return AttendanceStatus.ABSENT, 0.0
 
         # -------------------------------
         # ONE PUNCH MISSING
         # -------------------------------
         if not check_in or not check_out:
+            # PART-TIMER → Always Half Day
+            if not full_time:
+                return AttendanceStatus.HALF_DAY, 0.0
+
+            # FULL-TIMER Saturday → Half Day Sat
+            if day.weekday() == 5:
+                return AttendanceStatus.HALF_DAY_SAT, None
+
+            # FULL-TIMER Weekday → Half Day
             return AttendanceStatus.HALF_DAY, 0.0
 
-        # Normalize micros
+        # Normalize microseconds
         check_in = check_in.replace(microsecond=0)
         check_out = check_out.replace(microsecond=0)
 
@@ -197,35 +211,38 @@ class AttendanceCalculator:
         # SATURDAY LOGIC
         # -------------------------------
         if day.weekday() == 5:
-            if full_time:
-                # For full-timers on Saturday, calculate actual hours worked as OT
-                worked_hours = max(0.0, (check_out - check_in).total_seconds() / 3600.0)
-                
-                # Determine status based on hours worked
-                if worked_hours >= AttendanceThresholds.FULL_TIMER_MIN_HOURS:
-                    status = AttendanceStatus.FULL_DAY_SAT
-                elif worked_hours >= AttendanceThresholds.SAT_HALF_DAY_MIN_HOURS:
-                    status = AttendanceStatus.HALF_DAY_SAT
-                else:
-                    status = AttendanceStatus.ABSENT
-                
-                # For full-timers on Saturday, ALL worked hours count as OT
-                overtime_hours = worked_hours
-                return status, overtime_hours
-            else:
-                # Part-timers on Saturday - regular calculation
-                status, overtime_hours = AttendanceCalculator._calculate_regular_day_status(
-                    check_in, check_out, day, shift_start_dt, shift_end_dt, full_time
-                )
-                return status, overtime_hours
+            # Part-timers on Saturday → Present, no OT
+            if not full_time:
+                return AttendanceStatus.PRESENT, None
 
-        # Regular day calculation (Monday-Friday)
+            # Full-timers → status based on hours worked, OT always None for daily
+            worked_hours = max(0.0, (check_out - check_in).total_seconds() / 3600.0)
+
+            if worked_hours < 4.25:
+                status = AttendanceStatus.SATURDAY
+            elif worked_hours < 8.75:
+                status = AttendanceStatus.HALF_DAY_SAT
+            else:
+                status = AttendanceStatus.FULL_DAY_SAT
+
+            return status, None  # Daily OT is None
+
+        # -------------------------------
+        # WEEKDAY LOGIC
+        # -------------------------------
         status, overtime_hours = AttendanceCalculator._calculate_regular_day_status(
             check_in, check_out, day, shift_start_dt, shift_end_dt, full_time
         )
 
+        # Part-timers never get OT
+        if not full_time:
+            overtime_hours = 0.0
+
         return status, overtime_hours
 
+    # ===========================================================
+    # WEEKDAY STATUS + OT ENGINE
+    # ===========================================================
     @staticmethod
     def _calculate_regular_day_status(
         check_in: datetime,
@@ -235,14 +252,14 @@ class AttendanceCalculator:
         shift_end_dt: datetime,
         full_time: bool = True
     ) -> Tuple[str, float]:
-        """Calculate status for regular days (Monday-Friday)"""
+        """Calculate status for Monday–Friday"""
         present_limit = shift_start_dt + timedelta(seconds=AttendanceThresholds.GRACE_PERIOD_SECONDS)
         late_limit = shift_start_dt + timedelta(
             hours=AttendanceThresholds.LATE_THRESHOLD_HOURS,
-            seconds=AttendanceThresholds.GRACE_PERIOD_SECONDS,
+            seconds=AttendanceThresholds.GRACE_PERIOD_SECONDS
         )
 
-        # Determine status
+        # Status based on check-in
         if check_in <= present_limit:
             status = AttendanceStatus.PRESENT
         elif check_in <= late_limit:
@@ -250,19 +267,36 @@ class AttendanceCalculator:
         else:
             status = AttendanceStatus.HALF_DAY
 
-        # Early checkout makes it half day
+        # Early checkout → Half Day
         early_limit = shift_end_dt - timedelta(minutes=AttendanceThresholds.EARLY_CHECKOUT_MINUTES)
         if check_out < early_limit:
             status = AttendanceStatus.HALF_DAY
 
-        # Overtime calculation (only for full-timers on regular days)
-        if full_time:
-            overtime = AttendanceCalculator._calculate_overtime_hours(check_out, shift_end_dt)
-        else:
-            overtime = 0.0
+        # Overtime only for full-timers
+        overtime = AttendanceCalculator._calculate_overtime_hours(check_out, shift_end_dt) if full_time else 0.0
 
         return status, overtime
 
+    # ===========================================================
+    # WEEKDAY OT CALCULATION
+    # ===========================================================
+    @staticmethod
+    def _calculate_overtime_hours(check_out: datetime, shift_end_dt: datetime) -> float:
+        ot_seconds = (check_out - shift_end_dt).total_seconds()
+        if ot_seconds <= 0:
+            return 0.0
+
+        ot_hours = ot_seconds / 3600.0
+        if ot_hours < OvertimeConfig.OT_THRESHOLD_1_HOUR:
+            return 0.0
+        elif ot_hours < OvertimeConfig.OT_THRESHOLD_2_HOURS:
+            return 1.0
+        else:
+            return OvertimeConfig.MAX_OT_HOURS
+
+    # ===========================================================
+    # MONTHLY REPORT OT
+    # ===========================================================
     @staticmethod
     def calculate_overtime(
         check_in: Optional[datetime],
@@ -272,54 +306,37 @@ class AttendanceCalculator:
         day: date,
         full_time: bool = True
     ) -> float:
-        """Calculate overtime hours (public method) - Used by monthly report"""
-        if not check_in or not check_out:
+        """Calculate OT for monthly report — Saturday OT counted"""
+
+        if not check_in or not check_out or not full_time:
             return 0.0
-        
-        # Saturday overtime for full-timers
-        if day.weekday() == 5 and full_time:
-            worked_hours = max(0.0, (check_out - check_in).total_seconds() / 3600.0)
-            return worked_hours
-        
-        # Regular day overtime
+
+        # Saturday → count all worked hours
+        if day.weekday() == 5:
+            return max(0.0, (check_out - check_in).total_seconds() / 3600.0)
+
+        # Weekday → normal OT
         return AttendanceCalculator._calculate_overtime_hours(check_out, shift_end_dt)
 
+    # ===========================================================
+    # HELPERS
+    # ===========================================================
     @staticmethod
-    def _calculate_overtime_hours(check_out: datetime, shift_end_dt: datetime) -> float:
-        """Fast overtime calculation for regular days"""
-        ot_seconds = (check_out - shift_end_dt).total_seconds()
-        if ot_seconds <= 0:
-            return 0.0
-            
-        ot_hours = ot_seconds / 3600.0
-        if ot_hours < OvertimeConfig.OT_THRESHOLD_1_HOUR:
-            return 0.0
-        elif ot_hours < OvertimeConfig.OT_THRESHOLD_2_HOURS:
-            return 1.0
-        else:
-            return OvertimeConfig.MAX_OT_HOURS
-
-    @staticmethod
-    def determine_missed_punches(
-        check_in: Optional[datetime],
-        check_out: Optional[datetime]
-    ) -> Tuple[str, str]:
-        """Fast missed punch determination"""
+    def determine_missed_punches(check_in, check_out) -> Tuple[str, str]:
         missed_in = "Yes" if not check_in else ""
         missed_out = "Yes" if not check_out else ""
         return missed_in, missed_out
 
     @staticmethod
     def is_full_time_employee(shift_start: time, shift_end: time) -> bool:
-        """Determine if employee is full-time based on shift duration"""
+        """Shift ≥ 9 hours = full-time"""
         try:
-            shift_start_dt = datetime.combine(date.today(), shift_start)
-            shift_end_dt = datetime.combine(date.today(), shift_end)
-            shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
-            return shift_duration >= AttendanceThresholds.FULL_TIMER_MIN_HOURS
-        except Exception as e:
-            logger.error(f"Error calculating shift duration: {e}")
-            return True  # Default to full-time if error
+            sdt = datetime.combine(date.today(), shift_start)
+            edt = datetime.combine(date.today(), shift_end)
+            hours = (edt - sdt).total_seconds() / 3600.0
+            return hours >= AttendanceThresholds.FULL_TIMER_MIN_HOURS
+        except:
+            return True
 
 
 # ===========================================================

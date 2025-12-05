@@ -38,7 +38,7 @@ class Employee(db.Model):
     department = db.Column(db.String(100), nullable=False)
     last_updated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50), nullable=True)
-    role = db.Column(db.String(20), nullable=False, default="FullTime")  # Added from Code A
+    role = db.Column(db.String(20), nullable=False, default="Full-Time")  # Added from Code A
 
     def __repr__(self):
         return f"<Employee {self.emp_id} - {self.name}>"
@@ -68,7 +68,7 @@ class DailyReport(db.Model):
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    role = db.Column(db.String(20), default="Full Timer") 
+    role = db.Column(db.String(20), default="Full-Timer") 
     compensation_type = db.Column(db.String(20), nullable=True) 
     compensated_date = db.Column(db.Date, nullable=True)  
     shift = db.Column(db.String(50))
@@ -115,12 +115,13 @@ class MonthlyReport(db.Model):
     by_late_count = db.Column(db.Integer, default=0)  
     by_half_day_count = db.Column(db.Integer, default=0)  
     by_absent_count = db.Column(db.Integer, default=0)  
+    working_days = db.Column(db.Integer, default=0)
     report_month = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<MonthlyReport {self.name} - {self.report_month}>"
-    
+
 # ===========================================================
 #               COMPANY DAY OFF
 # ===========================================================

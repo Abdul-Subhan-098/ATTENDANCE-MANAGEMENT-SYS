@@ -607,7 +607,6 @@ function updateDeleteButtonState(enabled) {
     }
 }
 
-// Enhanced notification function for file management
 function showNotification(message, type = 'success') {
     // Remove existing notifications
     const existingNotif = document.querySelector('.custom-notification');
