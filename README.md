@@ -1,7 +1,7 @@
  📘 Attendance Management System
 
 A robust and user-friendly **Attendance Management System** built for organizations to manage employee attendance, logs, and records efficiently.
-This project includes modules for attendance tracking, admin role management, activity logging, and file uploads.
+This project includes modules for attendance tracking, admin role management, activity logging, and file uploads.Attendance Management System is a professional web based application that helps organizations track manage and analyze employee attendance and provides automated calculations for late arrivals overtime hours and attendance rates
 
 ---
 
