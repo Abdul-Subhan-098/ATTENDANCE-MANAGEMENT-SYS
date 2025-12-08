@@ -129,19 +129,6 @@ App will run on:
 http://127.0.0.1:5000
 ```
 
----
-
-## 📸 Screenshots (Optional)
-
-*Add screenshots of Dashboard, Attendance Page, Logs Page, etc.*
-
-```
-/screenshots/dashboard.png  
-/screenshots/attendance.png  
-```
-
----
-
 ## 🙌 Contribution Guidelines
 
 1. Fork the project
