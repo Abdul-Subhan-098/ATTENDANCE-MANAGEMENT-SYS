@@ -3,6 +3,7 @@ import numpy as np
 from sqlalchemy import text, delete, func
 from app import db
 from app.models import AttendanceRaw, Employee
+from app.service.activity_service import log_activity
 from app.service.daily_service import generate_daily_report
 from app.service.monthly_service import generate_monthly_report_from_daily
 from datetime import datetime
@@ -14,6 +15,7 @@ import sys
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
 
 # ===========================================================
 #              PROGRESS TRACKER CLASS
@@ -181,11 +183,32 @@ class FileService:
                                 f"records ({speed:.0f} rows/sec)")
 
             total_time = time.time() - start_time
+            
+            # ✅ ACTIVITY LOG: Bulk insert completed
+            if total_records > 0:
+                log_activity(
+                    username="System",
+                    action=f"Bulk insert completed for batch {batch_id}",
+                    entity_type="data_import",
+                    entity_id=batch_id,
+                    details=f"Inserted {total_records:,} records in {total_time:.2f}s ({total_records/total_time:.0f} rows/sec)"
+                )
+            
             self.progress.log(f"✅ Bulk insert completed: {total_records} records in {total_time:.2f}s "
                             f"({total_records/total_time:.0f} rows/sec)")
 
         except Exception as e:
             db.session.rollback()
+            
+            # ✅ ACTIVITY LOG: Bulk insert failed
+            log_activity(
+                username="System",
+                action=f"Bulk insert failed for batch {batch_id}",
+                entity_type="data_import_error",
+                entity_id=batch_id,
+                details=f"Error: {str(e)[:200]}"
+            )
+            
             logger.error(f"Bulk insert error: {e}")
             raise
 
@@ -249,6 +272,16 @@ class FileService:
             db.session.commit()
             
             elapsed = time.time() - start_time
+            
+            # ✅ ACTIVITY LOG: Employee sync completed
+            if to_insert or to_update:
+                log_activity(
+                    username="System",
+                    action="Synchronized employee information",
+                    entity_type="employee_sync",
+                    details=f"New: {len(to_insert)}, Updated: {len(to_update)} employees in {elapsed:.2f}s"
+                )
+            
             self.progress.log(f"✅ Employee sync: {len(to_insert)} new, {len(to_update)} "
                             f"updated ({elapsed:.2f}s)")
             
@@ -316,9 +349,17 @@ class FileService:
             monthly_time = time.time() - monthly_start
             self.progress.log(f"📅 Monthly report generated in {monthly_time:.2f}s")
 
-            # Final summary
+            # ✅ ACTIVITY LOG: File processed successfully
             total_time = time.time() - total_start_time
             rows_per_second = len(df) / total_time if total_time > 0 else 0
+            
+            log_activity(
+                username="System",
+                action=f"Processed attendance file: {file.filename}",
+                entity_type="file_upload",
+                entity_id=batch_id,
+                details=f"Rows: {len(df):,}, Employees: {added} new, {updated} updated, Duration: {total_time:.2f}s, Speed: {rows_per_second:.0f} rows/sec"
+            )
             
             self.progress.complete(f"File processing completed")
             self.progress.log(f"🎯 PERFORMANCE SUMMARY:")
@@ -336,6 +377,15 @@ class FileService:
 
         except Exception as e:
             db.session.rollback()
+            
+            # ✅ ACTIVITY LOG: File processing failed
+            log_activity(
+                username="System",
+                action=f"Failed to process file: {file.filename}",
+                entity_type="file_upload_error",
+                details=f"Error: {str(e)[:200]}"
+            )
+            
             error_msg = f"❌ Error processing file: {e}"
             logger.error(error_msg)
             return error_msg

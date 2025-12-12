@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Logs | Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/activity_logs.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h2>Attendance</h2>
+            <p>Activity Logs</p>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('main.employees') }}">
+                <i class="fas fa-users"></i> Employee Manage
+            </a>
+            <a href="{{ url_for('main.index') }}">
+                <i class="fas fa-chart-bar"></i> Monthly Report
+            </a>
+            <a href="{{ url_for('main.daily') }}">
+                <i class="fas fa-calendar-day"></i> Daily Report
+            </a>
+            <a href="{{ url_for('main.activity_logs') }}" class="active">
+                <i class="fas fa-history"></i> Activity Logs
+            </a>
+            <a href="{{ url_for('main.admin_panel') }}">
+                <i class="fas fa-user-shield"></i> Admin
+            </a>
+            
+            <button class="sidebar-toggle" id="sidebarToggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            
+            <div class="sidebar-bottom">
+                <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="fas fa-history"></i> Activity Logs</h1>
+                <p>Track all system activities and user actions</p>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="filters-section">
+                <div class="filters-row">
+                    <!-- Username Filter -->
+                    <div class="filter-group">
+                        <label for="usernameFilter"><i class="fas fa-user"></i> Username</label>
+                        <select id="usernameFilter">
+                            <option value="">All Users</option>
+                        </select>
+                    </div>
+
+                    <!-- Entity Type Filter -->
+                    <div class="filter-group">
+                        <label for="entityTypeFilter"><i class="fas fa-cube"></i> Entity Type</label>
+                        <select id="entityTypeFilter">
+                            <option value="">All Types</option>
+                        </select>
+                    </div>
+
+                    <!-- Date Range Filters -->
+                    <div class="filter-group">
+                        <label for="startDate"><i class="fas fa-calendar"></i> Start Date</label>
+                        <input type="date" id="startDate">
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="endDate"><i class="fas fa-calendar"></i> End Date</label>
+                        <input type="date" id="endDate">
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="filter-group">
+                        <label><i class="fas fa-filter"></i> Actions</label>
+                        <div class="log-actions">
+                            <button id="applyFilters" class="btn-apply">Apply Filters</button>
+                            <button id="clearFilters" class="btn-clear">Clear</button>
+                            <div class="loading-spinner" id="loadingSpinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Activity Logs Table -->
+            <div class="table-container">
+                <table class="activity-log-table" id="activityLogsTable">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Username</th>
+                            <th>Action</th>
+                            <th>Entity Type</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activityLogsBody">
+                        <!-- Logs will be loaded here -->
+                    </tbody>
+                </table>
+
+                <div id="emptyState" class="empty-logs">
+                    <i class="fas fa-history"></i>
+                    <h3>No Activity Logs Found</h3>
+                    <p>No activity logs match your filters</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/activity_logs.js') }}"></script>
+    
+</body>
+</html>

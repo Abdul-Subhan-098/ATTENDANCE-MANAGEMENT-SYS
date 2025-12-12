@@ -56,6 +56,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     employees_data = defaultdict(lambda: {
         "EmpID": "",
         "Name": "",
+        "Gender": "Male",  # Added from A
         "TotalDays": 0,
         "Present": 0,
         "Absent": 0,
@@ -69,7 +70,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         "ByLateCount": 0,
         "ByHalfDayCount": 0,
         "ByAbsentCount": 0,
-        "CompanyOff": set()  # ⭐ NEW: store company off dates
+        "CompanyOff": set()  # From B
     })
 
     # ========================
@@ -83,6 +84,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         # Employee basic info
         emp_data["EmpID"] = emp.emp_id if emp else row.emp_id or ""
         emp_data["Name"] = emp_name
+        emp_data["Gender"] = getattr(row, "gender", "Male") or "Male"  # Added from A
         emp_data["TotalDays"] += 1
 
         # Determine full-time based on shift duration
@@ -100,9 +102,9 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         status = row.status or ""
         weekday = row.date.weekday()
 
-        # Capture company off
+        # Capture company off (From B)
         if status == "Company Day Off":
-            emp_data["CompanyOff"].add(row.date)  # ⭐ NEW
+            emp_data["CompanyOff"].add(row.date)
             continue  # Company Off → skip counts except working days
 
         # Count attendance status
@@ -147,7 +149,10 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     for name, data in employees_data.items():
         emp = all_emps.get(name)
 
-        # Determine full-time based on shift for working days calculation
+        # APPLY FIX FROM A: Reduce Late Count by ByLateCount
+        data["Late"] = max(0, data["Late"] - data["ByLateCount"])
+
+        # Determine full-time for working days
         is_full_time_emp = True
         if emp and emp.shift:
             try:
@@ -159,17 +164,18 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             except Exception:
                 pass
 
-        # ⭐ UPDATED WORKING DAY LOGIC ⭐
+        # Calendar-based working days with Company Off exclusion (From B)
         working_days = 0
         for day in range(1, total_days_in_month + 1):
             current_date = datetime(year, month, day).date()
             weekday = current_date.weekday()
 
-            # Skip days before joining
-            if is_latest_month and emp and emp.joining_date and current_date < emp.joining_date:
-                continue
+            # Skip days before joining (latest month only)
+            if is_latest_month and emp and emp.joining_date and emp.joining_date > start_date:
+                if current_date < emp.joining_date:
+                    continue
 
-            # ⭐ NEW: If "Company Off" in daily → skip working day ⭐
+            # Skip Company Day Off (From B)
             if current_date in data["CompanyOff"]:
                 continue
 
@@ -183,6 +189,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         monthly_rec = MonthlyReport(
             emp_id=data["EmpID"],
             name=name,
+            gender=data.get("Gender", "Male") or "Male",  # Added from A
             department=emp.department if emp else "Cold Calling",
             joining_date=emp.joining_date if emp else None,
             last_updated_date=emp.last_updated_date if emp else datetime.utcnow().date(),
@@ -192,7 +199,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             total_days=data["TotalDays"],
             present=data["Present"],
             absent=data["Absent"],
-            late=data["Late"],
+            late=data["Late"],  # Already adjusted above
             half_day_weekdays=data["HalfDayWeekdays"],
             half_day_sat=data["HalfDaySat"],
             full_day_sat=data["FullDaySat"],
@@ -226,6 +233,10 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     for name, data in employees_data.items():
         emp = all_emps.get(name)
 
+        # APPLY FIX AGAIN FOR API RESPONSE (From A)
+        data["Late"] = max(0, data["Late"] - data["ByLateCount"])
+
+        # Determine full-time for API response
         is_full_time_emp = True
         if emp and emp.shift:
             try:
@@ -237,19 +248,20 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             except Exception:
                 pass
 
-        # ⭐ Same Company Off Skip for API response ⭐
+        # Working days for display with Company Off exclusion (From B)
         working_days = 0
         for day in range(1, total_days_in_month + 1):
             current_date = datetime(year, month, day).date()
             weekday = current_date.weekday()
-
-            if is_latest_month and emp and emp.joining_date and current_date < emp.joining_date:
-                continue
-
-            # ⭐ NEW
+            
+            if is_latest_month and emp and emp.joining_date and emp.joining_date > start_date:
+                if current_date < emp.joining_date:
+                    continue
+            
+            # Skip Company Day Off (From B)
             if current_date in data["CompanyOff"]:
                 continue
-
+                
             if is_full_time_emp and weekday < 5:
                 working_days += 1
             elif not is_full_time_emp and weekday != 6:
@@ -258,6 +270,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         results.append({
             "EmpID": safe(data["EmpID"], ""),
             "Name": safe(data["Name"]),
+            "Gender": data.get("Gender", "Male") or "Male",  # Added from A
             "Department": safe(emp.department) if emp else "Cold Calling",
             "Shift": safe(emp.shift) if emp else "10:00 - 19:00",
             "Role": safe(getattr(emp, 'role', 'FullTime')) if emp else "FullTime",

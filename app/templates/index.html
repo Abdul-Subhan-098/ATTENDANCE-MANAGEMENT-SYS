@@ -8,206 +8,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
-    <style>
-        /* Additional styles for the filter section */
-        .filter-section {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            padding: 20px;
-            margin-bottom: 25px;
-            border-left: 4px solid #4a6ee0;
-        }
-        
-        .filter-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .filter-header i {
-            font-size: 1.5rem;
-            color: #4a6ee0;
-            margin-right: 12px;
-        }
-        
-        .filter-header h3 {
-            margin: 0;
-            color: #333;
-            font-size: 1.3rem;
-        }
-        
-        .filter-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-        
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .filter-group label {
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #555;
-            display: flex;
-            align-items: center;
-        }
-        
-        .filter-group label i {
-            margin-right: 8px;
-            color: #4a6ee0;
-            font-size: 0.9rem;
-        }
-        
-        .filter-dropdown {
-            width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 1rem;
-            background-color: #f9f9f9;
-            transition: all 0.3s ease;
-        }
-        
-        .filter-dropdown:focus {
-            outline: none;
-            border-color: #4a6ee0;
-            box-shadow: 0 0 0 3px rgba(74, 110, 224, 0.1);
-            background-color: white;
-        }
-        
-        .filter-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #eee;
-        }
-        
-        .filter-btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 8px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.3s ease;
-            font-size: 1rem;
-        }
-        
-        .apply-filter-btn {
-            background-color: #4a6ee0;
-            color: white;
-        }
-        
-        .apply-filter-btn:hover {
-            background-color: #3a5ecf;
-            transform: translateY(-2px);
-        }
-        
-        .reset-filter-btn {
-            background-color: #f1f3f9;
-            color: #666;
-        }
-        
-        .reset-filter-btn:hover {
-            background-color: #e4e7f4;
-            color: #333;
-        }
-        
-        .filter-tags {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        .filter-tag {
-            display: inline-flex;
-            align-items: center;
-            background-color: #eef2ff;
-            color: #4a6ee0;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        
-        .filter-tag i {
-            margin-left: 8px;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-        
-        .filter-tag i:hover {
-            color: #ff4757;
-        }
-        
-        .select2-container--default .select2-selection--single {
-            height: 46px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            background-color: #f9f9f9;
-        }
-        
-        .select2-container--default .select2-selection--single .select2-selection__rendered {
-            line-height: 46px;
-            padding-left: 15px;
-        }
-        
-        .select2-container--default .select2-selection--single .select2-selection__arrow {
-            height: 46px;
-        }
-        
-        @media (max-width: 768px) {
-            .filter-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .filter-actions {
-                flex-direction: column;
-            }
-            
-            .filter-btn {
-                width: 100%;
-            }
-        }
-        
-        /* Filter indicator in table header */
-        .section-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .section-header h3 {
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .filter-indicator {
-            background-color: #eef2ff;
-            color: #4a6ee0;
-            padding: 8px 15px;
-            border-radius: 20px;
-            font-size: 0.9rem;
-            font-weight: 500;
-        }
-    </style>
 </head>
 <body>
     <!-- Sidebar Toggle Button -->
@@ -231,6 +31,9 @@
             </a>
             <a href="{{ url_for('main.daily') }}">
                 <i class="fas fa-calendar-day"></i> Daily Report
+            </a>
+            <a href="{{ url_for('main.activity_logs') }}">
+                <i class="fas fa-history"></i> Activity Logs
             </a>
             <a href="{{ url_for('main.admin_panel') }}">
                 <i class="fas fa-user-shield"></i> Admin
@@ -447,6 +250,7 @@
                                 <tr>
                                     <th>Emp ID</th>
                                     <th>Name</th>
+                                    <th>Gender</th>
                                     <th>Emp Joining</th>
                                     <th>Role</th> 
                                     <th>Shift</th>
@@ -474,6 +278,7 @@
                                         data-month="{{ row.Month if row.Month is defined else '' }}">
                                         <td>{{ row.EmpID if row.EmpID is defined else '' }}</td>
                                         <td><strong>{{ row.Name }}</strong></td>
+                                        <td>{{ row.Gender if row.Gender is defined else 'N/A' }}</td>
                                         <td>{{ row.JoiningDate if row.JoiningDate is defined else '' }}</td>
                                         <td>{{ row.Role if row.Role is defined else 'Full-Timer' }}</td>
                                         <td>{{ row.Shift if row.Shift is defined else '10:00 - 19:00' }}</td>

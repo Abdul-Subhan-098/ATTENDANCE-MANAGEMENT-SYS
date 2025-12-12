@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from app import db
 from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin
 from datetime import datetime,timedelta
+from app.service.activity_service import log_activity, get_activity_logs, ActivityService, get_user_activity_logs  # From B
 from sqlalchemy import func
 from app.service.file_service import get_uploaded_files, delete_uploaded_file
 from functools import wraps
@@ -95,8 +96,9 @@ def _format_daily_record(record):
         "EmpID": record.emp_id,
         "Date": record.date.strftime("%Y-%m-%d"),
         "Name": record.employee_name,
+        "Gender": getattr(record, "gender", "Male") or "Male",  # From A
         "Shift": record.shift,
-        "Role": getattr(record, "role", "Full-Timer") or "Full-Timer",  # Added from Code A
+        "Role": getattr(record, "role", "Full-Timer") or "Full-Timer",
         "ShiftDisplay": f"{record.shift} {SHIFT_DISPLAY_MAPPING.get(record.shift, '')}".strip(),
         "CheckIn": record.check_in.strftime("%H:%M") if record.check_in else "",
         "CheckOut": record.check_out.strftime("%H:%M") if record.check_out else "",
@@ -105,8 +107,8 @@ def _format_daily_record(record):
         "MissedCheckOut": "Yes" if record.missed_checkout else "No",
         "Overtime": record.overtime or 0.0,
         "Department": record.department or "Cold Calling",
-        "CompensationType": record.compensation_type or "",  # Added from Code B
-        "CompensatedDate": record.compensated_date.strftime("%Y-%m-%d") if record.compensated_date else ""  # Added from Code B
+        "CompensationType": record.compensation_type or "",
+        "CompensatedDate": record.compensated_date.strftime("%Y-%m-%d") if record.compensated_date else ""
     }
 
 def _format_monthly_record(record):
@@ -114,6 +116,7 @@ def _format_monthly_record(record):
     return {
         "EmpID": record.emp_id or "",
         "Name": record.name or "",
+        "Gender": getattr(record, "gender", "Male") or "Male",  # From A
         "Role": getattr(record, "role", "Full-Timer") or "Full-Timer",
         "Shift": record.shift or "",
         "Department": record.department or "Cold Calling",
@@ -132,8 +135,6 @@ def _format_monthly_record(record):
         "ByLateCount": record.by_late_count or 0,
         "ByHalfDayCount": record.by_half_day_count or 0,
         "ByAbsentCount": record.by_absent_count or 0,
-
-        # ⭐ NEW FIELD ADDED
         "WorkingDays": getattr(record, "working_days", 0) or 0
     }
 
@@ -158,9 +159,26 @@ def login():
         if admin_user and check_password_hash(admin_user.password_hash, password):
             session['admin_id'] = admin_user.id
             session['admin_username'] = admin_user.username
+            
+            # Log successful login (From B)
+            log_activity(
+                username=username,
+                action="User logged in",
+                entity_type="authentication",
+                details="Successful login"
+            )
+            
             flash("✅ Logged in successfully!", "success")
             return redirect(url_for('main.employees'))
         else:
+            # Log failed login attempt (From B)
+            log_activity(
+                username=username,
+                action="Failed login attempt",
+                entity_type="authentication",
+                details="Invalid credentials"
+            )
+            
             flash("❌ Invalid username or password", "error")
             return redirect(url_for('main.login'))
 
@@ -169,7 +187,15 @@ def login():
 @main.route("/logout")
 @login_required
 def logout():
-    """Handle user logout and session cleanup."""
+    username = session.get('admin_username', 'Unknown')
+    
+    # Log logout activity (From B)
+    log_activity(
+        username=username,
+        action="User logged out",
+        entity_type="authentication"
+    )
+    
     session.clear()
     flash("✅ Logged out successfully!", "success")
     return redirect(url_for('main.login'))
@@ -222,6 +248,7 @@ def daily():
             pagination=None, 
             message=f"❌ Failed to load daily report: {error}"
         )
+
 # ===========================================================
 # COMPANY DAY OFF ROUTES
 # ===========================================================
@@ -232,7 +259,9 @@ def company_day_off():
     """Handle Company Day Off operations"""
     try:
         data = request.get_json()
-        action = data.get("action")  # "add" or "remove"
+        username = session.get('admin_username', 'Unknown')  # From B
+        
+        action = data.get("action")
         date_str = data.get("date")
         reason = data.get("reason", "Company Day Off")
         
@@ -244,12 +273,23 @@ def company_day_off():
         
         if action == "add":
             success, message = service.apply_company_day_off(date_str, reason)
+            log_action = "Added Company Day Off"  # From B
         elif action == "remove":
             success, message = service.remove_company_day_off(date_str)
+            log_action = "Removed Company Day Off"  # From B
         else:
             return jsonify({"success": False, "message": "Invalid action"}), 400
         
         if success:
+            # Log company day off activity (From B)
+            log_activity(
+                username=username,
+                action=f"{log_action}: {date_str}",
+                entity_type="company_day_off",
+                entity_id=date_str,
+                details=reason if action == "add" else None
+            )
+            
             # Clear cache to reflect changes
             _clear_daily_cache()
             
@@ -274,7 +314,6 @@ def get_company_off_days():
         from app.service.employee_service import EmployeeService
         service = EmployeeService()
         
-        # Get date range parameters
         start_date_str = request.args.get("start_date")
         end_date_str = request.args.get("end_date")
         
@@ -295,16 +334,32 @@ def get_company_off_days():
 def employees():
     """Handle employee management operations."""
     employee_service = EmployeeService()
+    username = session.get('admin_username', 'Unknown')  # From B
 
     if request.method == "POST":
-        employee_service.add_or_update_employee(
-            name=request.form.get("name", "").strip(),
+        name = request.form.get("name", "").strip()
+        
+        result = employee_service.add_or_update_employee(
+            name=name,
             joining_date_str=request.form.get("joining_date", "").strip(),
             department=request.form.get("department", "").strip(),
             effective_date_str=request.form.get("effective_date", "").strip(),
             shift_full=request.form.get("shift", "").strip(),
-            role=request.form.get("role", "").strip()  # <-- Added from Code A
+            role=request.form.get("role", "").strip(),
+            gender=request.form.get("gender", "").strip()  # From A
         )
+        
+        if result:
+            # Log employee update/add (From B)
+            action = "Updated employee" if Employee.query.filter_by(name=name).first() else "Added new employee"
+            log_activity(
+                username=username,
+                action=f"{action}: {name}",
+                entity_type="employee_management",
+                entity_id=name,
+                details=f"Department: {request.form.get('department')}, Shift: {request.form.get('shift')}, Role: {request.form.get('role')}, Gender: {request.form.get('gender')}"  # Added gender
+            )
+        
         return redirect(url_for("main.employees"))
 
     # GET request - display employee list
@@ -312,27 +367,31 @@ def employees():
     daily_employee_names_query = db.session.query(DailyReport.employee_name).distinct().all()
     daily_employee_names = sorted([name[0] for name in daily_employee_names_query if name[0]])
 
-    # Add role options for the form (from Code A)
+    # Role options and gender options for the form
     roles = ["Full-Timer", "Part-Timer"]
+    genders = ["Male", "Female"]  # From A
 
     return render_template(
         "employees.html",
         employees=employee_list,
         daily_names=daily_employee_names,
         current_date=datetime.today().strftime("%Y-%m-%d"),
-        roles=roles  # <-- Added from Code A
+        roles=roles,
+        genders=genders  # From A
     )
 
 @main.route("/admin_panel", methods=["GET", "POST"])
 @login_required
 def admin_panel():
     """Handle admin user management."""
+    username = session.get('admin_username', 'Unknown')  # From B
+    
     if request.method == "POST":
-        username = request.form.get("username", "").strip()
+        new_username = request.form.get("username", "").strip()
         password = request.form.get("password", "").strip()
         confirm_password = request.form.get("confirm_password", "").strip()
 
-        if not all([username, password, confirm_password]):
+        if not all([new_username, password, confirm_password]):
             flash("❌ All fields are required.", "error")
             return redirect(url_for("main.admin_panel"))
 
@@ -340,18 +399,27 @@ def admin_panel():
             flash("❌ Passwords do not match.", "error")
             return redirect(url_for("main.admin_panel"))
 
-        existing_admin = Admin.query.filter_by(username=username).first()
+        existing_admin = Admin.query.filter_by(username=new_username).first()
         if existing_admin:
-            flash(f"❌ Username '{username}' already exists.", "error")
+            flash(f"❌ Username '{new_username}' already exists.", "error")
             return redirect(url_for("main.admin_panel"))
 
-        new_admin = Admin(username=username)
+        new_admin = Admin(username=new_username)
         new_admin.set_password(password)
 
         try:
             db.session.add(new_admin)
             db.session.commit()
-            flash(f"✅ Admin '{username}' created successfully.", "success")
+            
+            # Log admin creation (From B)
+            log_activity(
+                username=username,
+                action=f"Created new admin user: {new_username}",
+                entity_type="admin_management",
+                entity_id=new_username
+            )
+            
+            flash(f"✅ Admin '{new_username}' created successfully.", "success")
         except Exception as error:
             db.session.rollback()
             flash(f"❌ Failed to create admin: {error}", "error")
@@ -411,6 +479,7 @@ def refresh_cache():
 def upload_file():
     """Handle attendance file upload and processing."""
     uploaded_file = request.files.get("file")
+    username = session.get('admin_username', 'Unknown')  # From B
     
     if not uploaded_file or not uploaded_file.filename:
         status_message = "❌ No file selected."
@@ -421,9 +490,26 @@ def upload_file():
                 compensated_dates=_compensated_dates
             )
             status_message = file_processor.process_file(uploaded_file)
+            
+            # Log file upload activity (From B)
+            log_activity(
+                username=username,
+                action=f"Uploaded attendance file: {uploaded_file.filename}",
+                entity_type="file_upload",
+                details=status_message
+            )
+            
         except Exception as error:
             db.session.rollback()
             status_message = f"❌ File processing failed: {error}"
+            
+            # Log failed upload (From B)
+            log_activity(
+                username=username,
+                action=f"Failed to upload file: {uploaded_file.filename}",
+                entity_type="file_upload",
+                details=str(error)
+            )
 
     employee_names = _get_unique_employee_names()
     _initialize_default_shifts(employee_names)
@@ -442,10 +528,21 @@ def upload_file():
 def delete_data():
     """Delete all attendance and report data."""
     try:
+        username = session.get('admin_username', 'Unknown')  # From B
+        
         db.session.query(MonthlyReport).delete()
         db.session.query(DailyReport).delete()
         db.session.query(AttendanceRaw).delete()
         db.session.commit()
+        
+        # Log data deletion (From B)
+        log_activity(
+            username=username,
+            action="Deleted all attendance and report data",
+            entity_type="data_deletion",
+            details="All DailyReport, MonthlyReport, and AttendanceRaw records deleted"
+        )
+        
         status_message = "✅ All attendance and report data deleted successfully."
     except Exception as error:
         db.session.rollback()
@@ -465,6 +562,7 @@ def delete_admin():
     """Delete an admin user account."""
     admin_id = request.form.get("admin_id")
     target_admin = Admin.query.get(admin_id)
+    username = session.get('admin_username', 'Unknown')  # From B
 
     if not target_admin:
         flash("Admin not found.", "error")
@@ -474,8 +572,18 @@ def delete_admin():
         flash("❌ You cannot delete your own account.", "error")
         return redirect(url_for("main.admin_panel"))
 
+    target_username = target_admin.username
+    
     db.session.delete(target_admin)
     db.session.commit()
+
+    # Log admin deletion (From B)
+    log_activity(
+        username=username,
+        action=f"Deleted admin user: {target_username}",
+        entity_type="admin_management",
+        entity_id=target_username
+    )
 
     flash("Admin deleted successfully.", "success")
     return redirect(url_for("main.admin_panel"))
@@ -497,7 +605,6 @@ def convert_shift_display(shift_text):
 # FILE SELECTED ROUTES
 # ===========================================================
 
-
 @main.route("/api/uploaded_files", methods=["GET"])
 @login_required
 def get_uploaded_files_api():
@@ -506,7 +613,7 @@ def get_uploaded_files_api():
         files = get_uploaded_files()
         return jsonify({"files": files})
     except Exception as e:
-        print(f"Error fetching uploaded files: {e}")  # Temporary print
+        print(f"Error fetching uploaded files: {e}")
         return jsonify({"error": "Failed to fetch uploaded files"}), 500
 
 @main.route("/api/session_check", methods=["GET"])
@@ -529,6 +636,8 @@ def delete_file():
     """Delete a specific uploaded file and regenerate reports from remaining data."""
     try:
         batch_id = request.form.get("batch_id")
+        username = session.get('admin_username', 'Unknown')  # From B
+        
         if not batch_id:
             flash("❌ File selection is required", "error")
             return redirect(url_for("main.index"))
@@ -544,6 +653,15 @@ def delete_file():
             # Regenerate reports from REMAINING data only
             generate_daily_report()
             generate_monthly_report_from_daily()
+            
+            # Log file deletion (From B)
+            log_activity(
+                username=username,
+                action=f"Deleted uploaded file batch: {batch_id}",
+                entity_type="file_deletion",
+                entity_id=batch_id,
+                details=message
+            )
             
             flash(f"{message} Reports updated with remaining data.", "success")
         else:
@@ -565,6 +683,7 @@ def apply_compensation():
     """Apply compensation to attendance record"""
     try:
         data = request.get_json()
+        username = session.get('admin_username', 'Unknown')  # From B
         
         employee_name = data.get("employee_name")
         violation_date_str = data.get("violation_date")
@@ -585,10 +704,62 @@ def apply_compensation():
             employee_name, violation_date, compensation_date, compensation_type
         )
         
+        # Log compensation activity (From B)
+        if result.get("success"):
+            log_activity(
+                username=username,
+                action=f"Applied {compensation_type} compensation for {employee_name}",
+                entity_type="compensation",
+                entity_id=employee_name,
+                details=f"Violation: {violation_date_str}, Compensation: {compensation_date_str}"
+            )
+        
         return jsonify(result)
         
     except Exception as e:
         logger.error(f"Compensation API error: {e}")
+        return jsonify({"success": False, "message": "Internal server error"}), 500
+
+@main.route("/remove_compensation", methods=["POST"])
+@login_required
+def remove_compensation():
+    """Remove an applied compensation and restore original attendance values"""
+    try:
+        data = request.get_json()
+
+        employee_name = data.get("employee_name")
+        violation_date_str = data.get("violation_date")
+
+        if not employee_name or not violation_date_str:
+            return jsonify({
+                "success": False,
+                "message": "Employee name and violation date are required"
+            }), 400
+
+        try:
+            violation_date = datetime.strptime(violation_date_str, "%Y-%m-%d").date()
+        except:
+            return jsonify({
+                "success": False,
+                "message": "Invalid violation date format"
+            }), 400
+
+        # Call service layer
+        from app.service.compensation_service import CompensationService
+        service = CompensationService()
+        result = service.remove_compensation(employee_name, violation_date)
+
+        # Clear daily cache after update
+        _clear_daily_cache()
+
+        # Regenerate monthly summary
+        from app.service.monthly_service import generate_monthly_report_from_daily
+        generate_monthly_report_from_daily()
+
+        return jsonify(result)
+
+    except Exception as e:
+        logger.error(f"Remove Compensation API error: {e}")
         return jsonify({"success": False, "message": "Internal server error"}), 500
 
 from flask import request, jsonify
@@ -603,7 +774,7 @@ def check_compensation_eligibility():
         data = request.json
         employee_name = data.get('employee_name')
         violation_date_str = data.get('violation_date')
-        compensation_date_str = data.get('compensation_date')  # <-- Make sure this is included
+        compensation_date_str = data.get('compensation_date')
         compensation_type = data.get('compensation_type')
 
         if not all([employee_name, violation_date_str, compensation_date_str, compensation_type]):
@@ -652,3 +823,118 @@ def get_compensation_history():
     except Exception as e:
         logger.error(f"Error getting compensation history: {e}")
         return jsonify({"history": []})
+
+# ===========================================================
+# ACTIVITY LOG ROUTES (From B)
+# ===========================================================
+
+@main.route("/activity_logs")
+@login_required
+def activity_logs():
+    """Display activity logs page."""
+    return render_template("activity_logs.html")
+
+
+@main.route("/api/activity_logs", methods=["GET"])
+@login_required
+def get_activity_logs_api():
+    """API endpoint to fetch ONLY USER activity logs (System/Admin excluded)."""
+    try:
+        # Get filter parameters
+        username = request.args.get("username")
+        entity_type = request.args.get("entity_type")
+        start_date_str = request.args.get("start_date")
+        end_date_str = request.args.get("end_date")
+        limit = request.args.get("limit", 100, type=int)
+        
+        # Convert dates
+        start_date = None
+        end_date = None
+        
+        if start_date_str:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
+        
+        # Get ONLY USER logs (System/Admin excluded)
+        service = ActivityService()
+        logs = service.get_user_activity_logs(
+            username=username,
+            entity_type=entity_type,
+            start_date=start_date,
+            end_date=end_date,
+            limit=limit
+        )
+        
+        return jsonify({
+            "success": True,
+            "logs": logs,
+            "total": len(logs),
+            "note": "System aur Admin ki activities hide ki gayi hain"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching USER activity logs: {e}")
+        return jsonify({
+            "success": False,
+            "message": "Failed to fetch user activity logs",
+            "logs": []
+        }), 500
+
+
+@main.route("/api/activity_logs/filters", methods=["GET"])
+@login_required
+def get_activity_filters():
+    """API endpoint to get filter options for USER activity logs."""
+    try:
+        service = ActivityService()
+        
+        entity_types = service.get_entity_types()
+        
+        # Direct query to exclude System/Admin
+        from app.models import ActivityLog
+        user_usernames = db.session.query(
+            ActivityLog.username
+        ).filter(
+            ActivityLog.username.notin_(['System', 'Admin', 'system', 'admin'])
+        ).distinct().order_by(ActivityLog.username).all()
+        
+        user_usernames = [username[0] for username in user_usernames if username[0]]
+        
+        return jsonify({
+            "success": True,
+            "entity_types": entity_types,
+            "usernames": user_usernames
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching USER activity filters: {e}")
+        return jsonify({
+            "success": False,
+            "entity_types": [],
+            "usernames": []
+        }), 500
+
+
+@main.route("/api/recent_activities", methods=["GET"])
+@login_required
+def get_recent_activities():
+    """API endpoint to get recent activities for dashboard."""
+    try:
+        from app.service.activity_service import ActivityService
+        service = ActivityService()
+        
+        limit = request.args.get("limit", 10, type=int)
+        activities = service.get_recent_activities(limit=limit)
+        
+        return jsonify({
+            "success": True,
+            "activities": activities
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching recent activities: {e}")
+        return jsonify({
+            "success": False,
+            "activities": []
+        }), 500
