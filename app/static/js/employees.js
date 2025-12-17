@@ -142,6 +142,10 @@ function setupCompensationEventListeners() {
     const applyBtn = document.getElementById('applyCompensationBtn');
     if (applyBtn) applyBtn.addEventListener('click', applyCompensation);
 
+    // Remove Compensation Button (next to Apply)
+    const removeBtn = document.getElementById('removeCompensationBtn');
+    if (removeBtn) removeBtn.addEventListener('click', removeCompensation);
+
     // Check Eligibility Button
     const checkEligibilityBtn = document.getElementById('checkEligibilityBtn');
     if (checkEligibilityBtn) checkEligibilityBtn.addEventListener('click', checkEligibility);
@@ -154,15 +158,11 @@ function setupCompensationEventListeners() {
     const refreshBtn = document.getElementById('refreshHistoryBtn');
     if (refreshBtn) refreshBtn.addEventListener('click', loadCompensationHistory);
 
-    // Add manual employee button
-    const addManualBtn = document.getElementById('addManualEmployee');
-    if (addManualBtn) addManualBtn.addEventListener('click', addManualEmployee);
-
-    // Enter key for manual input
-    const manualInput = document.getElementById('manualEmployeeInput');
-    if (manualInput) {
-        manualInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') addManualEmployee();
+    // Enter key for employee input
+    const employeeInput = document.getElementById('compensationEmployee');
+    if (employeeInput) {
+        employeeInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') checkEligibility();
         });
     }
 }
@@ -186,17 +186,15 @@ function initializeDateFields() {
 // =======================================
 function loadEmployeeSuggestions() {
     fetch('/api/daily_search?limit=1000')
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
-            if (data.data && data.data.length > 0) {
-                const uniqueNames = [...new Set(data.data.map(record => record.Name))].sort();
+            if (data.data && data.data.length) {
+                const uniqueNames = [...new Set(data.data.map(r => r.Name))].sort();
                 const datalist = document.getElementById('employeeSuggestions');
-                if (datalist) {
-                    datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">${name}</option>`).join('');
-                }
+                if (datalist) datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">${name}</option>`).join('');
             }
         })
-        .catch(error => console.error('Error loading employee suggestions:', error));
+        .catch(err => console.error('Error loading employee suggestions:', err));
 }
 
 // =======================================
@@ -205,7 +203,7 @@ function loadEmployeeSuggestions() {
 function checkEligibility() {
     const employee = document.getElementById('compensationEmployee').value.trim();
     const violationDate = document.getElementById('violationDate').value;
-    const compensationDate = document.getElementById('compensationDate').value; // Fixed
+    const compensationDate = document.getElementById('compensationDate').value;
     const compensationType = document.getElementById('compensationType').value;
 
     if (!employee || !violationDate || !compensationType || !compensationDate) {
@@ -220,7 +218,7 @@ function checkEligibility() {
 
     fetch('/check_compensation_eligibility', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             employee_name: employee,
             violation_date: violationDate,
@@ -228,7 +226,7 @@ function checkEligibility() {
             compensation_type: compensationType
         })
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
         if (data.eligible) {
             eligibilityResult.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message}`;
@@ -238,10 +236,10 @@ function checkEligibility() {
             eligibilityResult.className = 'eligibility-result not-eligible';
         }
     })
-    .catch(error => {
+    .catch(err => {
         eligibilityResult.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error checking eligibility';
         eligibilityResult.className = 'eligibility-result not-eligible';
-        console.error('Eligibility check error:', error);
+        console.error('Eligibility check error:', err);
     });
 }
 
@@ -260,13 +258,16 @@ function applyCompensation() {
     }
 
     const applyBtn = document.getElementById('applyCompensationBtn');
+    const removeBtn = document.getElementById('removeCompensationBtn');
     const originalText = applyBtn.innerHTML;
+
     applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
     applyBtn.disabled = true;
+    removeBtn.disabled = true;
 
     fetch('/apply_compensation', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             employee_name: employee,
             violation_date: violationDate,
@@ -274,7 +275,7 @@ function applyCompensation() {
             compensation_type: compensationType
         })
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
         if (data.success) {
             showCompensationResult(data.message, 'success');
@@ -284,13 +285,62 @@ function applyCompensation() {
             showCompensationResult(data.message, 'error');
         }
     })
-    .catch(error => {
+    .catch(err => {
         showCompensationResult('Error applying compensation', 'error');
-        console.error('Compensation application error:', error);
+        console.error('Compensation apply error:', err);
     })
     .finally(() => {
         applyBtn.innerHTML = originalText;
         applyBtn.disabled = false;
+        removeBtn.disabled = false;
+    });
+}
+
+// =======================================
+// Remove Compensation
+// =======================================
+function removeCompensation() {
+    const employee = document.getElementById('compensationEmployee').value.trim();
+    const violationDate = document.getElementById('violationDate').value;
+
+    if (!employee || !violationDate) {
+        showCompensationResult('Select employee and violation date to remove compensation', 'error');
+        return;
+    }
+
+    if (!confirm(`Are you sure you want to remove compensation for ${employee} on ${violationDate}?`)) return;
+
+    const removeBtn = document.getElementById('removeCompensationBtn');
+    const originalText = removeBtn.innerHTML;
+
+    removeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
+    removeBtn.disabled = true;
+
+    fetch('/remove_compensation', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            employee_name: employee,
+            violation_date: violationDate
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showCompensationResult(data.message, 'success');
+            clearCompensationForm();
+            loadCompensationHistory();
+        } else {
+            showCompensationResult(data.message, 'error');
+        }
+    })
+    .catch(err => {
+        showCompensationResult('Error removing compensation', 'error');
+        console.error('Remove compensation error:', err);
+    })
+    .finally(() => {
+        removeBtn.innerHTML = originalText;
+        removeBtn.disabled = false;
     });
 }
 
@@ -329,17 +379,17 @@ function loadCompensationHistory() {
     historyList.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading history...</p></div>';
 
     fetch('/api/compensation_history')
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
-            if (data.history && data.history.length > 0) {
+            if (data.history && data.history.length) {
                 renderCompensationHistory(data.history);
             } else {
-                historyList.innerHTML = `<div class="empty-state"><i class="fas fa-history"></i><p>No compensation records yet</p></div>`;
+                historyList.innerHTML = '<div class="empty-state"><i class="fas fa-history"></i><p>No compensation records yet</p></div>';
             }
         })
-        .catch(error => {
-            console.error('Error loading compensation history:', error);
-            historyList.innerHTML = `<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Error loading history</p></div>`;
+        .catch(err => {
+            console.error('Error loading compensation history:', err);
+            historyList.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Error loading history</p></div>';
         });
 }
 
@@ -354,27 +404,14 @@ function renderCompensationHistory(history) {
                 <div class="record-details">
                     <span class="compensation-badge badge-${record.compensation_type.toLowerCase().replace(' ', '')}">
                         ${record.compensation_type}
-                    </span>
-                    • Violation: ${record.violation_date} 
-                    • Compensated: ${record.compensated_date}
-                    <br>
-                    <small>Original Status: ${record.original_status} • OT: ${record.overtime}h</small>
+                    </span> • Violation: ${record.violation_date} • Compensated: ${record.compensated_date}
+                    <br><small>Status: ${record.original_status} • OT: ${record.overtime}h</small>
                 </div>
             </div>
-            <div class="record-meta">
-                <div class="record-date">${record.violation_date}</div>
-            </div>
+            <div class="record-date">${record.violation_date}</div>
         </div>
     `).join('');
 }
-
-// =======================================
-// Placeholder Functions
-// =======================================
-function loadCompensationData() { /* implement your data loading */ }
-function updateCompensationStats() { /* implement stats calculation */ }
-function renderSelectedEmployees() { /* implement render selected employees */ }
-function addManualEmployee() { /* implement add manual employee */ }
 
 // =======================================
 // Initialize All
@@ -384,10 +421,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeDateFields();
     loadEmployeeSuggestions();
     loadCompensationHistory();
-    loadCompensationData();
-    updateCompensationStats();
-    renderSelectedEmployees();
 });
+
 
 // Manual Employee Functions
 function addManualEmployee() {

@@ -36,7 +36,6 @@ class CompensationService:
             if not duplicate_check:
                 return {"success": False, "message": duplicate_message}
             
-            # 4. Check eligibility based on compensation type
             is_eligible, message = self._check_eligibility(
                 employee, violation_record, compensation_type, compensation_date
             )
@@ -61,6 +60,57 @@ class CompensationService:
             logger.error(f"Compensation application failed: {e}")
             return {"success": False, "message": f"Error: {str(e)}"}
     
+    def remove_compensation(self, employee_name: str, violation_date: date):
+        """
+        Remove previously applied compensation and restore original values.
+        """
+        try:
+            logger.info(f"Removing compensation for {employee_name} on {violation_date}")
+
+            violation_record = DailyReport.query.filter_by(
+                employee_name=employee_name,
+                date=violation_date
+            ).first()
+
+            if not violation_record:
+                return {"success": False, "message": "Violation record not found"}
+
+            if not violation_record.compensation_type:
+                return {"success": False, "message": "No compensation applied on this violation date"}
+
+            compensation_type = violation_record.compensation_type
+            compensation_date = violation_record.compensated_date
+
+            compensation_record = DailyReport.query.filter_by(
+                employee_name=employee_name,
+                date=compensation_date
+            ).first()
+
+            if compensation_type == "By Late":
+                if violation_date == compensation_date:
+                    violation_record.overtime = (violation_record.overtime or 0.0) + 1.0
+                else:
+                    if compensation_record:
+                        compensation_record.overtime = (compensation_record.overtime or 0.0) + 1.0
+
+            elif compensation_type in ["By Half Day", "By Absent"]:
+                if compensation_record and compensation_date.weekday() == 5:
+                    compensation_record.overtime = compensation_record.overtime_before_zero if hasattr(compensation_record, 'overtime_before_zero') else compensation_record.overtime
+
+            violation_record.compensation_type = None
+            violation_record.compensated_date = None
+
+            db.session.commit()
+
+            self._recalculate_summaries(employee_name, violation_date, compensation_date)
+
+            return {"success": True, "message": "Compensation successfully removed"}
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error removing compensation: {e}")
+            return {"success": False, "message": f"Error: {str(e)}"}
+    
     def _fetch_records(self, employee_name: str, violation_date: date, 
                       compensation_date: date) -> Tuple[Optional[Employee], Optional[DailyReport], Optional[DailyReport]]:
         employee = Employee.query.filter_by(name=employee_name).first()
@@ -76,7 +126,6 @@ class CompensationService:
         return employee, violation_record, compensation_record
     
     def _check_violation_status(self, violation_record: DailyReport, compensation_type: str) -> Tuple[bool, str]:
-
         current_status = violation_record.status or ""
         
         if compensation_type == "By Late" and current_status != "Late":
@@ -106,8 +155,8 @@ class CompensationService:
         is_full_time = self._is_employee_full_time(employee)
         violation_day = violation_record.date.weekday()
         compensation_day = compensation_date.weekday()
-        is_saturday = compensation_day == 5  # 5 = Saturday
-        is_sunday = compensation_day == 6    # 6 = Sunday
+        is_saturday = compensation_day == 5
+        is_sunday = compensation_day == 6
         
         day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
         logger.info(f"Eligibility check: {employee.name}, "
@@ -134,7 +183,6 @@ class CompensationService:
             return True, "Eligible for By Late compensation"
         
         if is_full_time and is_saturday:
-            # Full-timer on Saturday: Check Saturday status
             if compensation_record.status not in ["Full Day (Sat)", "Half Day (Sat)", "Present", "Late"]:
                 return False, f"Cannot compensate. Employee was '{compensation_record.status}' on compensation Saturday {compensation_date}"
         else:
@@ -165,7 +213,6 @@ class CompensationService:
                 return True, "Eligible for By Absent compensation"
                 
         elif compensation_type == "Sandwich":
-            # Sandwich policy: Need 2 eligible days
             eligible_days = self._get_sandwich_eligible_days(employee, violation_record.date)
             if len(eligible_days) >= 2:
                 return True, f"Eligible for Sandwich policy with {len(eligible_days)} days"
@@ -190,7 +237,6 @@ class CompensationService:
             return False, "Error checking part-time employee eligibility"
     
     def _calculate_actual_worked_hours(self, record: DailyReport) -> float:
-
         if not record.check_in or not record.check_out:
             return 0.0
         
@@ -221,12 +267,11 @@ class CompensationService:
         except Exception as e:
             logger.error(f"Error checking employee type for {employee.name}: {e}")
             
-        return True  # Default to full-time if error
+        return True
     
     def _apply_compensation_logic(self, violation_record: DailyReport, 
                                 compensation_record: DailyReport, 
                                 compensation_type: str, compensation_date: date):
-
         logger.info(f"Applying compensation logic: {compensation_type}")
         
         violation_record.compensation_type = compensation_type
@@ -236,7 +281,7 @@ class CompensationService:
             self._adjust_late_compensation(violation_record, compensation_record)
         
         elif compensation_type in ["By Half Day", "By Absent"]:
-            if compensation_date.weekday() == 5:  # Saturday (compensation day)
+            if compensation_date.weekday() == 5:
                 is_full_time = self._is_employee_full_time_by_record(violation_record)
                 if is_full_time:
                     if compensation_record:
@@ -262,13 +307,11 @@ class CompensationService:
     def _adjust_late_compensation(self, violation_record: DailyReport, 
                                 compensation_record: DailyReport):
         if violation_record.date == compensation_record.date:
-            # Same day compensation: Remove 1-hour OT from violation day
             current_ot = violation_record.overtime or 0.0
             new_ot = max(0.0, current_ot - 1.0)
             violation_record.overtime = new_ot
             logger.info(f"Same day By Late compensation. OT adjusted from {current_ot} to {new_ot}")
         else:
-            # Different day compensation: Remove 1 hour OT from compensation day  
             if compensation_record:
                 current_ot = compensation_record.overtime or 0.0
                 new_ot = max(0.0, current_ot - 1.0)
@@ -276,7 +319,6 @@ class CompensationService:
                 logger.info(f"Different day By Late compensation. Compensation day OT adjusted from {current_ot} to {new_ot}")
     
     def _get_sandwich_eligible_days(self, employee: Employee, target_date: date) -> List[date]:
-
         is_full_time = self._is_employee_full_time(employee)
         
         start_date = target_date - timedelta(days=30)
@@ -285,18 +327,16 @@ class CompensationService:
             DailyReport.employee_name == employee.name,
             DailyReport.date >= start_date,
             DailyReport.date <= target_date,
-            DailyReport.status.in_(['Present', 'Late'])  # Only working days
+            DailyReport.status.in_(['Present', 'Late'])
         ).all()
         
         eligible_days = []
         for record in eligible_records:
             if is_full_time:
-                # Full-timer: Saturday only
-                if record.date.weekday() == 5:  # Saturday
+                if record.date.weekday() == 5:
                     eligible_days.append(record.date)
             else:
-                # Part-timer: Any working day except Sunday
-                if record.date.weekday() != 6:  # Not Sunday
+                if record.date.weekday() != 6:
                     eligible_days.append(record.date)
         
         logger.info(f"Sandwich eligible days for {employee.name}: {len(eligible_days)}")
@@ -304,19 +344,14 @@ class CompensationService:
     
     def _recalculate_summaries(self, employee_name: str, violation_date: date, 
                              compensation_date: date):
-        """
-        Recalculate daily and monthly summaries for affected periods
-        """
         try:
             from app.service.monthly_service import generate_monthly_report_from_daily
             
-            # Find affected months
             months_to_update = set()
             months_to_update.add(violation_date.strftime("%Y-%m"))
             if compensation_date != violation_date:
                 months_to_update.add(compensation_date.strftime("%Y-%m"))
             
-            # Regenerate monthly reports
             for month in months_to_update:
                 generate_monthly_report_from_daily(month)
                 logger.info(f"Regenerated monthly report for {month}")
@@ -326,9 +361,6 @@ class CompensationService:
 
     def get_compensation_history(self, employee_name: str = None, 
                                start_date: date = None, end_date: date = None) -> List[Dict]:
-        """
-        Get compensation history for reporting
-        """
         query = DailyReport.query.filter(DailyReport.compensation_type.isnot(None))
         
         if employee_name:

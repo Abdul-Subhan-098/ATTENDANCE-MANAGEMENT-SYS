@@ -3,8 +3,9 @@ from datetime import datetime, date, timedelta, time
 from typing import Optional, Tuple, Set, List, Dict
 from flask import flash
 from app import db
-from app.models import DailyReport, MonthlyReport, Employee, CompanyDayOff  # REMOVE extra 'db' from here
+from app.models import DailyReport, MonthlyReport, Employee, CompanyDayOff
 from app.service.daily_service import AttendanceCalculator, DailyReportGenerator
+from app.service.activity_service import log_activity  # ADDED FROM B
 import logging
 
 # Configure logging
@@ -50,27 +51,47 @@ class EmployeeService:
         return bool(re.match(shift_pattern, shift_str))
 
     def add_or_update_employee(self, name: str, joining_date_str: str, department: str,
-                               effective_date_str: str, shift_full: str, role: Optional[str] = None) -> bool:
-        """Add or update employee and update related reports. Accepts optional role."""
+                            effective_date_str: str, shift_full: str, role: Optional[str] = None,
+                            gender: Optional[str] = None) -> bool:
+        """
+        Add or update an employee with guaranteed gender handling.
+        """
         try:
+            # Validate input
             self.validate_employee_data(name, joining_date_str, department, effective_date_str, shift_full)
 
             joining_date = datetime.strptime(joining_date_str, "%Y-%m-%d").date()
             effective_date = datetime.strptime(effective_date_str, "%Y-%m-%d").date()
             shift_main = self._extract_shift_from_string(shift_full)
 
-            employee = self._save_employee_data(name, joining_date, department, effective_date, shift_main, role)
+            if not gender:
+                raise ValueError("Gender must be provided (Male/Female/Other)")
+
+            # Save or update employee
+            employee = self._save_employee_data(name, joining_date, department, effective_date, shift_main, role, gender)
+
+            # Update related reports
             self._update_related_reports(employee, effective_date)
 
-            flash(f"✅ Employee '{name}' ({employee.role}) processed successfully effective from {effective_date}", "success")
+            # Activity logging - FROM B
+            action_type = "updated" if Employee.query.filter_by(name=name).first() else "added"
+            log_activity(
+                username="Admin",
+                action=f"Employee {action_type}: {name}",
+                entity_type="employee_management",
+                entity_id=name,
+                details=f"Department: {department}, Shift: {shift_main}, Role: {role or 'FullTime'}, Gender: {gender}, Effective: {effective_date_str}"
+            )
+
+            flash(f"✅ Employee '{name}' ({employee.role}, {employee.gender}) processed successfully effective from {effective_date}", "success")
             return True
 
         except Exception as e:
             db.session.rollback()
-            error_message = f"Error processing employee: {e}"
+            error_message = f"Error processing employee: {e}"  # IMPROVED FROM B
             logger.error(error_message)
             flash(f"❌ {error_message}", "error")
-            return False
+        return False
 
     def _extract_shift_from_string(self, shift_full: str) -> str:
         """Extract and format shift string from input."""
@@ -80,47 +101,58 @@ class EmployeeService:
         return match.group(1)
 
     def _save_employee_data(self, name: str, joining_date: date, department: str,
-                            effective_date: date, shift_main: str, role: Optional[str]) -> Employee:
-        """Save or update employee record in database. Preserves existing role if role param omitted."""
+                            effective_date: date, shift_main: str, role: Optional[str],
+                            gender: str) -> Employee:
+        """
+        Save or update an employee with guaranteed gender handling.
+        """
         employee = Employee.query.filter_by(name=name).first()
 
         if employee:
-            # Preserve existing role if role not explicitly provided
-            role_to_use = role if role else employee.role
-            self._update_existing_employee(employee, joining_date, department, effective_date, shift_main, role_to_use)
+            # Update existing employee - IMPROVED FROM A
+            employee.joining_date = joining_date
+            employee.department = department
+            employee.last_updated_date = effective_date
+            employee.shift = shift_main
+            employee.role = role or employee.role  # Preserve existing role if not provided
+            employee.gender = gender  # always update gender
             action = "Updated"
         else:
-            # Use default role if none provided
-            role_to_use = role or "FullTime"
-            employee = self._create_new_employee(name, joining_date, department, effective_date, shift_main, role_to_use)
+            # Create new employee
+            employee = Employee(
+                name=name,
+                joining_date=joining_date,
+                department=department,
+                last_updated_date=effective_date,
+                shift=shift_main,
+                role=role or "FullTime",
+                gender=gender  # set gender explicitly
+            )
+            db.session.add(employee)
             action = "Added new"
 
         db.session.commit()
-        logger.info(f"{action} employee '{name}' ({role_to_use}) effective from {effective_date}")
+        logger.info(f"{action} employee '{name}' ({employee.role}, {employee.gender}) effective from {effective_date}")
+
+        # Update gender in related reports
+        self._update_gender_in_reports(employee)
+
         return employee
 
-    def _update_existing_employee(self, employee: Employee, joining_date: date, department: str,
-                                  effective_date: date, shift_main: str, role: str):
-        """Update existing employee record."""
-        employee.joining_date = joining_date
-        employee.department = department
-        employee.last_updated_date = effective_date
-        employee.shift = shift_main
-        employee.role = role  # Preserve / update role
+    def _update_gender_in_reports(self, employee: Employee):
+        """Ensure employee gender is updated in all daily and monthly reports."""
+        # Daily Reports
+        daily_rows = DailyReport.query.filter_by(employee_name=employee.name).all()
+        for row in daily_rows:
+            row.gender = employee.gender
+        
+        # Monthly Reports
+        monthly_rows = MonthlyReport.query.filter_by(name=employee.name).all()
+        for row in monthly_rows:
+            row.gender = employee.gender
 
-    def _create_new_employee(self, name: str, joining_date: date, department: str,
-                             effective_date: date, shift_main: str, role: str) -> Employee:
-        """Create new employee record."""
-        employee = Employee(
-            name=name,
-            joining_date=joining_date,
-            department=department,
-            last_updated_date=effective_date,
-            shift=shift_main,
-            role=role  # Set role
-        )
-        db.session.add(employee)
-        return employee
+        db.session.commit()
+        logger.info(f"Updated gender '{employee.gender}' for employee '{employee.name}' in all reports")
 
     def _update_related_reports(self, employee: Employee, effective_date: date):
         """Update daily and monthly reports for the employee."""
@@ -154,9 +186,9 @@ class EmployeeService:
 
     def _update_single_daily_record(self, daily_record: DailyReport, employee: Employee,
                                     shift_start: time, shift_end: time):
-
+        """Update a single daily record with new employee data - IMPROVED FROM B"""
         # ------------------ COMPANY DAY OFF FIX (Do NOT touch this record) ------------------
-        if getattr(daily_record, "is_company_off", False):
+        if getattr(daily_record, "is_company_off", False):  # FROM B
             daily_record.status = "Company Day Off"
             daily_record.overtime = 0.0
             daily_record.missed_checkin = False
@@ -166,16 +198,18 @@ class EmployeeService:
             daily_record.joining_date = employee.joining_date
             daily_record.last_updated_date = employee.last_updated_date
             daily_record.role = employee.role
+            daily_record.gender = employee.gender  # Add gender FROM B
             daily_record.manual_override = True
             return
         # ------------------------------------------------------------------------------------
 
         # ---------- SUNDAY CHECK (FIRST PRIORITY) ----------
-        if daily_record.date.weekday() == 6:
+        if daily_record.date.weekday() == 6:  # Sunday
             daily_record.status = "Sunday"
             daily_record.overtime = 0.0
             daily_record.missed_checkin = False
             daily_record.missed_checkout = False
+            daily_record.gender = employee.gender  # Add gender FROM B
             return
 
         # ---------- SHIFT REASSIGN ----------
@@ -184,25 +218,28 @@ class EmployeeService:
         daily_record.joining_date = employee.joining_date
         daily_record.last_updated_date = employee.last_updated_date
         daily_record.role = employee.role
+        daily_record.gender = employee.gender  # Add gender FROM B
         daily_record.manual_override = True
 
-        # ---------- DETERMINE FULL-TIME ----------
+        # ---------- DETERMINE FULL-TIME STATUS ----------
         shift_start_dt = datetime.combine(daily_record.date, shift_start)
         shift_end_dt = datetime.combine(daily_record.date, shift_end)
         shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
-        full_time = shift_duration >= 9.0
+        full_time = shift_duration >= 9.0  # FULL_TIMER_MIN_HOURS
 
+        # Recalculate status and overtime only for non-Sunday days
         check_in_dt = datetime.combine(daily_record.date, daily_record.check_in) if daily_record.check_in else None
         check_out_dt = datetime.combine(daily_record.date, daily_record.check_out) if daily_record.check_out else None
 
+        # Use the UPDATED calculate_status method with full_time parameter
         daily_record.status, daily_record.overtime = self.calculator.calculate_status(
             check_in_dt, check_out_dt, daily_record.date, shift_start, shift_end, full_time
         )
 
+        # Update missed punches
         missed_in, missed_out = self.calculator.determine_missed_punches(check_in_dt, check_out_dt)
         daily_record.missed_checkin = (missed_in == "Yes")
         daily_record.missed_checkout = (missed_out == "Yes")
-
 
         logger.debug(f"Updated {employee.name} - {daily_record.date}: Status={daily_record.status}, OT={daily_record.overtime}, FullTime={full_time}")
 
@@ -222,14 +259,14 @@ class EmployeeService:
             self._regenerate_monthly_report(employee.name, month)
 
     def _regenerate_monthly_report(self, employee_name: str, month_str: str):
-        """Regenerate monthly report for a single employee with correct WorkingDays,
-        Company Day Off exclusion, weekends logic, OT rules, compensation counts,
-        and mid-month joiner handling (only for latest month)."""
-
+        """Regenerate monthly report with correct WorkingDays based on shift,
+        Sunday/Saturday counts, weekday-only OT, and mid-month joiners for latest month,
+        including gender information."""
+        
         try:
-            # -----------------------------------------------------
-            # Date Range
-            # -----------------------------------------------------
+            # -------------------------
+            # Date Range Setup
+            # -------------------------
             start_date = datetime.strptime(f"{month_str}-01", "%Y-%m-%d").date()
             next_month = start_date.replace(day=28) + timedelta(days=4)
             end_date = next_month.replace(day=1)
@@ -244,17 +281,24 @@ class EmployeeService:
                 logger.info(f"No daily records for {employee_name} in {month_str}")
                 return
 
-            # -----------------------------------------------------
-            # Employee
-            # -----------------------------------------------------
+            # -------------------------
+            # Employee Fetch
+            # -------------------------
             employee = Employee.query.filter_by(name=employee_name).first()
             if not employee:
                 logger.warning(f"Employee {employee_name} not found for monthly report {month_str}")
                 return
 
-            # -----------------------------------------------------
-            # Determine Full-Time from shift duration
-            # -----------------------------------------------------
+            # -------------------------
+            # Gender Handling
+            # -------------------------
+            gender = getattr(employee, "gender", None)
+            if not gender:
+                gender = getattr(daily_records[0], "gender", "Male")
+
+            # -------------------------
+            # Determine full-time status via shift duration
+            # -------------------------
             is_full_time = True
             if employee.shift:
                 try:
@@ -268,9 +312,9 @@ class EmployeeService:
                 except:
                     pass
 
-            # -----------------------------------------------------
+            # -------------------------
             # Counters
-            # -----------------------------------------------------
+            # -------------------------
             present = absent = late = 0
             half_day_weekdays = 0
             half_day_sat = 0
@@ -283,17 +327,17 @@ class EmployeeService:
             weekday_ot_hours = 0.0
             total_days = len(daily_records)
 
-            # -----------------------------------------------------
-            # Loop through daily records
-            # -----------------------------------------------------
+            # -------------------------
+            # Loop Records - IMPROVED FROM B
+            # -------------------------
             for row in daily_records:
                 status = row.status or ""
 
-                # --- Company Day Off (DO NOT COUNT ANYTHING) ---
+                # --- Company Day Off (DO NOT COUNT ANYTHING) --- FROM B
                 if status == "Company Day Off":
                     continue
 
-                # --- Status Count ---
+                # Status count
                 if status == "Present":
                     present += 1
                 elif status == "Absent":
@@ -311,7 +355,7 @@ class EmployeeService:
                 elif status == "Full Day (Sat)":
                     full_day_sat += 1
 
-                # --- Compensation Breakdown ---
+                # Compensation type
                 if hasattr(row, 'compensation_type') and row.compensation_type:
                     if row.compensation_type == "By Late":
                         by_late_count += 1
@@ -320,14 +364,20 @@ class EmployeeService:
                     elif row.compensation_type == "By Absent":
                         by_absent_count += 1
 
-                # --- Weekday OT only for full-timers ---
+                # Weekday OT only for full-timers
                 if is_full_time and row.date.weekday() < 5:
                     weekday_ot_hours += float(row.overtime or 0.0)
 
-            # -----------------------------------------------------
-            # WORKING DAYS CALCULATION (Calendar based)
-            # Company Day Off is EXCLUDED
-            # -----------------------------------------------------
+            # -------------------------
+            # APPLY COMPENSATION FIXES
+            # -------------------------
+            late = max(0, late - by_late_count)
+            half_day_weekdays = max(0, half_day_weekdays - by_half_day_count)
+            absent = max(0, absent - by_absent_count)
+
+            # -------------------------
+            # Calendar-based Working Days - IMPROVED FROM B
+            # -------------------------
             from calendar import monthrange
             year, month = map(int, month_str.split('-'))
             total_days_in_month = monthrange(year, month)[1]
@@ -342,31 +392,30 @@ class EmployeeService:
                 current_date = datetime(year, month, day).date()
                 weekday = current_date.weekday()
 
-                # Skip days before joining (latest month only)
+                # Skip pre-joining days (only for latest month)
                 if is_latest_month and employee.joining_date and employee.joining_date > start_date:
                     if current_date < employee.joining_date:
                         continue
 
-                # ❗ Skip Company Day Off entirely
+                # ❗ Skip Company Day Off entirely - FROM B
                 day_record = next((d for d in daily_records if d.date == current_date), None)
                 if day_record and day_record.status == "Company Day Off":
                     continue
 
-                # Full-time → Mon–Fri
                 if is_full_time:
                     if weekday < 5:
                         working_days += 1
                 else:
-                    # Part-time → Mon–Sat
                     if weekday != 6:
                         working_days += 1
 
-            # -----------------------------------------------------
-            # SAVE MONTHLY REPORT
-            # -----------------------------------------------------
+            # -------------------------
+            # Save Monthly Report
+            # -------------------------
             monthly_report = MonthlyReport(
                 emp_id=employee.emp_id,
                 name=employee_name,
+                gender=gender,  # FROM B
                 joining_date=employee.joining_date,
                 department=employee.department or "Cold Calling",
                 last_updated_date=datetime.utcnow().date(),
@@ -392,15 +441,25 @@ class EmployeeService:
             db.session.add(monthly_report)
             db.session.commit()
 
+            # Activity logging - FROM B
+            log_activity(
+                username="System",
+                action=f"Regenerated monthly report for {employee_name}",
+                entity_type="report_regeneration",
+                entity_id=f"{employee_name}_{month_str}",
+                details=f"Month: {month_str}, WorkingDays: {working_days}, OT: {weekday_ot_hours:.2f}h, Present: {present}, Absent: {absent}, Gender: {gender}"
+            )
+
             logger.info(
                 f"[MONTHLY REPORT ✔] {employee_name} {month_str} | "
-                f"WorkingDays: {working_days} | OT: {weekday_ot_hours:.2f}"
+                f"Late Adjusted={late} | "
+                f"HalfDay Adjusted={half_day_weekdays} | "
+                f"Absent Adjusted={absent}"
             )
 
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error regenerating monthly report for {employee_name} - {month_str}: {e}")
-
 
     def _parse_employee_shift(self, employee: Employee) -> Tuple[time, time]:
         """Parse employee shift string into time objects."""
@@ -433,7 +492,6 @@ class EmployeeService:
             return []
 
     # ==================== COMPANY DAY OFF METHODS ====================
-    # YEH WALA SECTION PEHLE WAALE CODE SE ADD KARNA HAI
     
     def apply_company_day_off(self, date_str: str, reason: str = "Company Day Off") -> Tuple[bool, str]:
         """
@@ -483,7 +541,7 @@ class EmployeeService:
             
             for employee in all_employees:
                 if employee.name not in existing_employee_names:
-                    # Create a new record for this employee
+                    # Create a new record for this employee - IMPROVED WITH GENDER FROM B
                     daily_record = DailyReport(
                         emp_id=employee.emp_id,
                         employee_name=employee.name,
@@ -493,6 +551,7 @@ class EmployeeService:
                         joining_date=employee.joining_date,
                         last_updated_date=employee.last_updated_date,
                         role=employee.role,
+                        gender=employee.gender,  # ADDED FROM B
                         is_company_off=True,
                         company_off_reason=reason,
                         working_day=False,
@@ -507,6 +566,15 @@ class EmployeeService:
             
             # Update monthly reports for affected months
             self._update_monthly_reports_for_company_off(off_date)
+            
+            # Activity logging - FROM B
+            log_activity(
+                username="Admin",
+                action=f"Added Company Day Off: {off_date}",
+                entity_type="company_day_off",
+                entity_id=str(off_date),
+                details=f"Reason: {reason}, Affected employees: {len(all_employees)}"
+            )
             
             logger.info(f"Company Day Off applied for {off_date}: {reason}")
             return True, f"Successfully marked {off_date} as Company Day Off"
@@ -607,10 +675,11 @@ class EmployeeService:
                             else:
                                 monthly_report.remarks = remarks_text
                 else:
-                    # Create new monthly report
+                    # Create new monthly report - IMPROVED WITH GENDER FROM B
                     monthly_report = MonthlyReport(
                         emp_id=employee.emp_id,
                         name=employee.name,
+                        gender=employee.gender,  # ADDED FROM B
                         department=employee.department or "Cold Calling",
                         joining_date=employee.joining_date,
                         last_updated_date=datetime.utcnow().date(),
@@ -704,6 +773,7 @@ class EmployeeService:
                 if not employee:
                     continue
                 
+                # Parse shift
                 try:
                     if employee.shift:
                         shift_parts = employee.shift.split('-')
@@ -744,6 +814,15 @@ class EmployeeService:
             # Update monthly reports
             self._update_monthly_reports_for_company_off(off_date)
             
+            # Activity logging - FROM B
+            log_activity(
+                username="Admin", 
+                action=f"Removed Company Day Off: {off_date}",
+                entity_type="company_day_off",
+                entity_id=str(off_date),
+                details="Company Day Off status removed, records regenerated"
+            )
+            
             logger.info(f"Company Day Off removed for {off_date}")
             return True, f"Successfully removed Company Day Off status from {off_date}"
             
@@ -757,10 +836,11 @@ class EmployeeService:
 #              EXTERNAL ENTRY POINTS
 # ===========================================================
 def add_or_update_employee(name: str, joining_date_str: str, department: str,
-                           effective_date_str: str, shift_full: str, role: Optional[str] = None) -> bool:
-    """External entry point for adding or updating employees (supports optional role)."""
+                           effective_date_str: str, shift_full: str, role: Optional[str] = None,
+                           gender: Optional[str] = None) -> bool:
     service = EmployeeService()
-    return service.add_or_update_employee(name, joining_date_str, department, effective_date_str, shift_full, role)
+    return service.add_or_update_employee(name, joining_date_str, department, effective_date_str, shift_full, role, gender)
+
 
 def get_max_effective_date() -> date:
     """External entry point for getting max effective date."""

@@ -2,7 +2,6 @@ from datetime import datetime
 from app import db
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime
-from app import db
 
 # ===========================================================
 #               ATTENDANCE RAW 
@@ -34,11 +33,12 @@ class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     emp_id = db.Column(db.String(50), unique=True, nullable=False)
     name = db.Column(db.String(120), nullable=False)
+    gender = db.Column(db.String(10), nullable=True)  # From A
     joining_date = db.Column(db.Date, nullable=False)
     department = db.Column(db.String(100), nullable=False)
     last_updated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50), nullable=True)
-    role = db.Column(db.String(20), nullable=False, default="Full-Time")  # Added from Code A
+    role = db.Column(db.String(20), nullable=False, default="FullTime")  # Kept from A
 
     def __repr__(self):
         return f"<Employee {self.emp_id} - {self.name}>"
@@ -61,21 +61,22 @@ class Employee(db.Model):
 class DailyReport(db.Model):
     __tablename__ = "daily_report"
 
-    id = db.Column(db.Integer, primary_key=True) 
+    id = db.Column(db.Integer, primary_key=True)
     emp_id = db.Column(db.Integer, nullable=False)
     date = db.Column(db.Date, nullable=False)
     employee_name = db.Column(db.String(100), nullable=False)
+    gender = db.Column(db.String(10), nullable=True)  # From A
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    role = db.Column(db.String(20), default="Full-Timer") 
-    compensation_type = db.Column(db.String(20), nullable=True) 
-    compensated_date = db.Column(db.Date, nullable=True)  
+    role = db.Column(db.String(20), default="Full Timer")  # Kept from B
+    compensation_type = db.Column(db.String(20), nullable=True)
+    compensated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50))
     check_in = db.Column(db.Time)
     is_company_off = db.Column(db.Boolean, default=False)
     company_off_reason = db.Column(db.String(200))
-    working_day = db.Column(db.Boolean, default=True)  
+    working_day = db.Column(db.Boolean, default=True)
     check_out = db.Column(db.Time)
     status = db.Column(db.String(50))
     missed_checkin = db.Column(db.Boolean, default=False)
@@ -96,10 +97,11 @@ class MonthlyReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     emp_id = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(255), nullable=False)
+    gender = db.Column(db.String(10), nullable=True)  # From A
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    role = db.Column(db.String(20), default="Full Timer") 
+    role = db.Column(db.String(20), default="Full Timer")  # Kept from B
     shift = db.Column(db.String(50))
     total_days = db.Column(db.Integer, default=0)
     present = db.Column(db.Integer, default=0)
@@ -111,16 +113,17 @@ class MonthlyReport(db.Model):
     ot_hours = db.Column(db.Float, default=0.0)
     compensated = db.Column(db.Integer, default=0)
     company_off_days = db.Column(db.Integer, default=0)
-    sundays = db.Column(db.Integer, default=0)  
-    by_late_count = db.Column(db.Integer, default=0)  
-    by_half_day_count = db.Column(db.Integer, default=0)  
-    by_absent_count = db.Column(db.Integer, default=0)  
+    sundays = db.Column(db.Integer, default=0)
+    by_late_count = db.Column(db.Integer, default=0)
+    by_half_day_count = db.Column(db.Integer, default=0)
+    by_absent_count = db.Column(db.Integer, default=0)
     working_days = db.Column(db.Integer, default=0)
     report_month = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<MonthlyReport {self.name} - {self.report_month}>"
+
 
 # ===========================================================
 #               COMPANY DAY OFF
@@ -150,4 +153,36 @@ class Admin(db.Model):
 
     def __repr__(self):
         return f"<Admin {self.username}>"
-    
+
+
+# ===========================================================
+#               ACTIVITY LOG MODEL
+# ===========================================================
+class ActivityLog(db.Model):
+    __tablename__ = "activity_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), nullable=False)
+    action = db.Column(db.String(255), nullable=False)
+    entity_type = db.Column(db.String(100), nullable=False)
+    entity_id = db.Column(db.String(100), nullable=True)
+    details = db.Column(db.Text, nullable=True)
+    ip_address = db.Column(db.String(50), nullable=True)
+    user_agent = db.Column(db.String(255), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    def __repr__(self):
+        return f"<ActivityLog {self.username} - {self.action} - {self.timestamp}>"
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "action": self.action,
+            "entity_type": self.entity_type,
+            "entity_id": self.entity_id,
+            "details": self.details,
+            "ip_address": self.ip_address,
+            "user_agent": self.user_agent,
+            "timestamp": self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+        }

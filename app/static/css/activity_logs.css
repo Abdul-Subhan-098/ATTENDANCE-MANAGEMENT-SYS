@@ -1,0 +1,505 @@
+/* ============================
+   🎨 CSS VARIABLES
+============================ */
+:root {
+    --primary: #394894;
+    --primary-dark: #2563eb;
+    --primary-light: #60a5fa;
+    --secondary: #7c3aed;
+    --success: #0d8138;
+    --success-dark: #0a6d2e;
+    --error: #dc2626;
+    --error-dark: #b91c1c;
+    --warning: #d97706;
+    --warning-dark: #b45309;
+    --purple: #7c3aed;
+    --purple-dark: #6d28d9;
+    --dark: #1f2937;
+    --gray-dark: #374151;
+    --gray: #6b7280;
+    --gray-light: #9ca3af;
+    --gray-lighter: #e5e7eb;
+    --gray-lightest: #f9fafb;
+    --white: #ffffff;
+    --sidebar-width: 245px;
+    --border-radius: 8px;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.05);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* ============================
+   📱 BASE & RESET STYLES
+============================ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: var(--dark);
+    overflow-x: hidden;
+    line-height: 1.5;
+}
+
+/* ============================
+   📋 SIDEBAR STYLES
+============================ */
+.sidebar {
+    width: var(--sidebar-width);
+    background: var(--white);
+    padding: 24px 16px;
+    box-shadow: var(--shadow-lg);
+    position: fixed;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 1000;
+    border-right: 1px solid var(--gray-lighter);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    transition: transform 0.3s ease;
+}
+
+.sidebar.collapsed {
+    transform: translateX(-100%);
+}
+
+.sidebar-toggle {
+    position: fixed;
+    top: 16px;
+    left: 16px;
+    background: var(--primary);
+    color: var(--white);
+    border: none;
+    border-radius: 6px;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1001;
+    transition: all 0.3s ease;
+    font-size: 0.9rem;
+}
+
+.sidebar-toggle:hover {
+    background: var(--primary-dark);
+}
+
+.sidebar-header {
+    text-align: center;
+    margin-bottom: 32px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--gray-lighter);
+}
+
+.sidebar-header h2 {
+    color: var(--dark);
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.sidebar-header p {
+    color: var(--gray);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 6px;
+}
+
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    color: var(--gray-dark);
+    text-decoration: none;
+    border-radius: var(--border-radius);
+    transition: all 0.2s ease;
+    font-weight: 500;
+    gap: 12px;
+    border: 1px solid transparent;
+}
+
+.sidebar-nav a:hover {
+    background: var(--gray-lightest);
+    color: var(--primary);
+}
+
+.sidebar-nav a.active {
+    background: var(--primary);
+    color: var(--white);
+    box-shadow: var(--shadow-md);
+}
+
+.sidebar-nav i {
+    font-size: 1rem;
+    width: 18px;
+    text-align: center;
+}
+
+.sidebar-bottom {
+    margin-top: auto;
+    padding: 16px 0;
+}
+
+.logout-btn {
+    color: var(--error) !important;
+    font-weight: 600;
+}
+
+.logout-btn:hover {
+    background: var(--gray-lightest) !important;
+    color: var(--error-dark) !important;
+}
+
+/* ============================
+   📄 MAIN CONTENT
+============================ */
+.main-content {
+    margin-left: var(--sidebar-width);
+    min-height: 100vh;
+    background: var(--gray-lightest);
+    transition: margin-left 0.3s ease;
+    padding: 24px;
+}
+
+.main-content.expanded {
+    margin-left: 0;
+}
+
+.container {
+    padding: 24px;
+    max-width: 2100px;
+    margin: 0 auto;
+}
+
+/* ============================
+   📊 PAGE HEADER
+============================ */
+.page-header {
+    background: var(--white);
+    padding: 24px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+    margin-bottom: 24px;
+    border: 1px solid var(--gray-lighter);
+    text-align: center;
+}
+
+.page-header h1 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--dark);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.page-header p {
+    color: var(--gray);
+    font-size: 1rem;
+    font-weight: 500;
+    text-align: center;
+    margin: 0 auto;
+}
+
+/* ============================
+   🎯 FILTERS SECTION
+============================ */
+.filters-section {
+    background: var(--white);
+    padding: 20px;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+    margin-bottom: 20px;
+    border: 1px solid var(--gray-lighter);
+}
+
+.filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 180px;
+}
+
+.filter-group label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--dark);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter-group label i {
+    color: var(--primary);
+    width: 14px;
+}
+
+.filter-group input,
+.filter-group select {
+    padding: 10px 12px;
+    border: 1px solid var(--gray-lighter);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    background: var(--white);
+    transition: all 0.2s ease;
+    width: 100%;
+    font-family: inherit;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    outline: none;
+}
+
+/* Buttons */
+.btn-apply {
+    background-color: var(--primary);
+    color: var(--white);
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: inherit;
+}
+
+.btn-apply:hover {
+    background-color: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-clear {
+    background-color: var(--error);
+    color: var(--white);
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: inherit;
+}
+
+.btn-clear:hover {
+    background-color: var(--error-dark);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+/* ============================
+   📊 ATTENDANCE TABLE
+============================ */
+.table-container {
+    overflow-x: auto;
+    max-height: 600px;
+    overflow-y: auto;
+    background: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+    border: 1px solid var(--gray-lighter);
+}
+
+#attendanceTable,
+.activity-log-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    min-width: 1000px;
+}
+
+#attendanceTable thead,
+.activity-log-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--primary);
+}
+
+#attendanceTable th,
+.activity-log-table th {
+    color: var(--white);
+    padding: 14px 12px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    border-bottom: 2px solid var(--primary-dark);
+    white-space: nowrap;
+}
+
+#attendanceTable td,
+.activity-log-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--gray-lightest);
+    vertical-align: middle;
+    color: var(--dark);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+#attendanceTable td:nth-child(n+6),
+#attendanceTable th:nth-child(n+6) {
+    text-align: center;
+    font-weight: 600;
+}
+
+#attendanceTable td:nth-child(3) {
+    font-weight: 700;
+    color: var(--dark);
+}
+
+#attendanceTable tr:hover,
+.activity-log-table tbody tr:hover {
+    background: rgba(59, 130, 246, 0.02);
+}
+
+/* Status Badges */
+.status-badge {
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: capitalize;
+    display: inline-block;
+    min-width: 80px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+/* ============================
+   📭 EMPTY STATE
+============================ */
+.empty-state,
+.empty-logs {
+    text-align: center;
+    padding: 48px 24px;
+    background: var(--white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow-md);
+}
+
+/* ============================
+   🎛️ SCROLLBAR STYLING
+============================ */
+.table-container::-webkit-scrollbar,
+.activity-log-table tbody::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.table-container::-webkit-scrollbar-track,
+.activity-log-table tbody::-webkit-scrollbar-track {
+    background: var(--gray-lighter);
+    border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-thumb,
+.activity-log-table tbody::-webkit-scrollbar-thumb {
+    background: var(--primary-light);
+    border-radius: 3px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover,
+.activity-log-table tbody::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+
+/* ============================
+   📱 RESPONSIVE DESIGN
+============================ */
+@media (max-width: 1024px) {
+    .sidebar {
+        transform: translateX(-100%);
+        width: 260px;
+    }
+    
+    .sidebar.active {
+        transform: translateX(0);
+    }
+    
+    .main-content {
+        margin-left: 0;
+    }
+    
+    .container {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .page-header h1 {
+        font-size: 1.5rem;
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    #attendanceTable,
+    .activity-log-table {
+        font-size: 0.8rem;
+        min-width: 900px;
+    }
+    
+    .filters-row {
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 480px) {
+    .summary-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .main-content {
+        padding: 16px;
+    }
+    
+    .page-header {
+        padding: 16px;
+    }
+}
+
+.log-actions {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: flex-start;
+    margin-top: 8px;
+}

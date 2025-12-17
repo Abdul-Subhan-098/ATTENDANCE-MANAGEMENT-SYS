@@ -446,7 +446,7 @@ class DailyReportGenerator:
         employees_data: Dict,
         compensated_dates: Dict
     ) -> List[Dict[str, Any]]:
-        """Fast employee record generation"""
+        """Fast employee record generation with correct gender and company day off logic"""
         emp_data = df[df["Name"] == employee_name]
         if emp_data.empty:
             return []
@@ -459,14 +459,42 @@ class DailyReportGenerator:
         department = getattr(employee_obj, 'department', 'Cold Calling')
         joining_date = getattr(employee_obj, 'joining_date', None)
         last_updated_date = getattr(employee_obj, 'last_updated_date', datetime.utcnow().date())
-        role = getattr(employee_obj, 'role', 'FullTime')  # Added from Code A
+        role = getattr(employee_obj, 'role', 'FullTime')
+        gender = getattr(employee_obj, 'gender', 'Not Specified')  # ✅ Fetch from Employee table
 
         shift_start, shift_end = self._parse_shift(f"{shift_start_str} - {shift_end_str}")
         full_time = self._is_full_time_employee(employee_obj, shift_start, shift_end)
-        
+
+        # Check for Company Day Off dates
+        company_off_dates = self._get_company_off_dates(all_dates)
+
         records = []
 
         for day in all_dates:
+            # Company Day Off handling
+            if day in company_off_dates:
+                reason = company_off_dates[day]
+                records.append({
+                    "EmpID": emp_id,
+                    "Date": day.strftime("%Y-%m-%d"),
+                    "Name": employee_name,
+                    "Shift": f"{shift_start_str} - {shift_end_str}",
+                    "CheckIn": "",
+                    "CheckOut": "",
+                    "Status": "Company Day Off",
+                    "MissedCheckIn": "",
+                    "MissedCheckOut": "",
+                    "Overtime": 0.0,
+                    "Department": department,
+                    "JoiningDate": joining_date,
+                    "LastUpdatedDate": last_updated_date,
+                    "Role": role,
+                    "Gender": gender,
+                    "IsCompanyOff": True,
+                    "CompanyOffReason": reason
+                })
+                continue
+
             day_data = emp_data[emp_data["Date"] == day]
             check_in, check_out = self._extract_check_times(day_data)
 
@@ -479,12 +507,12 @@ class DailyReportGenerator:
                 status, overtime_hours = self.calculator.calculate_status(
                     check_in, check_out, day, shift_start, shift_end, full_time
                 )
-                
+
                 # Compensated date override
                 if str(day) in compensated_dates.get(employee_name, set()):
                     status = AttendanceStatus.COMPENSATED
                     overtime_hours = 0.0
-                    
+
                 missed_in, missed_out = self.calculator.determine_missed_punches(check_in, check_out)
 
             records.append({
@@ -501,10 +529,14 @@ class DailyReportGenerator:
                 "Department": department,
                 "JoiningDate": joining_date,
                 "LastUpdatedDate": last_updated_date,
-                "Role": role  # Added from Code A
+                "Role": role,
+                "Gender": gender,  # ✅ Always from Employee table
+                "IsCompanyOff": False,
+                "CompanyOffReason": None
             })
 
         return records
+
 
     def _ultra_fast_save_and_return_results(self, daily_table: List[Dict[str, Any]], df: pd.DataFrame) -> Dict[str, Any]:
         """Ultra-fast database saving"""
@@ -556,18 +588,17 @@ class DailyReportGenerator:
         logger.info(f"💾 Bulk save completed: {total_records} records")
 
     def _prepare_daily_record(self, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Prepare a single record for bulk insert"""
+        """Prepare a single record for bulk insert with gender locked to Employee table"""
         try:
             date_obj = datetime.strptime(row["Date"], "%Y-%m-%d").date()
-            
+
             # Convert check-in/check-out strings to time objects
             check_in_time = None
             check_out_time = None
-            
+
             if row["CheckIn"]:
-                # Directly create time object from string
                 time_str = row["CheckIn"]
-                if len(time_str) >= 5:  # At least "HH:MM"
+                if len(time_str) >= 5:
                     try:
                         hours = int(time_str[:2])
                         minutes = int(time_str[3:5])
@@ -575,11 +606,10 @@ class DailyReportGenerator:
                         check_in_time = time(hours, minutes, seconds)
                     except (ValueError, IndexError):
                         logger.warning(f"Invalid time format: {time_str}")
-            
+
             if row["CheckOut"]:
-                # Directly create time object from string
                 time_str = row["CheckOut"]
-                if len(time_str) >= 5:  # At least "HH:MM"
+                if len(time_str) >= 5:
                     try:
                         hours = int(time_str[:2])
                         minutes = int(time_str[3:5])
@@ -587,6 +617,10 @@ class DailyReportGenerator:
                         check_out_time = time(hours, minutes, seconds)
                     except (ValueError, IndexError):
                         logger.warning(f"Invalid time format: {time_str}")
+
+            # Fetch gender from Employee table, fallback to 'Not Specified'
+            employee_obj = Employee.query.filter_by(name=row["Name"]).first()
+            gender = getattr(employee_obj, "gender", "Not Specified") if employee_obj else "Not Specified"
 
             return {
                 'emp_id': row["EmpID"],
@@ -602,11 +636,13 @@ class DailyReportGenerator:
                 'department': row["Department"],
                 'joining_date': row["JoiningDate"],
                 'last_updated_date': row["LastUpdatedDate"],
-                'role': row.get("Role", "FullTime")  # Added from Code A
+                'role': row.get("Role", "FullTime"),
+                'gender': gender  # ✅ Locked to Employee table
             }
         except Exception as e:
             logger.error(f"Error preparing record {row}: {e}")
             return None
+
 
     def _get_employee_shift(self, employee_obj: Optional[Employee], employee_name: str) -> Tuple[str, str]:
         if employee_obj and employee_obj.shift and "-" in employee_obj.shift:
