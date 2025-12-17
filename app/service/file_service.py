@@ -6,6 +6,7 @@ from app.models import AttendanceRaw, Employee
 from app.service.activity_service import log_activity
 from app.service.daily_service import generate_daily_report
 from app.service.monthly_service import generate_monthly_report_from_daily
+from app.service.new_employees_service import NewEmployeeService
 from datetime import datetime
 import logging
 import uuid
@@ -328,6 +329,9 @@ class FileService:
 
             # Step 3: Database Save
             batch_id = self.save_attendance_to_db(df, file.filename)
+
+            # ✅ Track new employees via service class
+            new_detected = NewEmployeeService.track_from_batch(batch_id)
 
             # Step 4: Employee Sync
             added, updated = self.sync_employee_info(df)

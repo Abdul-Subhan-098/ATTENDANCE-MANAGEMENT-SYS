@@ -13,7 +13,7 @@ class Config:
     # =====================
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:ADMIN@localhost/attendance_management_system"
+        "postgresql://postgres:admin@localhost/attendance_management_system"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
@@ -52,7 +52,7 @@ class DevelopmentConfig(Config):
     # Development-specific database
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DEV_DATABASE_URL",
-        "postgresql://postgres:ADMIN@localhost/attendance_management_system"
+        "postgresql://postgres:admin@localhost/attendance_management_system"
     )
     
     # Development logging
@@ -71,7 +71,7 @@ class TestingConfig(Config):
     # Test database
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "TEST_DATABASE_URL", 
-        "postgresql://postgres:ADMIN@localhost/attendance_management_system_test"
+        "postgresql://postgres:admin@localhost/attendance_management_system_test"
     )
     
     # Disable CSRF for testing
@@ -87,7 +87,7 @@ class ProductionConfig(Config):
     # Production database - fallback to development if not set
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "DATABASE_URL",
-        "postgresql://postgres:@localhost/attendance_management_system"  # Fallback
+        "postgresql://postgres:admin@localhost/attendance_management_system"  # Fallback
     )
     
     # Production security - use fallback if not set

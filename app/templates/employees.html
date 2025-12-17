@@ -8,6 +8,7 @@
     <!-- External CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
 
@@ -21,6 +22,9 @@
         <nav class="sidebar-nav">
             <a href="{{ url_for('main.employees') }}" class="active">
                 <i class="fas fa-users"></i> Employee Manage
+            </a>
+            <a href="{{ url_for('main.new_employees') }}">
+                <i class="fas fa-user-plus"></i> New Employees
             </a>
             <a href="{{ url_for('main.index') }}">
                 <i class="fas fa-chart-bar"></i> Monthly Report
@@ -94,7 +98,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label class="form-label">Joining Date</label>
-                                <input type="date" class="form-input" id="employeeJoinDate">
+                                <input type="date" class="form-input date-picker" id="employeeJoinDate">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Department</label>
@@ -175,8 +179,9 @@
 
                             <div class="form-group">
                                 <label for="joining_date"><i class="fas fa-calendar-alt"></i> Joining Date</label>
-                                <input type="date" id="joining_date" name="joining_date" required 
-                                       value="{{ edit_employee.joining_date if edit_employee else '' }}">
+                                <input type="text" id="joining_date" name="joining_date" class="date-picker" required 
+                                       placeholder="Select joining date"
+                                       value="{{ edit_employee.joining_date.strftime('%Y-%m-%d') if edit_employee and edit_employee.joining_date else '' }}">
                             </div>
                         </div>
 
@@ -219,11 +224,11 @@
                                 </select>
                             </div>
 
-
                             <div class="form-group">
                                 <label for="effective_date"><i class="fas fa-calendar-check"></i> Effective From</label>
-                                <input type="date" id="effective_date" name="effective_date" required 
-                                       value="{{ edit_employee.last_updated_date if edit_employee else current_date }}">
+                                <input type="text" id="effective_date" name="effective_date" class="date-picker" required 
+                                       placeholder="Select effective date"
+                                       value="{{ edit_employee.last_updated_date.strftime('%Y-%m-%d') if edit_employee and edit_employee.last_updated_date else current_date if current_date else '' }}">
                             </div>
                         </div>
 
@@ -278,63 +283,61 @@
                 </div>
             </div>
 
-<!-- In the Company Off Days tab section -->
-<div class="tab-content" id="company-off">
-    <div class="settings-section">
-        <h3 class="section-title">Company Day Off Management</h3>
-        
-        <!-- Add Company Day Off Form -->
-        <div class="settings-form">
-            <div class="form-group">
-                <label class="form-label">Add Company Day Off</label>
-                <div class="form-row">
-                    <div class="form-group">
-                        <input type="date" class="form-input" id="companyOffDate">
-                    </div>
-                    <div class="form-group">
-                        <input type="text" class="form-input" id="companyOffReason" 
-                               placeholder="Reason (e.g., Company Holiday, Festival)">
-                    </div>
-                    <div class="form-group">
-                        <button class="btn btn-primary" id="addCompanyOffDay">
-                            <i class="fas fa-plus"></i> Add Company Day Off
-                        </button>
+            <!-- In the Company Off Days tab section -->
+            <div class="tab-content" id="company-off">
+                <div class="settings-section">
+                    <h3 class="section-title">Company Day Off Management</h3>
+
+                    <!-- Add Company Day Off Form -->
+                    <div class="settings-form">
+                        <div class="form-group">
+                            <label class="form-label">Add Company Day Off</label>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <input type="text" class="form-input date-picker-no-max" id="companyOffDate" placeholder="Select date">
+                                </div>
+                                <div class="form-group">
+                                    <input type="text" class="form-input" id="companyOffReason" placeholder="Reason (e.g., Company Holiday, Festival)">
+                                </div>
+                                <div class="form-group">
+                                    <button class="btn btn-primary" id="addCompanyOffDay">
+                                        <i class="fas fa-plus"></i> Add Company Day Off
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Remove Company Day Off Form -->
+                        <div class="form-group">
+                            <label class="form-label">Remove Company Day Off</label>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <select class="form-input" id="removeCompanyOffDate">
+                                        <option value="">Select date to remove</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <button class="btn btn-danger" id="removeCompanyOffDay">
+                                        <i class="fas fa-trash"></i> Remove Company Day Off
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Company Off Days List -->
+                        <div class="form-group">
+                            <label class="form-label">Scheduled Company Days Off</label>
+                            <div class="company-off-days-list" id="companyOffDaysList">
+                                <div class="empty-state">
+                                    <i class="fas fa-calendar-times"></i>
+                                    <p>No company days off scheduled</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Remove Company Day Off Form -->
-            <div class="form-group">
-                <label class="form-label">Remove Company Day Off</label>
-                <div class="form-row">
-                    <div class="form-group">
-                        <select class="form-input" id="removeCompanyOffDate">
-                            <option value="">Select date to remove</option>
-                            <!-- Dates will be populated by JavaScript -->
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <button class="btn btn-danger" id="removeCompanyOffDay">
-                            <i class="fas fa-trash"></i> Remove Company Day Off
-                        </button>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Company Off Days List -->
-            <div class="form-group">
-                <label class="form-label">Scheduled Company Days Off</label>
-                <div class="company-off-days-list" id="companyOffDaysList">
-                    <!-- List will be populated by JavaScript -->
-                    <div class="empty-state">
-                        <i class="fas fa-calendar-times"></i>
-                        <p>No company days off scheduled</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+
 
             <!-- Compensation Tab -->
             <div class="tab-content" id="compensation-settings">
@@ -369,11 +372,11 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label class="form-label">Violation Date *</label>
-                                <input type="date" class="form-input" id="violationDate" required>
+                                <input type="text" class="form-input date-picker" id="violationDate" required placeholder="Select violation date">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Compensation Date *</label>
-                                <input type="date" class="form-input" id="compensationDate" required>
+                                <input type="text" class="form-input date-picker" id="compensationDate" required placeholder="Select compensation date">
                             </div>
                         </div>
 
@@ -544,27 +547,8 @@
                 </div>
             </div>
 
-            <!-- Action Buttons -->
-            <div class="action-buttons-container">
-                <div class="action-header">
-                    <i class="fas fa-user-plus"></i>
-                    <div>
-                        <h3>Employee Actions</h3>
-                        <p>Add new employees or update existing records</p>
-                    </div>
-                </div>
-                <div class="action-buttons">
-                    <button class="btn-primary" id="addEmployeeBtn">
-                        <i class="fas fa-plus"></i> Update Employee
-                    </button>
-                    <button class="btn-secondary" id="exportEmployeesBtn">
-                        <i class="fas fa-download"></i> Export to Excel
-                    </button>
-                </div>
-            </div>
-
-            <!-- Employee Table Section - Modified to include Gender and Role -->
-            <div class="table-section">
+            <!-- Employee Table Section - Now placed OUTSIDE all tabs so it's visible on both Add and Update Employee tabs -->
+            <div class="table-section" id="globalTableSection">
                 <div class="section-header">
                     <i class="fas fa-list-alt"></i>
                     <h3>Current Employees ({{ employees|length }})</h3>
@@ -684,6 +668,122 @@
     </div>
 
     <script src="{{ url_for('static', filename='js/employees.js') }}"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // Initialize date pickers with max date limit (today)
+        const datePickers = document.querySelectorAll('.date-picker');
+        datePickers.forEach(picker => {
+            flatpickr(picker, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: "today",
+                defaultDate: picker.value || "today"
+            });
+        });
+
+        // Initialize date picker for company off days WITHOUT max date limit
+        const companyOffDatePicker = document.getElementById('companyOffDate');
+        if (companyOffDatePicker) {
+            flatpickr(companyOffDatePicker, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                // No maxDate restriction for company off days
+                defaultDate: "today"
+            });
+        }
+
+        // Handle the compensation form date pickers
+        const violationDate = document.getElementById('violationDate');
+        const compensationDate = document.getElementById('compensationDate');
+        
+        if (violationDate) {
+            flatpickr(violationDate, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: "today"
+            });
+        }
+        
+        if (compensationDate) {
+            flatpickr(compensationDate, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: "today"
+            });
+        }
+
+        // Handle the add employee form date picker
+        const employeeJoinDate = document.getElementById('employeeJoinDate');
+        if (employeeJoinDate) {
+            flatpickr(employeeJoinDate, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: "today",
+                defaultDate: "today"
+            });
+        }
+
+        // Initialize joining_date picker with specific settings
+        const joiningDatePicker = document.getElementById('joining_date');
+        if (joiningDatePicker) {
+            flatpickr(joiningDatePicker, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: "today",
+                defaultDate: joiningDatePicker.value || "today"
+            });
+        }
+
+        // Initialize effective_date picker with specific settings
+        const effectiveDatePicker = document.getElementById('effective_date');
+        if (effectiveDatePicker) {
+            flatpickr(effectiveDatePicker, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: "today",
+                defaultDate: effectiveDatePicker.value || "today"
+            });
+        }
+        
+        // Tab switching functionality
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        const tableSection = document.getElementById('globalTableSection');
+        
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // Remove active class from all buttons and contents
+                tabBtns.forEach(b => b.classList.remove('active'));
+                tabContents.forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked button
+                btn.classList.add('active');
+                
+                // Show corresponding content
+                const tabId = btn.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+                
+                // Show/hide table based on which tab is active
+                if (tabId === 'add-employee' || tabId === 'update-employee') {
+                    tableSection.style.display = 'block';
+                } else {
+                    tableSection.style.display = 'none';
+                }
+            });
+        });
+        
+        // Initialize - hide table for non-employee tabs
+        const activeTab = document.querySelector('.tab-btn.active');
+        const activeTabId = activeTab ? activeTab.getAttribute('data-tab') : 'add-employee';
+        
+        if (activeTabId === 'add-employee' || activeTabId === 'update-employee') {
+            tableSection.style.display = 'block';
+        } else {
+            tableSection.style.display = 'none';
+        }
+    });
+    </script>
 
 </body>
 </html>

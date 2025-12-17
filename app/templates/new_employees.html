@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Employees | Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/new_employees.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <div class="sidebar" id="sidebar">  
+        <div class="sidebar-header">
+            <h2>Attendance</h2>
+            <p>New Employees</p>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('main.employees') }}">
+                <i class="fas fa-users"></i> Employee Manage
+            </a>
+            <a href="{{ url_for('main.new_employees') }}" class="active">
+                <i class="fas fa-user-plus"></i> New Employees
+            </a>
+            <a href="{{ url_for('main.index') }}">
+                <i class="fas fa-chart-bar"></i> Monthly Report
+            </a>
+            <a href="{{ url_for('main.daily') }}">
+                <i class="fas fa-calendar-day"></i> Daily Report
+            </a>
+            <a href="{{ url_for('main.activity_logs') }}">
+                <i class="fas fa-history"></i> Activity Logs
+            </a>
+            <a href="{{ url_for('main.admin_panel') }}">
+                <i class="fas fa-user-shield"></i> Admin
+            </a>
+
+            <div class="sidebar-bottom">
+                <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content" id="mainContent">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="page-header">
+                <h1><i class="fas fa-user-plus"></i> New Employees</h1>
+                <p>List of employees detected from attendance uploads but not yet fully confirmed</p>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="filters-section">
+                <div class="filters-row">
+                    <!-- Search by Name or ID -->
+                    <div class="filter-group">
+                        <label for="searchName"><i class="fas fa-search"></i> Search by Name or ID</label>
+                        <input type="text" id="searchName" placeholder="Type employee name or ID...">
+                    </div>
+
+                    <!-- Filter by Date -->
+                    <div class="filter-group">
+                        <label for="dateFilter"><i class="fas fa-calendar"></i> Detected On</label>
+                        <input type="text" id="dateFilter" placeholder="Select a date">
+                    </div>
+
+                    <!-- Clear Filters -->
+                    <div class="filter-group">
+                        <button id="clearFilters" class="btn-clear"><i class="fas fa-times"></i> Clear Filters</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Employees Table -->
+            <div class="table-container">
+                <table id="newEmployeesTable">
+                    <thead>
+                        <tr>
+                            <th>Emp ID</th>
+                            <th>Name</th>
+                            <th>Detected On</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if new_employees %}
+                            {% for emp in new_employees %}
+                            <tr data-name="{{ emp.name }}" data-empid="{{ emp.emp_id }}" data-date="{{ emp.created_at.strftime('%Y-%m-%d') if emp.created_at else '' }}">
+                                <td>{{ emp.emp_id }}</td>
+                                <td>{{ emp.name }}</td>
+                                <td>{{ emp.created_at.strftime('%Y-%m-%d') if emp.created_at else 'N/A' }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr class="empty-state">
+                                <td colspan="3">
+                                    <i class="fas fa-user-clock empty-state-icon"></i>
+                                    <h3>No New Employees Found</h3>
+                                    <p>Attendance uploads have not detected any new employees yet.</p>
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- JS -->
+    <script src="{{ url_for('static', filename='js/employees.js') }}"></script>
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('searchName');
+            const dateFilter = document.getElementById('dateFilter');
+            const table = document.getElementById('newEmployeesTable');
+            const clearBtn = document.getElementById('clearFilters');
+
+            // Initialize Flatpickr
+            flatpickr("#dateFilter", {
+                dateFormat: "Y-m-d",
+                allowInput: true
+            });
+
+            function filterTable() {
+                const searchValue = searchInput.value.toLowerCase();
+                const dateValue = dateFilter.value;
+
+                Array.from(table.tBodies[0].rows).forEach(row => {
+                    const name = row.dataset.name.toLowerCase();
+                    const empid = row.dataset.empid.toLowerCase();
+                    const detectedDate = row.dataset.date;
+
+                    const matchesSearch = name.includes(searchValue) || empid.includes(searchValue);
+                    const matchesDate = !dateValue || detectedDate === dateValue;
+
+                    row.style.display = (matchesSearch && matchesDate) ? '' : 'none';
+                });
+            }
+
+            searchInput.addEventListener('input', filterTable);
+            dateFilter.addEventListener('change', filterTable);
+            clearBtn.addEventListener('click', function() {
+                searchInput.value = '';
+                dateFilter.value = '';
+                filterTable();
+            });
+        });
+    </script>
+</body>
+</html>

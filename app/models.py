@@ -118,11 +118,13 @@ class MonthlyReport(db.Model):
     by_half_day_count = db.Column(db.Integer, default=0)
     by_absent_count = db.Column(db.Integer, default=0)
     working_days = db.Column(db.Integer, default=0)
+    punch_missed = db.Column(db.Integer, default=0)  # Naya column add kiya gaya
     report_month = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def __repr__(self):
         return f"<MonthlyReport {self.name} - {self.report_month}>"
+
 
 
 # ===========================================================
@@ -186,3 +188,17 @@ class ActivityLog(db.Model):
             "user_agent": self.user_agent,
             "timestamp": self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
         }
+
+# ===========================================================
+#               NEW EMPLOYEE TRACKING
+# ===========================================================
+class NewEmployee(db.Model):
+    __tablename__ = "new_employee"
+
+    id = db.Column(db.Integer, primary_key=True)
+    emp_id = db.Column(db.String(50), nullable=False, unique=True)
+    name = db.Column(db.String(120), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<NewEmployee {self.emp_id} - {self.name}>"
