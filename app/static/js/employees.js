@@ -20,9 +20,96 @@ document.addEventListener("DOMContentLoaded", () => {
     initializeEmployeeSystem();
     initializeSettingsSystem();
     initializeCompensationSystem();
+    initializeDatePickers(); // Add date picker initialization
 });
 
-// Employee Management Functions
+// =======================================
+// DATE PICKER INITIALIZATION
+// =======================================
+function initializeDatePickers() {
+    console.log("📅 Initializing date pickers...");
+    
+    // Initialize date pickers with max date limit (today)
+    const datePickers = document.querySelectorAll('.date-picker');
+    datePickers.forEach(picker => {
+        flatpickr(picker, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            maxDate: "today",
+            defaultDate: picker.value || "today"
+        });
+    });
+
+    // Initialize date picker for company off days WITHOUT max date limit
+    const companyOffDatePicker = document.getElementById('companyOffDate');
+    if (companyOffDatePicker) {
+        flatpickr(companyOffDatePicker, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            // No maxDate restriction for company off days
+            defaultDate: "today"
+        });
+    }
+
+    // Handle the compensation form date pickers
+    const violationDate = document.getElementById('violationDate');
+    const compensationDate = document.getElementById('compensationDate');
+    
+    if (violationDate) {
+        flatpickr(violationDate, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            maxDate: "today",
+            defaultDate: violationDate.value || "today"
+        });
+    }
+    
+    if (compensationDate) {
+        flatpickr(compensationDate, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            maxDate: "today",
+            defaultDate: compensationDate.value || "today"
+        });
+    }
+
+    // Handle the add employee form date picker
+    const employeeJoinDate = document.getElementById('employeeJoinDate');
+    if (employeeJoinDate) {
+        flatpickr(employeeJoinDate, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            maxDate: "today",
+            defaultDate: employeeJoinDate.value || "today"
+        });
+    }
+
+    // Initialize joining_date picker with specific settings
+    const joiningDatePicker = document.getElementById('joining_date');
+    if (joiningDatePicker) {
+        flatpickr(joiningDatePicker, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            maxDate: "today",
+            defaultDate: joiningDatePicker.value || "today"
+        });
+    }
+
+    // Initialize effective_date picker with specific settings
+    const effectiveDatePicker = document.getElementById('effective_date');
+    if (effectiveDatePicker) {
+        flatpickr(effectiveDatePicker, {
+            dateFormat: "Y-m-d",
+            allowInput: true,
+            maxDate: "today",
+            defaultDate: effectiveDatePicker.value || "today"
+        });
+    }
+}
+
+// =======================================
+// EMPLOYEE MANAGEMENT FUNCTIONS
+// =======================================
 function initializeEmployeeSystem() {
     const employeeRows = document.querySelectorAll(".employee-row");
     const nameInput = document.getElementById("name");
@@ -51,7 +138,6 @@ function initializeEmployeeSystem() {
         });
     });
 
-
     const resetBtn = document.getElementById("reset-btn");
     if (resetBtn) {
         resetBtn.addEventListener("click", () => {
@@ -72,13 +158,14 @@ function initializeEmployeeSystem() {
     });
 }
 
-
+// =======================================
+// SETTINGS SYSTEM
+// =======================================
 function initializeSettingsSystem() {
     initializeThemeSystem();
     initializeSettingsTabs();
     loadSelectedEmployees();
 }
-
 
 function initializeThemeSystem() {
     document.documentElement.setAttribute('data-theme', settingsState.currentTheme);
@@ -87,6 +174,23 @@ function initializeThemeSystem() {
     const themeToggle = document.getElementById('themeToggle');
     if (themeToggle) {
         themeToggle.addEventListener('click', toggleTheme);
+    }
+}
+
+function toggleTheme() {
+    settingsState.currentTheme = settingsState.currentTheme === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', settingsState.currentTheme);
+    localStorage.setItem('theme', settingsState.currentTheme);
+    updateThemeIcon();
+}
+
+function updateThemeIcon() {
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) {
+        const icon = themeToggle.querySelector('i');
+        if (icon) {
+            icon.className = settingsState.currentTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        }
     }
 }
 
@@ -110,15 +214,7 @@ function initializeSettingsTabs() {
 }
 
 // =======================================
-// COMPENSATION SYSTEM - FULL UPDATED VERSION
-// =======================================
-
-document.addEventListener('DOMContentLoaded', () => {
-    initializeCompensationSystem();
-});
-
-// =======================================
-// Initialization
+// COMPENSATION SYSTEM
 // =======================================
 function initializeCompensationSystem() {
     setupCompensationEventListeners();
@@ -130,19 +226,12 @@ function initializeCompensationSystem() {
     renderSelectedEmployees();
 }
 
-// =======================================
-// Compensation System - Complete JS
-// =======================================
-
-// =======================================
-// Event Listeners Setup
-// =======================================
 function setupCompensationEventListeners() {
     // Apply Compensation Button
     const applyBtn = document.getElementById('applyCompensationBtn');
     if (applyBtn) applyBtn.addEventListener('click', applyCompensation);
 
-    // Remove Compensation Button (next to Apply)
+    // Remove Compensation Button
     const removeBtn = document.getElementById('removeCompensationBtn');
     if (removeBtn) removeBtn.addEventListener('click', removeCompensation);
 
@@ -167,9 +256,6 @@ function setupCompensationEventListeners() {
     }
 }
 
-// =======================================
-// Date Fields Initialization
-// =======================================
 function initializeDateFields() {
     const today = new Date().toISOString().split('T')[0];
     const compensationDate = document.getElementById('compensationDate');
@@ -181,9 +267,6 @@ function initializeDateFields() {
     if (violationDate) violationDate.value = yesterday.toISOString().split('T')[0];
 }
 
-// =======================================
-// Employee Suggestions
-// =======================================
 function loadEmployeeSuggestions() {
     fetch('/api/daily_search?limit=1000')
         .then(res => res.json())
@@ -197,9 +280,6 @@ function loadEmployeeSuggestions() {
         .catch(err => console.error('Error loading employee suggestions:', err));
 }
 
-// =======================================
-// Eligibility Check
-// =======================================
 function checkEligibility() {
     const employee = document.getElementById('compensationEmployee').value.trim();
     const violationDate = document.getElementById('violationDate').value;
@@ -243,9 +323,6 @@ function checkEligibility() {
     });
 }
 
-// =======================================
-// Apply Compensation
-// =======================================
 function applyCompensation() {
     const employee = document.getElementById('compensationEmployee').value.trim();
     const violationDate = document.getElementById('violationDate').value;
@@ -296,9 +373,6 @@ function applyCompensation() {
     });
 }
 
-// =======================================
-// Remove Compensation
-// =======================================
 function removeCompensation() {
     const employee = document.getElementById('compensationEmployee').value.trim();
     const violationDate = document.getElementById('violationDate').value;
@@ -344,9 +418,6 @@ function removeCompensation() {
     });
 }
 
-// =======================================
-// Show Result Messages
-// =======================================
 function showCompensationResult(message, type) {
     const resultDiv = document.getElementById('compensationResult');
     if (resultDiv) {
@@ -357,9 +428,6 @@ function showCompensationResult(message, type) {
     }
 }
 
-// =======================================
-// Clear Form
-// =======================================
 function clearCompensationForm() {
     document.getElementById('compensationEmployee').value = '';
     document.getElementById('violationDate').value = '';
@@ -369,9 +437,6 @@ function clearCompensationForm() {
     document.getElementById('compensationResult').style.display = 'none';
 }
 
-// =======================================
-// Compensation History
-// =======================================
 function loadCompensationHistory() {
     const historyList = document.getElementById('compensationHistoryList');
     if (!historyList) return;
@@ -414,17 +479,8 @@ function renderCompensationHistory(history) {
 }
 
 // =======================================
-// Initialize All
+// MANUAL EMPLOYEE FUNCTIONS
 // =======================================
-document.addEventListener('DOMContentLoaded', () => {
-    setupCompensationEventListeners();
-    initializeDateFields();
-    loadEmployeeSuggestions();
-    loadCompensationHistory();
-});
-
-
-// Manual Employee Functions
 function addManualEmployee() {
     const manualInput = document.getElementById('manualEmployeeInput');
     const inputValue = manualInput.value.trim();
@@ -434,7 +490,6 @@ function addManualEmployee() {
         return;
     }
     
-    // Check if employee already exists in selected employees
     const existingEmployee = settingsState.selectedEmployees.find(emp => 
         emp.id === inputValue || emp.name.toLowerCase() === inputValue.toLowerCase()
     );
@@ -445,7 +500,6 @@ function addManualEmployee() {
         return;
     }
     
-    // Add new temporary employee
     const newEmployee = {
         id: `TEMP_${Date.now()}`,
         name: inputValue,
@@ -490,26 +544,22 @@ function renderSelectedEmployees() {
         </div>
     `).join('');
 }
-// Company Day Off Functions
+
+// =======================================
+// COMPANY DAY OFF FUNCTIONS - ENHANCED
+// =======================================
 function initializeCompanyDayOffSystem() {
     loadCompanyOffDays();
     setupCompanyDayOffEventListeners();
 }
 
 function setupCompanyDayOffEventListeners() {
-    // Add Company Day Off
     const addBtn = document.getElementById('addCompanyOffDay');
-    if (addBtn) {
-        addBtn.addEventListener('click', addCompanyDayOff);
-    }
-    
-    // Remove Company Day Off
+    if (addBtn) addBtn.addEventListener('click', addCompanyDayOff);
+
     const removeBtn = document.getElementById('removeCompanyOffDay');
-    if (removeBtn) {
-        removeBtn.addEventListener('click', removeCompanyDayOff);
-    }
-    
-    // Set today's date as default
+    if (removeBtn) removeBtn.addEventListener('click', removeCompanyDayOff);
+
     const dateInput = document.getElementById('companyOffDate');
     if (dateInput) {
         const today = new Date().toISOString().split('T')[0];
@@ -517,28 +567,25 @@ function setupCompanyDayOffEventListeners() {
     }
 }
 
+// Fetch and render company off days
 function loadCompanyOffDays() {
-    // Load company off days for dropdown and list
     fetch('/api/company_off_days?start_date=2023-01-01')
-        .then(response => response.json())
+        .then(res => res.json())
         .then(data => {
             if (data.success) {
                 populateCompanyOffDropdown(data.off_days);
                 renderCompanyOffDaysList(data.off_days);
             }
         })
-        .catch(error => {
-            console.error('Error loading company off days:', error);
-        });
+        .catch(err => console.error('Error loading company off days:', err));
 }
 
+// Populate dropdown for removal
 function populateCompanyOffDropdown(offDays) {
     const dropdown = document.getElementById('removeCompanyOffDate');
     if (!dropdown) return;
-    
-    // Clear existing options except the first one
+
     dropdown.innerHTML = '<option value="">Select date to remove</option>';
-    
     offDays.forEach(day => {
         const option = document.createElement('option');
         option.value = day.date;
@@ -550,8 +597,9 @@ function populateCompanyOffDropdown(offDays) {
 function renderCompanyOffDaysList(offDays) {
     const listContainer = document.getElementById('companyOffDaysList');
     if (!listContainer) return;
-    
-    if (offDays.length === 0) {
+
+    // Empty state
+    if (!offDays || offDays.length === 0) {
         listContainer.innerHTML = `
             <div class="empty-state">
                 <i class="fas fa-calendar-times"></i>
@@ -560,521 +608,436 @@ function renderCompanyOffDaysList(offDays) {
         `;
         return;
     }
-    
+
+    // Render each company day off in table-style row
     listContainer.innerHTML = offDays.map(day => `
         <div class="company-off-day-item">
             <div class="company-off-day-info">
-                <i class="fas fa-calendar-day"></i>
-                <div>
-                    <strong>${day.date}</strong>
-                    <p>${day.reason || 'Company Day Off'}</p>
-                    <small>Added: ${day.created_at}</small>
-                </div>
+                <span class="off-day-reason">${day.reason || 'Company Day Off'}</span>
+                <span class="off-day-date">${day.date}</span>
+                <span class="off-day-added">Added: ${day.created_at}</span>
             </div>
-            <button class="btn btn-sm btn-outline" onclick="removeCompanyDayOffByDate('${day.date}')">
-                <i class="fas fa-trash"></i> Remove
-            </button>
         </div>
     `).join('');
+
+    // Optional: highlight today or upcoming dates
+    const today = new Date().toISOString().split('T')[0];
+    offDays.forEach((day, index) => {
+        if (day.date === today) {
+            const row = listContainer.children[index];
+            if (row) {
+                row.style.backgroundColor = 'rgba(99, 102, 241, 0.1)'; // light purple
+                row.style.borderColor = '#6366f1';
+            }
+        }
+    });
 }
-//=========================
-// COMPANY DAY OFF
-//==========================
+
+
+// Add a company day off
 function addCompanyDayOff() {
     const dateInput = document.getElementById('companyOffDate');
     const reasonInput = document.getElementById('companyOffReason');
-    
+
     const date = dateInput.value;
     const reason = reasonInput.value.trim() || 'Company Day Off';
-    
+
     if (!date) {
         showToast('❌ Please select a date', 'error');
         return;
     }
-    
-    // Show loading
+
     const addBtn = document.getElementById('addCompanyOffDay');
     const originalText = addBtn.innerHTML;
     addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
     addBtn.disabled = true;
-    
-    // Send request
+
     fetch('/company_day_off', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            action: 'add',
-            date: date,
-            reason: reason
-        })
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ action: 'add', date, reason })
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
         if (data.success) {
             showToast(`✅ ${data.message}`, 'success');
-            // Clear form
             dateInput.value = new Date().toISOString().split('T')[0];
             reasonInput.value = '';
-            // Reload lists
             loadCompanyOffDays();
         } else {
             showToast(`❌ ${data.message}`, 'error');
         }
     })
-    .catch(error => {
+    .catch(err => {
         showToast('❌ Error adding company day off', 'error');
-        console.error('Error:', error);
+        console.error(err);
     })
     .finally(() => {
-        // Restore button
         addBtn.innerHTML = originalText;
         addBtn.disabled = false;
     });
 }
 
+// Remove a company day off
 function removeCompanyDayOff() {
     const dropdown = document.getElementById('removeCompanyOffDate');
     const selectedDate = dropdown.value;
-    
+
     if (!selectedDate) {
         showToast('❌ Please select a date to remove', 'error');
         return;
     }
-    
-    if (!confirm(`Are you sure you want to remove Company Day Off status from ${selectedDate}?`)) {
-        return;
-    }
-    
-    // Show loading
+
+    if (!confirm(`Are you sure you want to remove Company Day Off status from ${selectedDate}?`)) return;
+
     const removeBtn = document.getElementById('removeCompanyOffDay');
     const originalText = removeBtn.innerHTML;
     removeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
     removeBtn.disabled = true;
-    
-    // Send request
+
     fetch('/company_day_off', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            action: 'remove',
-            date: selectedDate
-        })
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ action: 'remove', date: selectedDate })
     })
-    .then(response => response.json())
+    .then(res => res.json())
     .then(data => {
         if (data.success) {
             showToast(`✅ ${data.message}`, 'success');
-            // Reset dropdown
             dropdown.value = '';
-            // Reload lists
             loadCompanyOffDays();
         } else {
             showToast(`❌ ${data.message}`, 'error');
         }
     })
-    .catch(error => {
+    .catch(err => {
         showToast('❌ Error removing company day off', 'error');
-        console.error('Error:', error);
+        console.error(err);
     })
     .finally(() => {
-        // Restore button
         removeBtn.innerHTML = originalText;
         removeBtn.disabled = false;
     });
 }
 
+// Remove by date button
 function removeCompanyDayOffByDate(date) {
-    if (!confirm(`Are you sure you want to remove Company Day Off status from ${date}?`)) {
-        return;
-    }
-    
-    // Set dropdown value and trigger removal
+    if (!confirm(`Are you sure you want to remove Company Day Off status from ${date}?`)) return;
+
     const dropdown = document.getElementById('removeCompanyOffDate');
     dropdown.value = date;
     removeCompanyDayOff();
 }
-        document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            
-            // Set today's date as default for effective date
-            const effectiveDateInput = document.getElementById('effective_date');
-            if (effectiveDateInput && !effectiveDateInput.value) {
-                const today = new Date().toISOString().split('T')[0];
-                effectiveDateInput.value = today;
+
+// ===============================
+// Toast Notification System
+// ===============================
+function showToast(message, type='success') {
+    const toast = document.createElement('div');
+    toast.className = `company-off-message ${type}`;
+    toast.innerHTML = `<i class="fas ${type==='success'?'fa-check-circle':'fa-exclamation-circle'}"></i> ${message}`;
+    
+    document.body.appendChild(toast);
+
+    // Auto-remove after 3s
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-10px)';
+        setTimeout(() => document.body.removeChild(toast), 400);
+    }, 3000);
+}
+
+// Initialize system on page load
+document.addEventListener('DOMContentLoaded', initializeCompanyDayOffSystem);
+
+
+// =======================================
+// EMPLOYEE TABLE MANAGEMENT
+// =======================================
+function initEmployeeManagement() {
+    // DOM Elements
+    const elements = {
+        employeeForm: document.getElementById('employeeForm'),
+        employeeSearch: document.getElementById('employeeSearch'),
+        departmentFilter: document.getElementById('departmentFilter'),
+        clearFilters: document.getElementById('clearFilters'),
+        employeesTable: document.getElementById('employeesTable'),
+        tableBody: document.querySelector('#employeesTable tbody'),
+        prevPage: document.getElementById('prevPage'),
+        nextPage: document.getElementById('nextPage'),
+        pageInfo: document.getElementById('pageInfo'),
+        showingCount: document.getElementById('showingCount'),
+        totalCount: document.getElementById('totalCount'),
+        addEmployeeBtn: document.getElementById('addEmployeeBtn'),
+        exportEmployeesBtn: document.getElementById('exportEmployeesBtn'),
+        cancelEditBtn: document.getElementById('cancelEditBtn'),
+        deleteModal: document.getElementById('deleteModal'),
+        cancelDelete: document.getElementById('cancelDelete'),
+        confirmDelete: document.getElementById('confirmDelete'),
+        deleteEmployeeName: document.getElementById('deleteEmployeeName')
+    };
+
+    // State
+    const state = {
+        currentPage: 1,
+        itemsPerPage: 10,
+        filteredEmployees: [],
+        searchTerm: '',
+        departmentFilter: '',
+        employeeToDelete: null
+    };
+
+    // Initialize
+    function init() {
+        bindEvents();
+        updateTable();
+        populateDepartmentFilter();
+    }
+
+    // Event Binding
+    function bindEvents() {
+        // Search and Filter
+        elements.employeeSearch.addEventListener('input', handleSearch);
+        elements.departmentFilter.addEventListener('change', handleDepartmentFilter);
+        elements.clearFilters.addEventListener('click', clearFilters);
+
+        // Pagination
+        elements.prevPage.addEventListener('click', goToPrevPage);
+        elements.nextPage.addEventListener('click', goToNextPage);
+
+        // Form Actions
+        if (elements.addEmployeeBtn) {
+            elements.addEmployeeBtn.addEventListener('click', scrollToForm);
+        }
+
+        if (elements.exportEmployeesBtn) {
+            elements.exportEmployeesBtn.addEventListener('click', exportToExcel);
+        }
+
+        if (elements.cancelEditBtn) {
+            elements.cancelEditBtn.addEventListener('click', cancelEdit);
+        }
+
+        // Delete Modal
+        elements.cancelDelete.addEventListener('click', closeDeleteModal);
+        elements.confirmDelete.addEventListener('click', confirmDeleteEmployee);
+
+        // Close modal when clicking outside
+        elements.deleteModal.addEventListener('click', function(e) {
+            if (e.target === elements.deleteModal) {
+                closeDeleteModal();
             }
-
-            // Set joining date to today if empty
-            const joiningDateInput = document.getElementById('joining_date');
-            if (joiningDateInput && !joiningDateInput.value) {
-                const today = new Date().toISOString().split('T')[0];
-                joiningDateInput.value = today;
-            }
-
-            // Tab switching functionality - Added from Code B
-            const tabBtns = document.querySelectorAll('.tab-btn');
-            const tabContents = document.querySelectorAll('.tab-content');
-            
-            tabBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    // Remove active class from all buttons and contents
-                    tabBtns.forEach(b => b.classList.remove('active'));
-                    tabContents.forEach(c => c.classList.remove('active'));
-                    
-                    // Add active class to clicked button
-                    btn.classList.add('active');
-                    
-                    // Show corresponding content
-                    const tabId = btn.getAttribute('data-tab');
-                    document.getElementById(tabId).classList.add('active');
-                });
-            });
-
-            // Initialize the employee management functionality
-            initEmployeeManagement();
         });
 
-        function initEmployeeManagement() {
-            // DOM Elements
-            const elements = {
-                employeeForm: document.getElementById('employeeForm'),
-                employeeSearch: document.getElementById('employeeSearch'),
-                departmentFilter: document.getElementById('departmentFilter'),
-                clearFilters: document.getElementById('clearFilters'),
-                employeesTable: document.getElementById('employeesTable'),
-                tableBody: document.querySelector('#employeesTable tbody'),
-                prevPage: document.getElementById('prevPage'),
-                nextPage: document.getElementById('nextPage'),
-                pageInfo: document.getElementById('pageInfo'),
-                showingCount: document.getElementById('showingCount'),
-                totalCount: document.getElementById('totalCount'),
-                addEmployeeBtn: document.getElementById('addEmployeeBtn'),
-                exportEmployeesBtn: document.getElementById('exportEmployeesBtn'),
-                cancelEditBtn: document.getElementById('cancelEditBtn'),
-                deleteModal: document.getElementById('deleteModal'),
-                cancelDelete: document.getElementById('cancelDelete'),
-                confirmDelete: document.getElementById('confirmDelete'),
-                deleteEmployeeName: document.getElementById('deleteEmployeeName')
-            };
+        // Edit and Delete buttons (delegated)
+        elements.tableBody.addEventListener('click', handleTableActions);
+    }
 
-            // State
-            const state = {
-                currentPage: 1,
-                itemsPerPage: 10,
-                filteredEmployees: [],
-                searchTerm: '',
-                departmentFilter: '',
-                employeeToDelete: null
-            };
+    function handleTableActions(e) {
+        const target = e.target.closest('.btn-edit, .btn-delete');
+        if (!target) return;
 
-            // Initialize
-            function init() {
-                bindEvents();
-                updateTable();
-                populateDepartmentFilter();
-            }
+        const row = target.closest('tr');
+        const employeeId = target.dataset.id;
+        const employeeName = target.dataset.name;
 
-            // Event Binding
-            function bindEvents() {
-                // Search and Filter
-                elements.employeeSearch.addEventListener('input', handleSearch);
-                elements.departmentFilter.addEventListener('change', handleDepartmentFilter);
-                elements.clearFilters.addEventListener('click', clearFilters);
-
-                // Pagination
-                elements.prevPage.addEventListener('click', goToPrevPage);
-                elements.nextPage.addEventListener('click', goToNextPage);
-
-                // Form Actions
-                if (elements.addEmployeeBtn) {
-                    elements.addEmployeeBtn.addEventListener('click', scrollToForm);
-                }
-
-                if (elements.exportEmployeesBtn) {
-                    elements.exportEmployeesBtn.addEventListener('click', exportToExcel);
-                }
-
-                if (elements.cancelEditBtn) {
-                    elements.cancelEditBtn.addEventListener('click', cancelEdit);
-                }
-
-                // Delete Modal
-                elements.cancelDelete.addEventListener('click', closeDeleteModal);
-                elements.confirmDelete.addEventListener('click', confirmDeleteEmployee);
-
-                // Close modal when clicking outside
-                elements.deleteModal.addEventListener('click', function(e) {
-                    if (e.target === elements.deleteModal) {
-                        closeDeleteModal();
-                    }
-                });
-
-                // Edit and Delete buttons (delegated)
-                elements.tableBody.addEventListener('click', handleTableActions);
-
-                // Tab switching - Added for settings tabs
-                const tabBtns = document.querySelectorAll('.tab-btn');
-                tabBtns.forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const tabId = btn.getAttribute('data-tab');
-                        // You can add additional logic for tab-specific actions here
-                    });
-                });
-            }
-
-            // Table Actions Handler
-            function handleTableActions(e) {
-                const target = e.target.closest('.btn-edit, .btn-delete');
-                if (!target) return;
-
-                const row = target.closest('tr');
-                const employeeId = target.dataset.id;
-                const employeeName = target.dataset.name;
-
-                if (target.classList.contains('btn-edit')) {
-                    editEmployee(employeeId, employeeName);
-                } else if (target.classList.contains('btn-delete')) {
-                    showDeleteModal(employeeId, employeeName);
-                }
-            }
-
-            // Search Handler
-            function handleSearch(e) {
-                state.searchTerm = e.target.value.toLowerCase();
-                state.currentPage = 1;
-                updateTable();
-            }
-
-            // Department Filter Handler
-            function handleDepartmentFilter(e) {
-                state.departmentFilter = e.target.value;
-                state.currentPage = 1;
-                updateTable();
-            }
-
-            // Clear Filters
-            function clearFilters() {
-                elements.employeeSearch.value = '';
-                elements.departmentFilter.value = '';
-                state.searchTerm = '';
-                state.departmentFilter = '';
-                state.currentPage = 1;
-                updateTable();
-            }
-
-            // Pagination
-            function goToPrevPage() {
-                if (state.currentPage > 1) {
-                    state.currentPage--;
-                    updateTable();
-                }
-            }
-
-            function goToNextPage() {
-                const totalPages = Math.ceil(state.filteredEmployees.length / state.itemsPerPage);
-                if (state.currentPage < totalPages) {
-                    state.currentPage++;
-                    updateTable();
-                }
-            }
-
-            // Update Table
-            function updateTable() {
-                const allRows = Array.from(elements.tableBody.querySelectorAll('tr:not(.empty-state)'));
-                
-                // Filter employees
-                state.filteredEmployees = allRows.filter(row => {
-                    const name = row.dataset.name.toLowerCase();
-                    const department = row.dataset.department.toLowerCase();
-                    
-                    const matchesSearch = !state.searchTerm || 
-                        name.includes(state.searchTerm) || 
-                        department.includes(state.searchTerm);
-                    
-                    const matchesDepartment = !state.departmentFilter || 
-                        department.includes(state.departmentFilter.toLowerCase());
-                    
-                    return matchesSearch && matchesDepartment;
-                });
-
-                // Hide all rows first
-                allRows.forEach(row => row.style.display = 'none');
-
-                // Show filtered rows with pagination
-                const startIndex = (state.currentPage - 1) * state.itemsPerPage;
-                const endIndex = startIndex + state.itemsPerPage;
-                const employeesToShow = state.filteredEmployees.slice(startIndex, endIndex);
-
-                employeesToShow.forEach(row => row.style.display = '');
-
-                // Update pagination controls
-                updatePagination();
-
-                // Show empty state if no results
-                const emptyState = elements.tableBody.querySelector('.empty-state');
-                if (emptyState) {
-                    emptyState.style.display = state.filteredEmployees.length === 0 ? '' : 'none';
-                }
-            }
-
-            // Update Pagination
-            function updatePagination() {
-                const totalEmployees = state.filteredEmployees.length;
-                const totalPages = Math.ceil(totalEmployees / state.itemsPerPage);
-                const startCount = totalEmployees === 0 ? 0 : (state.currentPage - 1) * state.itemsPerPage + 1;
-                const endCount = Math.min(state.currentPage * state.itemsPerPage, totalEmployees);
-
-                // Update counts
-                elements.showingCount.textContent = `${startCount}-${endCount}`;
-                elements.totalCount.textContent = totalEmployees;
-
-                // Update page info
-                elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages || 1}`;
-
-                // Update button states
-                elements.prevPage.disabled = state.currentPage === 1;
-                elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
-            }
-
-            // Populate Department Filter
-            function populateDepartmentFilter() {
-                const departments = new Set();
-                const rows = elements.tableBody.querySelectorAll('tr:not(.empty-state)');
-                
-                rows.forEach(row => {
-                    const department = row.dataset.department;
-                    if (department) {
-                        departments.add(department);
-                    }
-                });
-
-                // Departments are already in the HTML, no need to populate dynamically
-            }
-
-            // Scroll to Form
-            function scrollToForm() {
-                document.getElementById('employeeFormSection').scrollIntoView({ 
-                    behavior: 'smooth' 
-                });
-            }
-
-            // Export to Excel
-            function exportToExcel() {
-                // Simple CSV export implementation
-                const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Role', 'Effective From'];
-                const rows = state.filteredEmployees.map(row => {
-                    const cells = row.querySelectorAll('td');
-                    return [
-                        cells[1].textContent.trim(),
-                        cells[0].textContent.trim(),
-                        cells[2].textContent.trim(),
-                        cells[3].textContent.trim(),
-                        cells[4].textContent.trim(),
-                        cells[5].textContent.trim(),
-                        cells[6].textContent.trim()
-                    ];
-                });
-
-                const csvContent = [headers, ...rows]
-                    .map(row => row.map(cell => `"${cell}"`).join(','))
-                    .join('\n');
-
-                const blob = new Blob([csvContent], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
-
-            // Edit Employee
-            function editEmployee(employeeId, employeeName) {
-                // This would typically involve fetching employee data and populating the form
-                // For now, we'll just scroll to the form
-                scrollToForm();
-                
-                // Show notification
-                showNotification(`Ready to edit ${employeeName}`, 'success');
-            }
-
-            // Cancel Edit
-            function cancelEdit() {
-                // Reset form and redirect to regular add mode
-                window.location.href = "{{ url_for('main.employees') }}";
-            }
-
-            // Delete Employee Modal
-            function showDeleteModal(employeeId, employeeName) {
-                state.employeeToDelete = { id: employeeId, name: employeeName };
-                elements.deleteEmployeeName.textContent = employeeName;
-                elements.deleteModal.style.display = 'flex';
-            }
-
-            function closeDeleteModal() {
-                elements.deleteModal.style.display = 'none';
-                state.employeeToDelete = null;
-            }
-
-            function confirmDeleteEmployee() {
-                if (state.employeeToDelete) {
-                    // In a real implementation, you would send a DELETE request to the server
-                    console.log('Deleting employee:', state.employeeToDelete);
-                    
-                    // For now, just show a notification
-                    showNotification(`Employee ${state.employeeToDelete.name} deleted successfully`, 'success');
-                    
-                    closeDeleteModal();
-                    
-                    // Reload the page to reflect changes
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1500);
-                }
-            }
-
-            // Notification System
-            function showNotification(message, type = 'success') {
-                // Remove existing notifications
-                const existingNotif = document.querySelector('.custom-notification');
-                if (existingNotif) existingNotif.remove();
-
-                const notif = document.createElement('div');
-                notif.className = `custom-notification ${type}`;
-                notif.innerHTML = `
-                    <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
-                    <span>${message}</span>
-                `;
-
-                document.body.appendChild(notif);
-
-                // Animate in
-                setTimeout(() => notif.classList.add('show'), 100);
-
-                // Remove after delay
-                setTimeout(() => {
-                    notif.classList.remove('show');
-                    setTimeout(() => notif.remove(), 300);
-                }, 3000);
-            }
-
-            // Initialize the application
-            init();
+        if (target.classList.contains('btn-edit')) {
+            editEmployee(employeeId, employeeName);
+        } else if (target.classList.contains('btn-delete')) {
+            showDeleteModal(employeeId, employeeName);
         }
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    // ... existing initialization code ...
-    
-    // Initialize Company Day Off system
-    initializeCompanyDayOffSystem();
-});
-// Data Management Functions
+    }
+
+    function handleSearch(e) {
+        state.searchTerm = e.target.value.toLowerCase();
+        state.currentPage = 1;
+        updateTable();
+    }
+
+    function handleDepartmentFilter(e) {
+        state.departmentFilter = e.target.value;
+        state.currentPage = 1;
+        updateTable();
+    }
+
+    function clearFilters() {
+        elements.employeeSearch.value = '';
+        elements.departmentFilter.value = '';
+        state.searchTerm = '';
+        state.departmentFilter = '';
+        state.currentPage = 1;
+        updateTable();
+    }
+
+    function goToPrevPage() {
+        if (state.currentPage > 1) {
+            state.currentPage--;
+            updateTable();
+        }
+    }
+
+    function goToNextPage() {
+        const totalPages = Math.ceil(state.filteredEmployees.length / state.itemsPerPage);
+        if (state.currentPage < totalPages) {
+            state.currentPage++;
+            updateTable();
+        }
+    }
+
+    function updateTable() {
+        const allRows = Array.from(elements.tableBody.querySelectorAll('tr:not(.empty-state)'));
+        
+        // Filter employees
+        state.filteredEmployees = allRows.filter(row => {
+            const name = row.dataset.name.toLowerCase();
+            const department = row.dataset.department.toLowerCase();
+            
+            const matchesSearch = !state.searchTerm || 
+                name.includes(state.searchTerm) || 
+                department.includes(state.searchTerm);
+            
+            const matchesDepartment = !state.departmentFilter || 
+                department.includes(state.departmentFilter.toLowerCase());
+            
+            return matchesSearch && matchesDepartment;
+        });
+
+        // Hide all rows first
+        allRows.forEach(row => row.style.display = 'none');
+
+        // Show filtered rows with pagination
+        const startIndex = (state.currentPage - 1) * state.itemsPerPage;
+        const endIndex = startIndex + state.itemsPerPage;
+        const employeesToShow = state.filteredEmployees.slice(startIndex, endIndex);
+
+        employeesToShow.forEach(row => row.style.display = '');
+
+        // Update pagination controls
+        updatePagination();
+
+        // Show empty state if no results
+        const emptyState = elements.tableBody.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.style.display = state.filteredEmployees.length === 0 ? '' : 'none';
+        }
+    }
+
+    function updatePagination() {
+        const totalEmployees = state.filteredEmployees.length;
+        const totalPages = Math.ceil(totalEmployees / state.itemsPerPage);
+        const startCount = totalEmployees === 0 ? 0 : (state.currentPage - 1) * state.itemsPerPage + 1;
+        const endCount = Math.min(state.currentPage * state.itemsPerPage, totalEmployees);
+
+        // Update counts
+        elements.showingCount.textContent = `${startCount}-${endCount}`;
+        elements.totalCount.textContent = totalEmployees;
+
+        // Update page info
+        elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages || 1}`;
+
+        // Update button states
+        elements.prevPage.disabled = state.currentPage === 1;
+        elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
+    }
+
+    function populateDepartmentFilter() {
+        // Departments are already in the HTML
+    }
+
+    function scrollToForm() {
+        document.getElementById('employeeFormSection').scrollIntoView({ 
+            behavior: 'smooth' 
+        });
+    }
+
+    function exportToExcel() {
+        const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Role', 'Effective From'];
+        const rows = state.filteredEmployees.map(row => {
+            const cells = row.querySelectorAll('td');
+            return [
+                cells[1].textContent.trim(),
+                cells[0].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim()
+            ];
+        });
+
+        const csvContent = [headers, ...rows]
+            .map(row => row.map(cell => `"${cell}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function editEmployee(employeeId, employeeName) {
+        scrollToForm();
+        showNotification(`Ready to edit ${employeeName}`, 'success');
+    }
+
+    function cancelEdit() {
+        window.location.href = "{{ url_for('main.employees') }}";
+    }
+
+    function showDeleteModal(employeeId, employeeName) {
+        state.employeeToDelete = { id: employeeId, name: employeeName };
+        elements.deleteEmployeeName.textContent = employeeName;
+        elements.deleteModal.style.display = 'flex';
+    }
+
+    function closeDeleteModal() {
+        elements.deleteModal.style.display = 'none';
+        state.employeeToDelete = null;
+    }
+
+    function confirmDeleteEmployee() {
+        if (state.employeeToDelete) {
+            console.log('Deleting employee:', state.employeeToDelete);
+            showNotification(`Employee ${state.employeeToDelete.name} deleted successfully`, 'success');
+            closeDeleteModal();
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        }
+    }
+
+    function showNotification(message, type = 'success') {
+        const existingNotif = document.querySelector('.custom-notification');
+        if (existingNotif) existingNotif.remove();
+
+        const notif = document.createElement('div');
+        notif.className = `custom-notification ${type}`;
+        notif.innerHTML = `
+            <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
+            <span>${message}</span>
+        `;
+
+        document.body.appendChild(notif);
+
+        setTimeout(() => notif.classList.add('show'), 100);
+
+        setTimeout(() => {
+            notif.classList.remove('show');
+            setTimeout(() => notif.remove(), 300);
+        }, 3000);
+    }
+
+    init();
+}
+
+// =======================================
+// DATA MANAGEMENT FUNCTIONS
+// =======================================
 function loadCompensationData() {
     try {
         const savedData = localStorage.getItem('compensationData');
@@ -1114,29 +1077,27 @@ function saveSelectedEmployees() {
 }
 
 function updateCompensationStats() {
-    // Calculate stats from records
     const pendingLate = settingsState.compensationData.records.filter(r => r.type === 'late').length;
     const pendingAbsent = settingsState.compensationData.records.filter(r => r.type === 'absent').length;
     const totalCompensated = settingsState.compensationData.records.length;
     
-    // Update UI
     updateElementText('pendingLateCount', pendingLate);
     updateElementText('pendingAbsentCount', pendingAbsent);
     updateElementText('totalCompensatedCount', totalCompensated);
     
-    // Update state
     settingsState.compensationData.pendingLate = pendingLate;
     settingsState.compensationData.pendingAbsent = pendingAbsent;
     settingsState.compensationData.totalCompensated = totalCompensated;
 }
 
-// Utility Functions
+// =======================================
+// UTILITY FUNCTIONS
+// =======================================
 function updateElementText(elementId, value) {
     const element = document.getElementById(elementId);
     if (element) element.textContent = value;
 }
 
-// Toast System
 function showToast(message, type = 'info') {
     let toastContainer = document.getElementById('toastContainer');
     if (!toastContainer) {
@@ -1194,7 +1155,6 @@ function getToastColor(type) {
     return colors[type] || colors.info;
 }
 
-// Validation Functions
 function validateCNIC(input) {
     let clean = input.value.replace(/[^\d]/g, '');
     if (clean.length > 13) clean = clean.slice(0, 13);
@@ -1211,12 +1171,13 @@ function validatePhone(input) {
     if (input.value.length > 11) input.value = input.value.slice(0, 11);
 }
 
-// Confirm before deleting
 function confirmDelete(name) {
     return confirm(`Are you sure you want to delete employee: ${name}?`);
 }
 
-// Make functions globally available
+// =======================================
+// GLOBAL FUNCTIONS
+// =======================================
 window.validateCNIC = validateCNIC;
 window.validatePhone = validatePhone;
 window.confirmDelete = confirmDelete;
@@ -1227,3 +1188,40 @@ window.toggleTheme = toggleTheme;
 window.checkEligibility = checkEligibility;
 window.clearCompensationForm = clearCompensationForm;
 window.loadCompensationHistory = loadCompensationHistory;
+
+// =======================================
+// DOM READY INITIALIZATION
+// =======================================
+document.addEventListener('DOMContentLoaded', function() {
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    
+    const effectiveDateInput = document.getElementById('effective_date');
+    if (effectiveDateInput && !effectiveDateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        effectiveDateInput.value = today;
+    }
+
+    const joiningDateInput = document.getElementById('joining_date');
+    if (joiningDateInput && !joiningDateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        joiningDateInput.value = today;
+    }
+
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            
+            btn.classList.add('active');
+            const tabId = btn.getAttribute('data-tab');
+            document.getElementById(tabId).classList.add('active');
+        });
+    });
+
+    initEmployeeManagement();
+    initializeCompanyDayOffSystem();
+});

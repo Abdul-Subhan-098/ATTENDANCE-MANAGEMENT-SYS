@@ -9,7 +9,6 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/employees.css') }}">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-
 </head>
 <body>
 
@@ -22,6 +21,7 @@
 
     <nav class="sidebar-nav">
         <a href="{{ url_for('main.employees') }}"><i class="fas fa-users"></i> Employee Manage</a>
+        <a href="{{ url_for('main.new_employees') }}"><i class="fas fa-user-plus"></i> New Employees</a>
         <a href="{{ url_for('main.index') }}"><i class="fas fa-chart-pie"></i> Monthly Report</a>
         <a href="{{ url_for('main.daily') }}"><i class="fas fa-calendar-day"></i> Daily Report</a>
         <a href="{{ url_for('main.activity_logs') }}"><i class="fas fa-history"></i> Activity Logs</a>

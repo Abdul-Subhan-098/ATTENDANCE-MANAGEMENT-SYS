@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from app import db
-from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin
+from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin, NewEmployee
 from datetime import datetime,timedelta
 from app.service.activity_service import log_activity, get_activity_logs, ActivityService, get_user_activity_logs  # From B
 from sqlalchemy import func
@@ -14,6 +14,7 @@ from app.service.daily_service import generate_daily_report, DailyReportGenerato
 from app.service.monthly_service import generate_monthly_report_from_daily
 from app.service.file_service import FileService
 from app.service.employee_service import EmployeeService
+from app.service.new_employees_service import NewEmployeeService
 
 main = Blueprint("main", __name__)
 logger = logging.getLogger(__name__)
@@ -135,8 +136,10 @@ def _format_monthly_record(record):
         "ByLateCount": record.by_late_count or 0,
         "ByHalfDayCount": record.by_half_day_count or 0,
         "ByAbsentCount": record.by_absent_count or 0,
-        "WorkingDays": getattr(record, "working_days", 0) or 0
+        "WorkingDays": getattr(record, "working_days", 0) or 0,
+        "PunchMissed": getattr(record, "punch_missed", 0) or 0  # New column added
     }
+
 
 
 # ===========================================================
@@ -338,7 +341,8 @@ def employees():
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
-        
+
+        # Add or update employee
         result = employee_service.add_or_update_employee(
             name=name,
             joining_date_str=request.form.get("joining_date", "").strip(),
@@ -346,20 +350,32 @@ def employees():
             effective_date_str=request.form.get("effective_date", "").strip(),
             shift_full=request.form.get("shift", "").strip(),
             role=request.form.get("role", "").strip(),
-            gender=request.form.get("gender", "").strip()  # From A
+            gender=request.form.get("gender", "").strip()
         )
-        
+
         if result:
-            # Log employee update/add (From B)
+            # Log employee update/add
             action = "Updated employee" if Employee.query.filter_by(name=name).first() else "Added new employee"
             log_activity(
                 username=username,
                 action=f"{action}: {name}",
                 entity_type="employee_management",
                 entity_id=name,
-                details=f"Department: {request.form.get('department')}, Shift: {request.form.get('shift')}, Role: {request.form.get('role')}, Gender: {request.form.get('gender')}"  # Added gender
+                details=(
+                    f"Department: {request.form.get('department')}, "
+                    f"Shift: {request.form.get('shift')}, "
+                    f"Role: {request.form.get('role')}, "
+                    f"Gender: {request.form.get('gender')}"
+                )
             )
-        
+
+            # -----------------------------
+            # Cleanup NewEmployee if profile complete
+            employee_obj = Employee.query.filter_by(name=name).first()
+            if employee_obj:
+                NewEmployeeService.cleanup_if_employee_confirmed(employee_obj.emp_id)
+            # -----------------------------
+
         return redirect(url_for("main.employees"))
 
     # GET request - display employee list
@@ -369,7 +385,7 @@ def employees():
 
     # Role options and gender options for the form
     roles = ["Full-Timer", "Part-Timer"]
-    genders = ["Male", "Female"]  # From A
+    genders = ["Male", "Female"]
 
     return render_template(
         "employees.html",
@@ -377,8 +393,9 @@ def employees():
         daily_names=daily_employee_names,
         current_date=datetime.today().strftime("%Y-%m-%d"),
         roles=roles,
-        genders=genders  # From A
+        genders=genders
     )
+
 
 @main.route("/admin_panel", methods=["GET", "POST"])
 @login_required
@@ -938,3 +955,39 @@ def get_recent_activities():
             "success": False,
             "activities": []
         }), 500
+    
+@main.route("/new_employees")
+@login_required
+def new_employees():
+    """
+    Display new employees detected from attendance but not fully confirmed.
+    Pass a 'status' flag for template rendering.
+    """
+    from app.models import NewEmployee, Employee
+
+    # Fetch all new employees
+    new_employees_list = NewEmployee.query.order_by(NewEmployee.created_at.desc()).all()
+
+    # Prepare a list with 'status' field to indicate if profile is complete
+    employees_data = []
+    for emp in new_employees_list:
+        employee_obj = Employee.query.filter_by(emp_id=emp.emp_id).first()
+        confirmed = bool(
+            employee_obj and
+            employee_obj.shift and
+            employee_obj.department and
+            employee_obj.role and
+            employee_obj.joining_date and
+            employee_obj.gender
+        )
+        employees_data.append({
+            "emp_id": emp.emp_id,
+            "name": emp.name,
+            "created_at": emp.created_at,
+            "status": "complete" if confirmed else "incomplete"
+        })
+
+    return render_template(
+        "new_employees.html",
+        new_employees=employees_data
+    )

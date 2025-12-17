@@ -1740,68 +1740,184 @@ input:checked + .toggle-slider:before {
     font-size: 0.8rem;
 }
 
-/* ===== OFF DAYS LIST STYLES ===== */
-.off-days-list {
-    min-height: 100px;
-    max-height: 200px;
+/* ===============================
+   Company Off Days Section Styles
+================================= */
+
+/* Company Off Days List */
+.company-off-days-list {
+    min-height: 120px;
+    max-height: 250px;
     overflow-y: auto;
-    border: 1px solid var(--gray-lighter);
-    border-radius: var(--border-radius);
-    background: var(--white);
+    border: 1px solid #e2e8f0; /* lighter gray */
+    border-radius: 8px;
+    background: #ffffff;
+    padding: 12px;
 }
 
-/* ===== RESPONSIVE DESIGN FOR SETTINGS ===== */
+/* Empty state styling */
+.company-off-days-list .empty-state {
+    text-align: center;
+    padding: 20px;
+    color: #9ca3af;
+    font-style: italic;
+    font-size: 0.9rem;
+}
+
+.company-off-days-list .empty-state i {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+    color: #cbd5e1;
+}
+
+/* Company Off Day Item (table-style row) */
+.company-off-day-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: #f9f9f9;
+    transition: all 0.3s ease;
+}
+
+.company-off-day-item:hover {
+    background: #eef2ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+.company-off-day-info {
+    display: flex;
+    flex: 1;
+    justify-content: space-between;
+    gap: 20px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #333;
+}
+
+.company-off-day-info span {
+    min-width: 100px;
+    text-align: left;
+}
+
+/* Remove button styling */
+.company-off-day-item button {
+    background: #f87171;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.company-off-day-item button:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Message styling for add/remove actions */
+.company-off-message {
+    padding: 12px 16px;
+    margin-bottom: 12px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    transition: all 0.3s ease;
+}
+
+.company-off-message.success {
+    background: rgba(22, 163, 74, 0.1);
+    color: #16a34a;
+    border-left: 4px solid #16a34a;
+}
+
+.company-off-message.success i { color: #16a34a; }
+
+.company-off-message.error {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border-left: 4px solid #dc2626;
+}
+
+.company-off-message.error i { color: #dc2626; }
+
+/* Fade-in animation */
+@keyframes fadeIn {
+    0% { opacity: 0; transform: translateY(-10px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
+.company-off-message { animation: fadeIn 0.4s ease-out; }
+
+/* Form inputs */
+.date-picker-no-max {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    width: 100%;
+    transition: all 0.2s ease;
+}
+
+.date-picker-no-max:focus,
+#companyOffReason:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    outline: none;
+}
+
+/* Buttons */
+#addCompanyOffDay,
+#removeCompanyOffDay {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+}
+
+#addCompanyOffDay:hover {
+    background: #2563eb;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+#removeCompanyOffDay:hover {
+    background: #dc2626;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* Responsive adjustments */
 @media (max-width: 768px) {
-    .settings-tabs {
-        flex-direction: column;
-    }
-    
-    .tab-btn {
-        justify-content: center;
-        border-bottom: none;
-        border-right: 3px solid transparent;
-    }
-    
-    .tab-btn.active {
-        border-bottom: none;
-        border-right-color: var(--primary);
-    }
-    
     .form-row {
-        grid-template-columns: 1fr;
-    }
-    
-    .compensation-stats {
-        grid-template-columns: 1fr;
-    }
-    
-    .danger-action {
         flex-direction: column;
         gap: 12px;
-        text-align: center;
     }
-    
-    .form-actions {
+
+    .company-off-day-info {
         flex-direction: column;
+        gap: 6px;
     }
 }
 
 @media (max-width: 480px) {
-    .settings-section {
-        padding: 16px;
-    }
-    
-    .checkbox-group {
-        flex-direction: column;
-        gap: 8px;
-    }
-    
-    .history-header {
-        flex-direction: column;
-        gap: 12px;
-        text-align: center;
+    .company-off-days-list {
+        max-height: 200px;
+        padding: 8px;
     }
 }
+
 
 
 /* Compensation Styles */

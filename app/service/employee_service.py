@@ -6,6 +6,7 @@ from app import db
 from app.models import DailyReport, MonthlyReport, Employee, CompanyDayOff
 from app.service.daily_service import AttendanceCalculator, DailyReportGenerator
 from app.service.activity_service import log_activity  # ADDED FROM B
+from app.service.new_employees_service import NewEmployeeService
 import logging
 
 # Configure logging
@@ -50,48 +51,83 @@ class EmployeeService:
         shift_pattern = r"(\d{2}:\d{2}\s*-\s*\d{2}:\d{2})"
         return bool(re.match(shift_pattern, shift_str))
 
-    def add_or_update_employee(self, name: str, joining_date_str: str, department: str,
-                            effective_date_str: str, shift_full: str, role: Optional[str] = None,
-                            gender: Optional[str] = None) -> bool:
+    def add_or_update_employee(
+        self,
+        name: str,
+        joining_date_str: str,
+        department: str,
+        effective_date_str: str,
+        shift_full: str,
+        role: str = None,
+        gender: str = None
+    ) -> bool:
         """
-        Add or update an employee with guaranteed gender handling.
+        Add or update an employee, ensure gender is handled, 
+        update related reports, and cleanup from new_employee if confirmed.
         """
         try:
-            # Validate input
-            self.validate_employee_data(name, joining_date_str, department, effective_date_str, shift_full)
-
-            joining_date = datetime.strptime(joining_date_str, "%Y-%m-%d").date()
-            effective_date = datetime.strptime(effective_date_str, "%Y-%m-%d").date()
-            shift_main = self._extract_shift_from_string(shift_full)
+            # Validate required inputs
+            if not all([name, joining_date_str, department, effective_date_str, shift_full]):
+                raise ValueError("Missing required employee data")
 
             if not gender:
                 raise ValueError("Gender must be provided (Male/Female/Other)")
 
-            # Save or update employee
-            employee = self._save_employee_data(name, joining_date, department, effective_date, shift_main, role, gender)
+            # Parse dates
+            joining_date = datetime.strptime(joining_date_str, "%Y-%m-%d").date()
+            effective_date = datetime.strptime(effective_date_str, "%Y-%m-%d").date()
 
-            # Update related reports
+            # Extract main shift (e.g., "10:00 - 19:00")
+            shift_main = self._extract_shift_from_string(shift_full)
+
+            # Save or update employee record
+            employee = self._save_employee_data(
+                name=name,
+                joining_date=joining_date,
+                department=department,
+                effective_date=effective_date,
+                shift_main=shift_main,
+                role=role,
+                gender=gender
+            )
+
+            # Update related reports if any
             self._update_related_reports(employee, effective_date)
 
-            # Activity logging - FROM B
-            action_type = "updated" if Employee.query.filter_by(name=name).first() else "added"
+            # ✅ Cleanup new_employee if profile confirmed
+            NewEmployeeService.cleanup_if_employee_confirmed(employee.emp_id)
+
+            # Determine action type for logging
+            existing_employee = Employee.query.filter_by(name=name).first()
+            action_type = "updated" if existing_employee else "added"
+
+            # Log activity
             log_activity(
                 username="Admin",
                 action=f"Employee {action_type}: {name}",
                 entity_type="employee_management",
                 entity_id=name,
-                details=f"Department: {department}, Shift: {shift_main}, Role: {role or 'FullTime'}, Gender: {gender}, Effective: {effective_date_str}"
+                details=(
+                    f"Department: {department}, Shift: {shift_main}, "
+                    f"Role: {role or 'Full-Timer'}, Gender: {gender}, Effective: {effective_date_str}"
+                )
             )
 
-            flash(f"✅ Employee '{name}' ({employee.role}, {employee.gender}) processed successfully effective from {effective_date}", "success")
+            # Flash success message
+            flash(
+                f"✅ Employee '{name}' ({employee.role}, {employee.gender}) processed successfully effective from {effective_date}",
+                "success"
+            )
+
             return True
 
         except Exception as e:
+            # Rollback and log error
             db.session.rollback()
-            error_message = f"Error processing employee: {e}"  # IMPROVED FROM B
+            error_message = f"Error processing employee: {e}"
             logger.error(error_message)
             flash(f"❌ {error_message}", "error")
-        return False
+            return False
 
     def _extract_shift_from_string(self, shift_full: str) -> str:
         """Extract and format shift string from input."""
@@ -100,22 +136,29 @@ class EmployeeService:
             raise ValueError("Invalid shift format")
         return match.group(1)
 
-    def _save_employee_data(self, name: str, joining_date: date, department: str,
-                            effective_date: date, shift_main: str, role: Optional[str],
-                            gender: str) -> Employee:
+    def _save_employee_data(
+        self,
+        name: str,
+        joining_date: date,
+        department: str,
+        effective_date: date,
+        shift_main: str,
+        role: Optional[str],
+        gender: str
+    ) -> Employee:
         """
         Save or update an employee with guaranteed gender handling.
         """
         employee = Employee.query.filter_by(name=name).first()
 
         if employee:
-            # Update existing employee - IMPROVED FROM A
+            # Update existing employee
             employee.joining_date = joining_date
             employee.department = department
             employee.last_updated_date = effective_date
             employee.shift = shift_main
-            employee.role = role or employee.role  # Preserve existing role if not provided
-            employee.gender = gender  # always update gender
+            employee.role = role or employee.role
+            employee.gender = gender
             action = "Updated"
         else:
             # Create new employee
@@ -125,8 +168,8 @@ class EmployeeService:
                 department=department,
                 last_updated_date=effective_date,
                 shift=shift_main,
-                role=role or "FullTime",
-                gender=gender  # set gender explicitly
+                role=role or "Full-Timer",
+                gender=gender
             )
             db.session.add(employee)
             action = "Added new"
@@ -241,7 +284,7 @@ class EmployeeService:
         daily_record.missed_checkin = (missed_in == "Yes")
         daily_record.missed_checkout = (missed_out == "Yes")
 
-        logger.debug(f"Updated {employee.name} - {daily_record.date}: Status={daily_record.status}, OT={daily_record.overtime}, FullTime={full_time}")
+        logger.debug(f"Updated {employee.name} - {daily_record.date}: Status={daily_record.status}, OT={daily_record.overtime}, Full-Timer={full_time}")
 
     def _update_monthly_reports(self, employee: Employee, affected_months: Set[str]):
         """Update monthly reports for affected months with recalculated metrics."""
@@ -259,10 +302,7 @@ class EmployeeService:
             self._regenerate_monthly_report(employee.name, month)
 
     def _regenerate_monthly_report(self, employee_name: str, month_str: str):
-        """Regenerate monthly report with correct WorkingDays based on shift,
-        Sunday/Saturday counts, weekday-only OT, and mid-month joiners for latest month,
-        including gender information."""
-        
+        """Regenerate monthly report with correct WorkingDays, OT, compensation, and missed punches."""
         try:
             # -------------------------
             # Date Range Setup
@@ -325,15 +365,16 @@ class EmployeeService:
             by_half_day_count = 0
             by_absent_count = 0
             weekday_ot_hours = 0.0
+            punch_missed = 0  # NEW: Count HD (Missed IN/OUT)
             total_days = len(daily_records)
 
             # -------------------------
-            # Loop Records - IMPROVED FROM B
+            # Loop Records
             # -------------------------
             for row in daily_records:
                 status = row.status or ""
 
-                # --- Company Day Off (DO NOT COUNT ANYTHING) --- FROM B
+                # Skip Company Day Off
                 if status == "Company Day Off":
                     continue
 
@@ -354,6 +395,8 @@ class EmployeeService:
                     half_day_sat += 1
                 elif status == "Full Day (Sat)":
                     full_day_sat += 1
+                elif status in ["HD (Missed IN)", "HD (Missed OUT)"]:
+                    punch_missed += 1  # NEW
 
                 # Compensation type
                 if hasattr(row, 'compensation_type') and row.compensation_type:
@@ -376,14 +419,13 @@ class EmployeeService:
             absent = max(0, absent - by_absent_count)
 
             # -------------------------
-            # Calendar-based Working Days - IMPROVED FROM B
+            # Calendar-based Working Days
             # -------------------------
             from calendar import monthrange
             year, month = map(int, month_str.split('-'))
             total_days_in_month = monthrange(year, month)[1]
             working_days = 0
 
-            # Determine if this is the latest month
             latest_daily_date = db.session.query(db.func.max(DailyReport.date)).scalar()
             latest_month_str = latest_daily_date.strftime("%Y-%m") if latest_daily_date else None
             is_latest_month = month_str == latest_month_str
@@ -392,12 +434,12 @@ class EmployeeService:
                 current_date = datetime(year, month, day).date()
                 weekday = current_date.weekday()
 
-                # Skip pre-joining days (only for latest month)
+                # Skip pre-joining days (latest month only)
                 if is_latest_month and employee.joining_date and employee.joining_date > start_date:
                     if current_date < employee.joining_date:
                         continue
 
-                # ❗ Skip Company Day Off entirely - FROM B
+                # Skip Company Day Off
                 day_record = next((d for d in daily_records if d.date == current_date), None)
                 if day_record and day_record.status == "Company Day Off":
                     continue
@@ -415,7 +457,7 @@ class EmployeeService:
             monthly_report = MonthlyReport(
                 emp_id=employee.emp_id,
                 name=employee_name,
-                gender=gender,  # FROM B
+                gender=gender,
                 joining_date=employee.joining_date,
                 department=employee.department or "Cold Calling",
                 last_updated_date=datetime.utcnow().date(),
@@ -435,31 +477,37 @@ class EmployeeService:
                 working_days=working_days,
                 by_late_count=by_late_count,
                 by_half_day_count=by_half_day_count,
-                by_absent_count=by_absent_count
+                by_absent_count=by_absent_count,
+                punch_missed=punch_missed  # NEW
             )
 
             db.session.add(monthly_report)
             db.session.commit()
 
-            # Activity logging - FROM B
+            # -------------------------
+            # Activity Logging
+            # -------------------------
             log_activity(
                 username="System",
                 action=f"Regenerated monthly report for {employee_name}",
                 entity_type="report_regeneration",
                 entity_id=f"{employee_name}_{month_str}",
-                details=f"Month: {month_str}, WorkingDays: {working_days}, OT: {weekday_ot_hours:.2f}h, Present: {present}, Absent: {absent}, Gender: {gender}"
+                details=f"Month: {month_str}, WorkingDays: {working_days}, OT: {weekday_ot_hours:.2f}h, "
+                        f"Present: {present}, Absent: {absent}, Gender: {gender}, PunchMissed: {punch_missed}"
             )
 
             logger.info(
                 f"[MONTHLY REPORT ✔] {employee_name} {month_str} | "
                 f"Late Adjusted={late} | "
                 f"HalfDay Adjusted={half_day_weekdays} | "
-                f"Absent Adjusted={absent}"
+                f"Absent Adjusted={absent} | "
+                f"PunchMissed={punch_missed}"
             )
 
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error regenerating monthly report for {employee_name} - {month_str}: {e}")
+
 
     def _parse_employee_shift(self, employee: Employee) -> Tuple[time, time]:
         """Parse employee shift string into time objects."""

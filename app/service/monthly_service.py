@@ -10,6 +10,10 @@ import logging
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Constants for missed punches
+HALF_DAY_MISSED_IN = "HD (Missed IN)"
+HALF_DAY_MISSED_OUT = "HD (Missed OUT)"
+
 def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[Dict[str, Any]]:
     calculator = AttendanceCalculator()
 
@@ -56,7 +60,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     employees_data = defaultdict(lambda: {
         "EmpID": "",
         "Name": "",
-        "Gender": "Male",  # Added from A
+        "Gender": "Male",
         "TotalDays": 0,
         "Present": 0,
         "Absent": 0,
@@ -70,7 +74,8 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         "ByLateCount": 0,
         "ByHalfDayCount": 0,
         "ByAbsentCount": 0,
-        "CompanyOff": set()  # From B
+        "PunchMissedCount": 0,  # New column for missed punches
+        "CompanyOff": set()
     })
 
     # ========================
@@ -84,10 +89,10 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         # Employee basic info
         emp_data["EmpID"] = emp.emp_id if emp else row.emp_id or ""
         emp_data["Name"] = emp_name
-        emp_data["Gender"] = getattr(row, "gender", "Male") or "Male"  # Added from A
+        emp_data["Gender"] = getattr(row, "gender", "Male") or "Male"
         emp_data["TotalDays"] += 1
 
-        # Determine full-time based on shift duration
+        # Determine full-time based on shift
         is_full_time = True
         if emp and emp.shift:
             try:
@@ -102,10 +107,10 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         status = row.status or ""
         weekday = row.date.weekday()
 
-        # Capture company off (From B)
+        # Capture company off
         if status == "Company Day Off":
             emp_data["CompanyOff"].add(row.date)
-            continue  # Company Off → skip counts except working days
+            continue
 
         # Count attendance status
         if status == "Present":
@@ -124,6 +129,8 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             emp_data["Sundays"] += 1
         elif status == "Compensated":
             emp_data["Compensated"] += 1
+        elif status in [HALF_DAY_MISSED_IN, HALF_DAY_MISSED_OUT]:
+            emp_data["PunchMissedCount"] += 1
 
         # OT logic for full-timers Mon–Fri
         if is_full_time and weekday < 5:
@@ -149,7 +156,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     for name, data in employees_data.items():
         emp = all_emps.get(name)
 
-        # APPLY FIX FROM A: Reduce Late Count by ByLateCount
+        # Adjust Late Count by ByLateCount
         data["Late"] = max(0, data["Late"] - data["ByLateCount"])
 
         # Determine full-time for working days
@@ -164,32 +171,25 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             except Exception:
                 pass
 
-        # Calendar-based working days with Company Off exclusion (From B)
+        # Calendar-based working days excluding company off
         working_days = 0
         for day in range(1, total_days_in_month + 1):
             current_date = datetime(year, month, day).date()
             weekday = current_date.weekday()
-
-            # Skip days before joining (latest month only)
             if is_latest_month and emp and emp.joining_date and emp.joining_date > start_date:
                 if current_date < emp.joining_date:
                     continue
-
-            # Skip Company Day Off (From B)
             if current_date in data["CompanyOff"]:
                 continue
-
-            if is_full_time_emp:
-                if weekday < 5:
-                    working_days += 1
-            else:
-                if weekday != 6:
-                    working_days += 1
+            if is_full_time_emp and weekday < 5:
+                working_days += 1
+            elif not is_full_time_emp and weekday != 6:
+                working_days += 1
 
         monthly_rec = MonthlyReport(
             emp_id=data["EmpID"],
             name=name,
-            gender=data.get("Gender", "Male") or "Male",  # Added from A
+            gender=data.get("Gender", "Male") or "Male",
             department=emp.department if emp else "Cold Calling",
             joining_date=emp.joining_date if emp else None,
             last_updated_date=emp.last_updated_date if emp else datetime.utcnow().date(),
@@ -199,14 +199,15 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             total_days=data["TotalDays"],
             present=data["Present"],
             absent=data["Absent"],
-            late=data["Late"],  # Already adjusted above
+            late=data["Late"],
             half_day_weekdays=data["HalfDayWeekdays"],
             half_day_sat=data["HalfDaySat"],
             full_day_sat=data["FullDaySat"],
             ot_hours=round(data["OverTime"], 2),
             compensated=data["Compensated"],
             sundays=data["Sundays"],
-            working_days=working_days
+            working_days=working_days,
+            punch_missed=data["PunchMissedCount"]  # NEW
         )
 
         monthly_rec.by_late_count = data["ByLateCount"]
@@ -232,11 +233,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
     results = []
     for name, data in employees_data.items():
         emp = all_emps.get(name)
-
-        # APPLY FIX AGAIN FOR API RESPONSE (From A)
         data["Late"] = max(0, data["Late"] - data["ByLateCount"])
-
-        # Determine full-time for API response
         is_full_time_emp = True
         if emp and emp.shift:
             try:
@@ -248,20 +245,15 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             except Exception:
                 pass
 
-        # Working days for display with Company Off exclusion (From B)
         working_days = 0
         for day in range(1, total_days_in_month + 1):
             current_date = datetime(year, month, day).date()
             weekday = current_date.weekday()
-            
             if is_latest_month and emp and emp.joining_date and emp.joining_date > start_date:
                 if current_date < emp.joining_date:
                     continue
-            
-            # Skip Company Day Off (From B)
             if current_date in data["CompanyOff"]:
                 continue
-                
             if is_full_time_emp and weekday < 5:
                 working_days += 1
             elif not is_full_time_emp and weekday != 6:
@@ -270,7 +262,7 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
         results.append({
             "EmpID": safe(data["EmpID"], ""),
             "Name": safe(data["Name"]),
-            "Gender": data.get("Gender", "Male") or "Male",  # Added from A
+            "Gender": data.get("Gender", "Male") or "Male",
             "Department": safe(emp.department) if emp else "Cold Calling",
             "Shift": safe(emp.shift) if emp else "10:00 - 19:00",
             "Role": safe(getattr(emp, 'role', 'FullTime')) if emp else "FullTime",
@@ -290,7 +282,8 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             "ByLateCount": safe(data["ByLateCount"], 0),
             "ByHalfDayCount": safe(data["ByHalfDayCount"], 0),
             "ByAbsentCount": safe(data["ByAbsentCount"], 0),
-            "WorkingDays": working_days
+            "WorkingDays": working_days,
+            "PunchMissed": safe(data["PunchMissedCount"], 0)  # NEW
         })
 
     return results
