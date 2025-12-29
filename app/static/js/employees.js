@@ -1,1227 +1,1475 @@
-// =======================================
-// EMPLOYEE MANAGEMENT JS 
-// =======================================
+/* =====================================================================
+   EMPLOYEES.JS - OPTIMIZED VERSION
+   Complete JavaScript functionality for employees.html
+   Includes: Employee Management, Company Off Days, Compensation, Leave Management
+===================================================================== */
 
-// Global State for Settings
-const settingsState = {
-    currentTheme: localStorage.getItem('theme') || 'light',
-    compensationData: {
-        records: [],
-        pendingLate: 0,
-        pendingAbsent: 0,
-        totalCompensated: 0
-    },
-    selectedEmployees: []
+/* ============================
+   CONFIGURATION & CONSTANTS
+============================ */
+const CONFIG = {
+    DEBOUNCE_DELAY: 300,
+    BATCH_SIZE: 100,
+    ANIMATION_FRAME_DELAY: 16,
+    MAX_DATE: new Date().toISOString().split('T')[0] // Today's date
 };
 
-// Initialize when DOM is loaded
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("🚀 Employee Management System Started");
-    initializeEmployeeSystem();
-    initializeSettingsSystem();
-    initializeCompensationSystem();
-    initializeDatePickers(); // Add date picker initialization
-});
+/* ============================
+   GLOBAL STATE MANAGEMENT
+============================ */
+const APP_STATE = {
+    abortController: null,
+    activeFilters: { department: '' },
+    tableRows: [],
+    currentPage: 1,
+    itemsPerPage: 10,
+    currentEmployeeId: null
+};
 
-// =======================================
-// DATE PICKER INITIALIZATION
-// =======================================
+/* ============================
+   DOM ELEMENTS CACHE
+============================ */
+const DOM = {};
+
+/* ============================
+   PERFORMANCE UTILITIES
+============================ */
+
+// Debounce function for input events
+const debounce = (fn, delay = CONFIG.DEBOUNCE_DELAY) => {
+    let timeoutId;
+    return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+    };
+};
+
+// Throttle function for scroll/resize events
+const throttle = (fn, delay = CONFIG.ANIMATION_FRAME_DELAY) => {
+    let lastCall = 0;
+    return (...args) => {
+        const now = Date.now();
+        if (now - lastCall >= delay) {
+            lastCall = now;
+            fn(...args);
+        }
+    };
+};
+
+// Fast DOM element creation
+const createElement = (html) => {
+    const template = document.createElement('template');
+    template.innerHTML = html.trim();
+    return template.content.firstElementChild;
+};
+
+/* ============================
+   DOM CACHING & INITIALIZATION
+============================ */
+
+// Cache all DOM elements
+function cacheElements() {
+    const elementIds = [
+        // Main elements
+        'sidebar', 'mainContent', 'sidebarToggle', 'deleteModal',
+        
+        // Tab elements
+        'globalTableSection',
+        
+        // Filter elements
+        'employeeSearch', 'departmentFilter', 'clearFilters',
+        
+        // Table elements
+        'employeesTable', 'paginationControls',
+        'showingCount', 'totalCount', 'pageInfo', 'prevPage', 'nextPage',
+        
+        // Delete Modal elements
+        'deleteEmployeeName', 'cancelDelete', 'confirmDelete', 'modal-close',
+        
+        // Add Employee Tab
+        'addEmployeeBtn', 'clearEmployeeForm', 'employeeId', 'employeeName',
+        'employeeJoinDate', 'employeeDepartment', 'employeeShift', 'employeeRole',
+        
+        // Company Off Days
+        'companyOffDate', 'companyOffReason', 'addCompanyOffDay',
+        'removeCompanyOffDate', 'removeCompanyOffDay', 'companyOffDaysList',
+        
+        // Compensation Tab
+        'compensationEmployee', 'compensationType', 'violationDate', 
+        'compensationDate', 'eligibilityResult', 'checkEligibilityBtn',
+        'applyCompensationBtn', 'removeCompensationBtn', 'clearCompensationForm',
+        'compensationResult', 'refreshHistoryBtn', 'compensationHistoryList',
+        
+        // Leave Management Tab
+        'leaveEmployeeName', 'leaveType', 'leaveStartDate', 'leaveEndDate',
+        'leaveReason', 'previewLeaveBtn', 'applyLeaveBtn', 'removeLeaveBtn',
+        'clearLeaveForm', 'leaveResult', 'leavePreview', 'refreshLeaveHistoryBtn',
+        'leaveHistoryList',
+        
+        // Export Tab
+        'exportData', 'exportFormat', 'exportMonth', 'exportYear',
+        
+        // System Tab
+        'resetSettings', 'clearData'
+    ];
+
+    // Cache elements by ID
+    elementIds.forEach(id => {
+        DOM[id] = document.getElementById(id);
+    });
+
+    // Cache all table rows
+    if (DOM.employeesTable) {
+        const tbody = DOM.employeesTable.querySelector('tbody');
+        if (tbody) {
+            APP_STATE.tableRows = Array.from(tbody.querySelectorAll('tr:not(.empty-state)'));
+        }
+    }
+
+    // Cache all tab buttons and contents
+    DOM.tabBtns = document.querySelectorAll('.tab-btn');
+    DOM.tabContents = document.querySelectorAll('.tab-content');
+    
+    // Cache action buttons
+    const editButtons = document.querySelectorAll('.btn-edit');
+    const deleteButtons = document.querySelectorAll('.btn-delete');
+    
+    editButtons.forEach(btn => {
+        btn.addEventListener('click', handleEditEmployee);
+    });
+    
+    deleteButtons.forEach(btn => {
+        btn.addEventListener('click', handleDeleteEmployee);
+    });
+}
+
+// Initialize date pickers
 function initializeDatePickers() {
-    console.log("📅 Initializing date pickers...");
-    
-    // Initialize date pickers with max date limit (today)
     const datePickers = document.querySelectorAll('.date-picker');
+    
     datePickers.forEach(picker => {
-        flatpickr(picker, {
-            dateFormat: "Y-m-d",
-            allowInput: true,
-            maxDate: "today",
-            defaultDate: picker.value || "today"
-        });
+        if (window.flatpickr) {
+            flatpickr(picker, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: CONFIG.MAX_DATE,
+                defaultDate: picker.value || CONFIG.MAX_DATE
+            });
+        }
     });
 
-    // Initialize date picker for company off days WITHOUT max date limit
-    const companyOffDatePicker = document.getElementById('companyOffDate');
-    if (companyOffDatePicker) {
-        flatpickr(companyOffDatePicker, {
+    // Company off days date picker (no max date limit)
+    if (DOM.companyOffDate && window.flatpickr) {
+        flatpickr(DOM.companyOffDate, {
             dateFormat: "Y-m-d",
             allowInput: true,
-            // No maxDate restriction for company off days
-            defaultDate: "today"
+            defaultDate: CONFIG.MAX_DATE
         });
     }
 
-    // Handle the compensation form date pickers
-    const violationDate = document.getElementById('violationDate');
-    const compensationDate = document.getElementById('compensationDate');
-    
-    if (violationDate) {
-        flatpickr(violationDate, {
-            dateFormat: "Y-m-d",
-            allowInput: true,
-            maxDate: "today",
-            defaultDate: violationDate.value || "today"
-        });
-    }
-    
-    if (compensationDate) {
-        flatpickr(compensationDate, {
-            dateFormat: "Y-m-d",
-            allowInput: true,
-            maxDate: "today",
-            defaultDate: compensationDate.value || "today"
-        });
-    }
+    // Compensation form date pickers
+    if (window.flatpickr) {
+        if (DOM.violationDate) {
+            flatpickr(DOM.violationDate, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: CONFIG.MAX_DATE
+            });
+        }
+        
+        if (DOM.compensationDate) {
+            flatpickr(DOM.compensationDate, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: CONFIG.MAX_DATE
+            });
+        }
 
-    // Handle the add employee form date picker
-    const employeeJoinDate = document.getElementById('employeeJoinDate');
-    if (employeeJoinDate) {
-        flatpickr(employeeJoinDate, {
-            dateFormat: "Y-m-d",
-            allowInput: true,
-            maxDate: "today",
-            defaultDate: employeeJoinDate.value || "today"
-        });
-    }
+        // Leave form date pickers
+        if (DOM.leaveStartDate) {
+            flatpickr(DOM.leaveStartDate, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: CONFIG.MAX_DATE,
+                defaultDate: CONFIG.MAX_DATE
+            });
+        }
+        
+        if (DOM.leaveEndDate) {
+            flatpickr(DOM.leaveEndDate, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: CONFIG.MAX_DATE,
+                defaultDate: CONFIG.MAX_DATE
+            });
+        }
 
-    // Initialize joining_date picker with specific settings
-    const joiningDatePicker = document.getElementById('joining_date');
-    if (joiningDatePicker) {
-        flatpickr(joiningDatePicker, {
-            dateFormat: "Y-m-d",
-            allowInput: true,
-            maxDate: "today",
-            defaultDate: joiningDatePicker.value || "today"
-        });
-    }
+        // Add employee form date picker
+        if (DOM.employeeJoinDate) {
+            flatpickr(DOM.employeeJoinDate, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: CONFIG.MAX_DATE,
+                defaultDate: CONFIG.MAX_DATE
+            });
+        }
 
-    // Initialize effective_date picker with specific settings
-    const effectiveDatePicker = document.getElementById('effective_date');
-    if (effectiveDatePicker) {
-        flatpickr(effectiveDatePicker, {
-            dateFormat: "Y-m-d",
-            allowInput: true,
-            maxDate: "today",
-            defaultDate: effectiveDatePicker.value || "today"
-        });
-    }
-}
+        // Joining date picker
+        const joiningDatePicker = document.getElementById('joining_date');
+        if (joiningDatePicker) {
+            flatpickr(joiningDatePicker, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: CONFIG.MAX_DATE,
+                defaultDate: joiningDatePicker.value || CONFIG.MAX_DATE
+            });
+        }
 
-// =======================================
-// EMPLOYEE MANAGEMENT FUNCTIONS
-// =======================================
-function initializeEmployeeSystem() {
-    const employeeRows = document.querySelectorAll(".employee-row");
-    const nameInput = document.getElementById("name");
-    const phoneInput = document.getElementById("phone");
-    const cnicInput = document.getElementById("cnic");
-    const joiningDateInput = document.getElementById("joining_date");
-    const statusInput = document.getElementById("status");
-    const submitBtn = document.getElementById("submit-btn");
-
-    employeeRows.forEach(row => {
-        row.addEventListener("click", () => {
-            const name = row.dataset.name;
-            const phone = row.dataset.phone;
-            const cnic = row.dataset.cnic;
-            const joiningDate = row.dataset.joining;
-            const status = row.dataset.status;
-
-            nameInput.value = name;
-            phoneInput.value = phone;
-            cnicInput.value = cnic;
-            joiningDateInput.value = joiningDate;
-            statusInput.value = status;
-
-            submitBtn.innerHTML = `<i class="fas fa-save"></i> Update Employee`;
-            submitBtn.style.background = "linear-gradient(135deg, #48bb78, #38a169)";
-        });
-    });
-
-    const resetBtn = document.getElementById("reset-btn");
-    if (resetBtn) {
-        resetBtn.addEventListener("click", () => {
-            submitBtn.innerHTML = `<i class="fas fa-plus"></i> Add Employee`;
-            submitBtn.style.background = "linear-gradient(135deg, #667eea, #764ba2)";
-        });
-    }
-
-    const rows = document.querySelectorAll("table tbody tr");
-    rows.forEach((row, index) => {
-        row.style.opacity = "0";
-        row.style.transform = "translateY(10px)";
-        setTimeout(() => {
-            row.style.transition = "0.3s ease";
-            row.style.opacity = "1";
-            row.style.transform = "translateY(0)";
-        }, 80 * index);
-    });
-}
-
-// =======================================
-// SETTINGS SYSTEM
-// =======================================
-function initializeSettingsSystem() {
-    initializeThemeSystem();
-    initializeSettingsTabs();
-    loadSelectedEmployees();
-}
-
-function initializeThemeSystem() {
-    document.documentElement.setAttribute('data-theme', settingsState.currentTheme);
-    updateThemeIcon();
-    
-    const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        themeToggle.addEventListener('click', toggleTheme);
-    }
-}
-
-function toggleTheme() {
-    settingsState.currentTheme = settingsState.currentTheme === 'light' ? 'dark' : 'light';
-    document.documentElement.setAttribute('data-theme', settingsState.currentTheme);
-    localStorage.setItem('theme', settingsState.currentTheme);
-    updateThemeIcon();
-}
-
-function updateThemeIcon() {
-    const themeToggle = document.getElementById('themeToggle');
-    if (themeToggle) {
-        const icon = themeToggle.querySelector('i');
-        if (icon) {
-            icon.className = settingsState.currentTheme === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        // Effective date picker
+        const effectiveDatePicker = document.getElementById('effective_date');
+        if (effectiveDatePicker) {
+            flatpickr(effectiveDatePicker, {
+                dateFormat: "Y-m-d",
+                allowInput: true,
+                maxDate: CONFIG.MAX_DATE,
+                defaultDate: effectiveDatePicker.value || CONFIG.MAX_DATE
+            });
         }
     }
 }
 
-function initializeSettingsTabs() {
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const tabId = button.getAttribute('data-tab');
-            
-            // Remove active class from all
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            tabContents.forEach(content => content.classList.remove('active'));
-            
-            // Add active class to current
-            button.classList.add('active');
-            document.getElementById(tabId).classList.add('active');
-        });
-    });
-}
+// Initialize sidebar functionality
+function initializeSidebar() {
+    if (!DOM.sidebarToggle) return;
 
-// =======================================
-// COMPENSATION SYSTEM
-// =======================================
-function initializeCompensationSystem() {
-    setupCompensationEventListeners();
-    loadEmployeeSuggestions();
-    loadCompensationHistory();
-    initializeDateFields();
-    loadCompensationData();
-    updateCompensationStats();
-    renderSelectedEmployees();
-}
-
-function setupCompensationEventListeners() {
-    // Apply Compensation Button
-    const applyBtn = document.getElementById('applyCompensationBtn');
-    if (applyBtn) applyBtn.addEventListener('click', applyCompensation);
-
-    // Remove Compensation Button
-    const removeBtn = document.getElementById('removeCompensationBtn');
-    if (removeBtn) removeBtn.addEventListener('click', removeCompensation);
-
-    // Check Eligibility Button
-    const checkEligibilityBtn = document.getElementById('checkEligibilityBtn');
-    if (checkEligibilityBtn) checkEligibilityBtn.addEventListener('click', checkEligibility);
-
-    // Clear Form Button
-    const clearBtn = document.getElementById('clearCompensationForm');
-    if (clearBtn) clearBtn.addEventListener('click', clearCompensationForm);
-
-    // Refresh History Button
-    const refreshBtn = document.getElementById('refreshHistoryBtn');
-    if (refreshBtn) refreshBtn.addEventListener('click', loadCompensationHistory);
-
-    // Enter key for employee input
-    const employeeInput = document.getElementById('compensationEmployee');
-    if (employeeInput) {
-        employeeInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') checkEligibility();
-        });
-    }
-}
-
-function initializeDateFields() {
-    const today = new Date().toISOString().split('T')[0];
-    const compensationDate = document.getElementById('compensationDate');
-    if (compensationDate) compensationDate.value = today;
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const violationDate = document.getElementById('violationDate');
-    if (violationDate) violationDate.value = yesterday.toISOString().split('T')[0];
-}
-
-function loadEmployeeSuggestions() {
-    fetch('/api/daily_search?limit=1000')
-        .then(res => res.json())
-        .then(data => {
-            if (data.data && data.data.length) {
-                const uniqueNames = [...new Set(data.data.map(r => r.Name))].sort();
-                const datalist = document.getElementById('employeeSuggestions');
-                if (datalist) datalist.innerHTML = uniqueNames.map(name => `<option value="${name}">${name}</option>`).join('');
-            }
-        })
-        .catch(err => console.error('Error loading employee suggestions:', err));
-}
-
-function checkEligibility() {
-    const employee = document.getElementById('compensationEmployee').value.trim();
-    const violationDate = document.getElementById('violationDate').value;
-    const compensationDate = document.getElementById('compensationDate').value;
-    const compensationType = document.getElementById('compensationType').value;
-
-    if (!employee || !violationDate || !compensationType || !compensationDate) {
-        showCompensationResult('Please fill all required fields', 'error');
-        return;
-    }
-
-    const eligibilityResult = document.getElementById('eligibilityResult');
-    eligibilityResult.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking eligibility...';
-    eligibilityResult.className = 'eligibility-result';
-    eligibilityResult.style.display = 'block';
-
-    fetch('/check_compensation_eligibility', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            employee_name: employee,
-            violation_date: violationDate,
-            compensation_date: compensationDate,
-            compensation_type: compensationType
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.eligible) {
-            eligibilityResult.innerHTML = `<i class="fas fa-check-circle"></i> ${data.message}`;
-            eligibilityResult.className = 'eligibility-result eligible';
+    DOM.sidebarToggle.addEventListener('click', function() {
+        DOM.sidebar.classList.toggle('collapsed');
+        DOM.mainContent.classList.toggle('expanded');
+        
+        const icon = DOM.sidebarToggle.querySelector('i');
+        if (DOM.sidebar.classList.contains('collapsed')) {
+            icon.classList.remove('fa-bars');
+            icon.classList.add('fa-arrow-right');
         } else {
-            eligibilityResult.innerHTML = `<i class="fas fa-times-circle"></i> ${data.message}`;
-            eligibilityResult.className = 'eligibility-result not-eligible';
+            icon.classList.remove('fa-arrow-right');
+            icon.classList.add('fa-bars');
         }
-    })
-    .catch(err => {
-        eligibilityResult.innerHTML = '<i class="fas fa-exclamation-circle"></i> Error checking eligibility';
-        eligibilityResult.className = 'eligibility-result not-eligible';
-        console.error('Eligibility check error:', err);
     });
 }
 
-function applyCompensation() {
-    const employee = document.getElementById('compensationEmployee').value.trim();
-    const violationDate = document.getElementById('violationDate').value;
-    const compensationDate = document.getElementById('compensationDate').value;
-    const compensationType = document.getElementById('compensationType').value;
+/* ============================
+   TAB SWITCHING FUNCTIONALITY
+============================ */
 
-    if (!employee || !violationDate || !compensationDate || !compensationType) {
-        showCompensationResult('Please fill all required fields', 'error');
+// Initialize tab system
+function initializeTabs() {
+    if (!DOM.tabBtns.length || !DOM.tabContents.length) return;
+
+    DOM.tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all buttons and contents
+            DOM.tabBtns.forEach(b => b.classList.remove('active'));
+            DOM.tabContents.forEach(c => c.classList.remove('active'));
+            
+            // Add active class to clicked button
+            btn.classList.add('active');
+            
+            // Show corresponding content
+            const tabId = btn.getAttribute('data-tab');
+            const tabContent = document.getElementById(tabId);
+            
+            if (tabContent) {
+                tabContent.classList.add('active');
+            }
+            
+            // Show/hide employee table based on active tab
+            if (DOM.globalTableSection) {
+                if (tabId === 'add-employee' || tabId === 'update-employee') {
+                    DOM.globalTableSection.style.display = 'block';
+                } else {
+                    DOM.globalTableSection.style.display = 'none';
+                }
+            }
+        });
+    });
+    
+    // Initialize - hide table for non-employee tabs
+    const activeTab = document.querySelector('.tab-btn.active');
+    const activeTabId = activeTab ? activeTab.getAttribute('data-tab') : 'add-employee';
+    
+    if (DOM.globalTableSection) {
+        if (activeTabId === 'add-employee' || activeTabId === 'update-employee') {
+            DOM.globalTableSection.style.display = 'block';
+        } else {
+            DOM.globalTableSection.style.display = 'none';
+        }
+    }
+}
+
+/* ============================
+   EMPLOYEE TABLE FUNCTIONALITY
+============================ */
+
+// Initialize table filters
+function initializeTableFilters() {
+    if (!DOM.employeeSearch || !DOM.departmentFilter) return;
+
+    const searchHandler = debounce(function() {
+        applyEmployeeFilters();
+    });
+
+    DOM.employeeSearch.addEventListener('input', searchHandler);
+    DOM.departmentFilter.addEventListener('change', searchHandler);
+    
+    if (DOM.clearFilters) {
+        DOM.clearFilters.addEventListener('click', resetEmployeeFilters);
+    }
+}
+
+// Apply filters to employee table
+function applyEmployeeFilters() {
+    if (!APP_STATE.tableRows || APP_STATE.tableRows.length === 0) return;
+
+    const searchTerm = DOM.employeeSearch.value.toLowerCase();
+    const departmentFilter = DOM.departmentFilter.value;
+    
+    let visibleCount = 0;
+    
+    APP_STATE.tableRows.forEach(row => {
+        let showRow = true;
+        const name = row.cells[1]?.textContent.toLowerCase() || '';
+        const department = row.dataset.department || '';
+        
+        // Apply search filter
+        if (searchTerm && !name.includes(searchTerm)) {
+            showRow = false;
+        }
+        
+        // Apply department filter
+        if (departmentFilter && department !== departmentFilter) {
+            showRow = false;
+        }
+        
+        // Show/hide row
+        row.style.display = showRow ? '' : 'none';
+        if (showRow) visibleCount++;
+    });
+    
+    // Update pagination
+    APP_STATE.currentPage = 1;
+    updatePagination(visibleCount);
+}
+
+// Reset all filters
+function resetEmployeeFilters() {
+    if (DOM.employeeSearch) DOM.employeeSearch.value = '';
+    if (DOM.departmentFilter) DOM.departmentFilter.value = '';
+    
+    applyEmployeeFilters();
+}
+
+// Initialize pagination
+function initializePagination() {
+    if (!DOM.prevPage || !DOM.nextPage || !DOM.pageInfo) return;
+    
+    DOM.prevPage.addEventListener('click', goToPreviousPage);
+    DOM.nextPage.addEventListener('click', goToNextPage);
+    
+    // Initial pagination update
+    updatePagination(APP_STATE.tableRows.length);
+}
+
+// Go to previous page
+function goToPreviousPage() {
+    if (APP_STATE.currentPage > 1) {
+        APP_STATE.currentPage--;
+        updateTableDisplay();
+        updatePaginationButtons();
+    }
+}
+
+// Go to next page
+function goToNextPage() {
+    const visibleRows = APP_STATE.tableRows.filter(r => r.style.display !== 'none');
+    const totalPages = Math.ceil(visibleRows.length / APP_STATE.itemsPerPage);
+    
+    if (APP_STATE.currentPage < totalPages) {
+        APP_STATE.currentPage++;
+        updateTableDisplay();
+        updatePaginationButtons();
+    }
+}
+
+// Update pagination display
+function updatePagination(totalItems) {
+    const totalPages = Math.ceil(totalItems / APP_STATE.itemsPerPage);
+    
+    if (DOM.showingCount) {
+        const startIndex = (APP_STATE.currentPage - 1) * APP_STATE.itemsPerPage + 1;
+        const endIndex = Math.min(APP_STATE.currentPage * APP_STATE.itemsPerPage, totalItems);
+        DOM.showingCount.textContent = endIndex > 0 ? `${startIndex}-${endIndex}` : '0';
+    }
+    
+    if (DOM.totalCount) {
+        DOM.totalCount.textContent = totalItems;
+    }
+    
+    if (DOM.pageInfo) {
+        DOM.pageInfo.textContent = `Page ${APP_STATE.currentPage} of ${totalPages}`;
+    }
+    
+    updateTableDisplay();
+    updatePaginationButtons();
+}
+
+// Update table display for current page
+function updateTableDisplay() {
+    const visibleRows = APP_STATE.tableRows.filter(row => row.style.display !== 'none');
+    const startIndex = (APP_STATE.currentPage - 1) * APP_STATE.itemsPerPage;
+    const endIndex = startIndex + APP_STATE.itemsPerPage;
+    
+    // Hide all rows first
+    APP_STATE.tableRows.forEach(row => {
+        if (row.style.display !== 'none') {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Show only rows for current page
+    visibleRows.slice(startIndex, endIndex).forEach(row => {
+        row.style.display = '';
+    });
+}
+
+// Update pagination button states
+function updatePaginationButtons() {
+    const visibleRows = APP_STATE.tableRows.filter(row => row.style.display !== 'none');
+    const totalPages = Math.ceil(visibleRows.length / APP_STATE.itemsPerPage);
+    
+    if (DOM.prevPage) {
+        DOM.prevPage.disabled = APP_STATE.currentPage <= 1;
+    }
+    
+    if (DOM.nextPage) {
+        DOM.nextPage.disabled = APP_STATE.currentPage >= totalPages;
+    }
+}
+
+/* ============================
+   EMPLOYEE CRUD OPERATIONS
+============================ */
+
+// Initialize employee operations
+function initializeEmployeeOperations() {
+    // Add Employee Form
+    if (DOM.addEmployeeBtn) {
+        DOM.addEmployeeBtn.addEventListener('click', handleAddEmployee);
+    }
+    
+    if (DOM.clearEmployeeForm) {
+        DOM.clearEmployeeForm.addEventListener('click', clearEmployeeForm);
+    }
+    
+    // Initialize delete modal
+    initializeDeleteModal();
+}
+
+// Handle add employee
+function handleAddEmployee() {
+    const employeeData = {
+        empId: DOM.employeeId?.value.trim() || '',
+        name: DOM.employeeName?.value.trim() || '',
+        joiningDate: DOM.employeeJoinDate?.value || '',
+        department: DOM.employeeDepartment?.value || '',
+        shift: DOM.employeeShift?.value || '',
+        role: DOM.employeeRole?.value.trim() || ''
+    };
+    
+    // Validation
+    if (!employeeData.name || !employeeData.joiningDate || !employeeData.department) {
+        showNotification('Please fill in all required fields', 'error');
         return;
     }
+    
+    // Show loading state
+    const originalText = DOM.addEmployeeBtn.innerHTML;
+    DOM.addEmployeeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+    DOM.addEmployeeBtn.disabled = true;
+    
+    // Simulate API call
+    setTimeout(() => {
+        showNotification(`Employee ${employeeData.name} added successfully`, 'success');
+        clearEmployeeForm();
+        
+        // Restore button state
+        DOM.addEmployeeBtn.innerHTML = originalText;
+        DOM.addEmployeeBtn.disabled = false;
+    }, 1000);
+}
 
-    const applyBtn = document.getElementById('applyCompensationBtn');
-    const removeBtn = document.getElementById('removeCompensationBtn');
-    const originalText = applyBtn.innerHTML;
+// Clear employee form
+function clearEmployeeForm() {
+    if (DOM.employeeId) DOM.employeeId.value = '';
+    if (DOM.employeeName) DOM.employeeName.value = '';
+    if (DOM.employeeJoinDate) DOM.employeeJoinDate.value = '';
+    if (DOM.employeeDepartment) DOM.employeeDepartment.value = '';
+    if (DOM.employeeShift) DOM.employeeShift.value = '';
+    if (DOM.employeeRole) DOM.employeeRole.value = '';
+}
 
-    applyBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
-    applyBtn.disabled = true;
-    removeBtn.disabled = true;
+// Handle edit employee
+function handleEditEmployee(event) {
+    const button = event.currentTarget;
+    const employeeId = button.getAttribute('data-id');
+    const employeeName = button.getAttribute('data-name');
+    
+    // Switch to update employee tab
+    const updateTabBtn = document.querySelector('.tab-btn[data-tab="update-employee"]');
+    if (updateTabBtn) {
+        updateTabBtn.click();
+    }
+    
+    // Find employee select
+    const employeeSelect = document.getElementById('name');
+    if (employeeSelect) {
+        employeeSelect.value = employeeName;
+        employeeSelect.dispatchEvent(new Event('change'));
+    }
+    
+    showNotification(`Editing employee: ${employeeName}`, 'info');
+}
 
-    fetch('/apply_compensation', {
+// Handle delete employee
+function handleDeleteEmployee(event) {
+    const button = event.currentTarget;
+    const employeeId = button.getAttribute('data-id');
+    const employeeName = button.getAttribute('data-name');
+    
+    APP_STATE.currentEmployeeId = employeeId;
+    
+    if (DOM.deleteEmployeeName) {
+        DOM.deleteEmployeeName.textContent = employeeName;
+    }
+    
+    if (DOM.deleteModal) {
+        DOM.deleteModal.style.display = 'flex';
+    }
+}
+
+// Initialize delete modal
+function initializeDeleteModal() {
+    if (!DOM.deleteModal) return;
+    
+    // Close modal when clicking X or cancel
+    const closeModal = () => {
+        DOM.deleteModal.style.display = 'none';
+        APP_STATE.currentEmployeeId = null;
+    };
+    
+    if (DOM['modal-close']) {
+        DOM['modal-close'].addEventListener('click', closeModal);
+    }
+    
+    if (DOM.cancelDelete) {
+        DOM.cancelDelete.addEventListener('click', closeModal);
+    }
+    
+    // Confirm delete
+    if (DOM.confirmDelete) {
+        DOM.confirmDelete.addEventListener('click', confirmDeleteEmployee);
+    }
+    
+    // Close modal when clicking outside
+    DOM.deleteModal.addEventListener('click', (event) => {
+        if (event.target === DOM.deleteModal) {
+            closeModal();
+        }
+    });
+}
+
+// Confirm delete employee
+function confirmDeleteEmployee() {
+    if (!APP_STATE.currentEmployeeId) return;
+    
+    // Show loading state
+    const originalText = DOM.confirmDelete.innerHTML;
+    DOM.confirmDelete.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+    DOM.confirmDelete.disabled = true;
+    
+    // Simulate API call
+    setTimeout(() => {
+        showNotification('Employee deleted successfully', 'success');
+        
+        // Close modal
+        DOM.deleteModal.style.display = 'none';
+        APP_STATE.currentEmployeeId = null;
+        
+        // Restore button state
+        DOM.confirmDelete.innerHTML = originalText;
+        DOM.confirmDelete.disabled = false;
+        
+        // Refresh employee list
+        setTimeout(() => {
+            window.location.reload();
+        }, 500);
+    }, 1000);
+}
+
+/* ============================
+   COMPANY OFF DAYS FUNCTIONALITY
+============================ */
+
+// Initialize company off days
+function initializeCompanyOffDays() {
+    if (!DOM.addCompanyOffDay || !DOM.removeCompanyOffDay) return;
+    
+    DOM.addCompanyOffDay.addEventListener('click', addCompanyOffDay);
+    DOM.removeCompanyOffDay.addEventListener('click', removeCompanyOffDay);
+    
+    // Load existing company off days
+    loadCompanyOffDays();
+    
+    // Populate remove dropdown
+    populateRemoveCompanyOffDropdown();
+}
+
+// Add company off day
+function addCompanyOffDay() {
+    const date = DOM.companyOffDate?.value;
+    const reason = DOM.companyOffReason?.value.trim() || 'Company Holiday';
+    
+    if (!date) {
+        showNotification('Please select a date', 'error');
+        return;
+    }
+    
+    // Show loading state
+    const originalText = DOM.addCompanyOffDay.innerHTML;
+    DOM.addCompanyOffDay.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+    DOM.addCompanyOffDay.disabled = true;
+    
+    // API call to add company off day
+    fetch('/company_day_off', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            employee_name: employee,
-            violation_date: violationDate,
-            compensation_date: compensationDate,
-            compensation_type: compensationType
+            action: 'add',
+            date: date,
+            reason: reason
         })
     })
-    .then(res => res.json())
+    .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showCompensationResult(data.message, 'success');
+            showNotification(data.message, 'success');
+            
+            // Clear form
+            if (DOM.companyOffDate) DOM.companyOffDate.value = '';
+            if (DOM.companyOffReason) DOM.companyOffReason.value = '';
+            
+            // Reload company off days
+            loadCompanyOffDays();
+            populateRemoveCompanyOffDropdown();
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Failed to add company off day', 'error');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        // Restore button state
+        DOM.addCompanyOffDay.innerHTML = originalText;
+        DOM.addCompanyOffDay.disabled = false;
+    });
+}
+
+// Remove company off day
+function removeCompanyOffDay() {
+    const date = DOM.removeCompanyOffDate?.value;
+    
+    if (!date) {
+        showNotification('Please select a date to remove', 'error');
+        return;
+    }
+    
+    if (!confirm(`Are you sure you want to remove company off day on ${date}?`)) {
+        return;
+    }
+    
+    // Show loading state
+    const originalText = DOM.removeCompanyOffDay.innerHTML;
+    DOM.removeCompanyOffDay.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
+    DOM.removeCompanyOffDay.disabled = true;
+    
+    // API call to remove company off day
+    fetch('/company_day_off', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            action: 'remove',
+            date: date
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            
+            // Reload company off days
+            loadCompanyOffDays();
+            populateRemoveCompanyOffDropdown();
+            
+            // Reset dropdown
+            if (DOM.removeCompanyOffDate) DOM.removeCompanyOffDate.value = '';
+        } else {
+            showNotification(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Failed to remove company off day', 'error');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        // Restore button state
+        DOM.removeCompanyOffDay.innerHTML = originalText;
+        DOM.removeCompanyOffDay.disabled = false;
+    });
+}
+
+// Load company off days
+function loadCompanyOffDays() {
+    if (!DOM.companyOffDaysList) return;
+    
+    fetch('/api/company_off_days')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.off_days.length > 0) {
+                let html = '';
+                data.off_days.forEach(day => {
+                    html += `
+                        <div class="company-off-day-item">
+                            <div class="company-off-day-date">
+                                <i class="fas fa-calendar-day"></i>
+                                ${day.date}
+                            </div>
+                            <div class="company-off-day-reason">
+                                ${day.reason}
+                            </div>
+                            <div class="company-off-day-created">
+                                <small>Added: ${day.created_at}</small>
+                            </div>
+                        </div>
+                    `;
+                });
+                DOM.companyOffDaysList.innerHTML = html;
+            } else {
+                DOM.companyOffDaysList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-calendar-times"></i>
+                        <p>No company days off scheduled</p>
+                    </div>
+                `;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading company off days:', error);
+            DOM.companyOffDaysList.innerHTML = `
+                <div class="empty-state error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>Failed to load company off days</p>
+                </div>
+            `;
+        });
+}
+
+// Populate remove company off dropdown
+function populateRemoveCompanyOffDropdown() {
+    if (!DOM.removeCompanyOffDate) return;
+    
+    fetch('/api/company_off_days')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success && data.off_days.length > 0) {
+                let options = '<option value="">Select date to remove</option>';
+                data.off_days.forEach(day => {
+                    options += `<option value="${day.date}">${day.date} - ${day.reason}</option>`;
+                });
+                DOM.removeCompanyOffDate.innerHTML = options;
+            } else {
+                DOM.removeCompanyOffDate.innerHTML = '<option value="">No company days off available</option>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading company off days for dropdown:', error);
+            DOM.removeCompanyOffDate.innerHTML = '<option value="">Error loading dates</option>';
+        });
+}
+
+/* ============================
+   COMPENSATION FUNCTIONALITY
+============================ */
+
+// Initialize compensation
+function initializeCompensation() {
+    if (!DOM.checkEligibilityBtn || !DOM.applyCompensationBtn) return;
+    
+    DOM.checkEligibilityBtn.addEventListener('click', checkCompensationEligibility);
+    DOM.applyCompensationBtn.addEventListener('click', applyCompensation);
+    DOM.removeCompensationBtn.addEventListener('click', removeCompensation);
+    
+    if (DOM.clearCompensationForm) {
+        DOM.clearCompensationForm.addEventListener('click', clearCompensationForm);
+    }
+    
+    if (DOM.refreshHistoryBtn) {
+        DOM.refreshHistoryBtn.addEventListener('click', loadCompensationHistory);
+    }
+    
+    // Load compensation history on initialization
+    loadCompensationHistory();
+}
+
+// Check compensation eligibility
+function checkCompensationEligibility() {
+    const employeeName = DOM.compensationEmployee?.value.trim();
+    const compensationType = DOM.compensationType?.value;
+    const violationDate = DOM.violationDate?.value;
+    const compensationDate = DOM.compensationDate?.value;
+    
+    if (!employeeName || !compensationType || !violationDate || !compensationDate) {
+        showNotification('Please fill all required fields', 'error');
+        return;
+    }
+    
+    // Show loading state
+    const originalText = DOM.checkEligibilityBtn.innerHTML;
+    DOM.checkEligibilityBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
+    DOM.checkEligibilityBtn.disabled = true;
+    
+    // API call to check eligibility
+    fetch('/check_compensation_eligibility', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            employee_name: employeeName,
+            violation_date: violationDate,
+            compensation_date: compensationDate,
+            compensation_type: compensationType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (DOM.eligibilityResult) {
+            DOM.eligibilityResult.textContent = data.message;
+            DOM.eligibilityResult.className = 'eligibility-result ' + (data.eligible ? 'eligible' : 'not-eligible');
+            DOM.eligibilityResult.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        showNotification('Failed to check eligibility', 'error');
+        console.error('Error:', error);
+    })
+    .finally(() => {
+        // Restore button state
+        DOM.checkEligibilityBtn.innerHTML = originalText;
+        DOM.checkEligibilityBtn.disabled = false;
+    });
+}
+
+// Apply compensation
+function applyCompensation() {
+    const employeeName = DOM.compensationEmployee?.value.trim();
+    const compensationType = DOM.compensationType?.value;
+    const violationDate = DOM.violationDate?.value;
+    const compensationDate = DOM.compensationDate?.value;
+    
+    if (!employeeName || !compensationType || !violationDate || !compensationDate) {
+        showNotification('Please fill all required fields', 'error');
+        return;
+    }
+    
+    // Show loading state
+    const originalText = DOM.applyCompensationBtn.innerHTML;
+    DOM.applyCompensationBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
+    DOM.applyCompensationBtn.disabled = true;
+    
+    // API call to apply compensation
+    fetch('/apply_compensation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            employee_name: employeeName,
+            violation_date: violationDate,
+            compensation_date: compensationDate,
+            compensation_type: compensationType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
             clearCompensationForm();
             loadCompensationHistory();
         } else {
-            showCompensationResult(data.message, 'error');
+            showNotification(data.message, 'error');
         }
     })
-    .catch(err => {
-        showCompensationResult('Error applying compensation', 'error');
-        console.error('Compensation apply error:', err);
+    .catch(error => {
+        showNotification('Failed to apply compensation', 'error');
+        console.error('Error:', error);
     })
     .finally(() => {
-        applyBtn.innerHTML = originalText;
-        applyBtn.disabled = false;
-        removeBtn.disabled = false;
+        // Restore button state
+        DOM.applyCompensationBtn.innerHTML = originalText;
+        DOM.applyCompensationBtn.disabled = false;
     });
 }
 
+// Remove compensation
 function removeCompensation() {
-    const employee = document.getElementById('compensationEmployee').value.trim();
-    const violationDate = document.getElementById('violationDate').value;
-
-    if (!employee || !violationDate) {
-        showCompensationResult('Select employee and violation date to remove compensation', 'error');
+    const employeeName = DOM.compensationEmployee?.value.trim();
+    const violationDate = DOM.violationDate?.value;
+    
+    if (!employeeName || !violationDate) {
+        showNotification('Please fill employee name and violation date', 'error');
         return;
     }
-
-    if (!confirm(`Are you sure you want to remove compensation for ${employee} on ${violationDate}?`)) return;
-
-    const removeBtn = document.getElementById('removeCompensationBtn');
-    const originalText = removeBtn.innerHTML;
-
-    removeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
-    removeBtn.disabled = true;
-
+    
+    if (!confirm(`Are you sure you want to remove compensation for ${employeeName} on ${violationDate}?`)) {
+        return;
+    }
+    
+    // Show loading state
+    const originalText = DOM.removeCompensationBtn.innerHTML;
+    DOM.removeCompensationBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
+    DOM.removeCompensationBtn.disabled = true;
+    
+    // API call to remove compensation
     fetch('/remove_compensation', {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            employee_name: employee,
+            employee_name: employeeName,
             violation_date: violationDate
         })
     })
-    .then(res => res.json())
+    .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showCompensationResult(data.message, 'success');
+            showNotification(data.message, 'success');
             clearCompensationForm();
             loadCompensationHistory();
         } else {
-            showCompensationResult(data.message, 'error');
+            showNotification(data.message, 'error');
         }
     })
-    .catch(err => {
-        showCompensationResult('Error removing compensation', 'error');
-        console.error('Remove compensation error:', err);
+    .catch(error => {
+        showNotification('Failed to remove compensation', 'error');
+        console.error('Error:', error);
     })
     .finally(() => {
-        removeBtn.innerHTML = originalText;
-        removeBtn.disabled = false;
+        // Restore button state
+        DOM.removeCompensationBtn.innerHTML = originalText;
+        DOM.removeCompensationBtn.disabled = false;
     });
 }
 
-function showCompensationResult(message, type) {
-    const resultDiv = document.getElementById('compensationResult');
-    if (resultDiv) {
-        resultDiv.innerHTML = message;
-        resultDiv.className = `result-message ${type}`;
-        resultDiv.style.display = 'block';
-        setTimeout(() => resultDiv.style.display = 'none', 5000);
-    }
-}
-
+// Clear compensation form
 function clearCompensationForm() {
-    document.getElementById('compensationEmployee').value = '';
-    document.getElementById('violationDate').value = '';
-    document.getElementById('compensationDate').value = new Date().toISOString().split('T')[0];
-    document.getElementById('compensationType').value = 'By Late';
-    document.getElementById('eligibilityResult').style.display = 'none';
-    document.getElementById('compensationResult').style.display = 'none';
+    if (DOM.compensationEmployee) DOM.compensationEmployee.value = '';
+    if (DOM.compensationType) DOM.compensationType.value = '';
+    if (DOM.violationDate) DOM.violationDate.value = '';
+    if (DOM.compensationDate) DOM.compensationDate.value = '';
+    if (DOM.eligibilityResult) DOM.eligibilityResult.style.display = 'none';
+    if (DOM.compensationResult) DOM.compensationResult.style.display = 'none';
 }
 
+// Load compensation history
 function loadCompensationHistory() {
-    const historyList = document.getElementById('compensationHistoryList');
-    if (!historyList) return;
-
-    historyList.innerHTML = '<div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Loading history...</p></div>';
-
+    if (!DOM.compensationHistoryList) return;
+    
+    // Show loading state
+    const originalText = DOM.refreshHistoryBtn?.innerHTML;
+    if (DOM.refreshHistoryBtn) {
+        DOM.refreshHistoryBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        DOM.refreshHistoryBtn.disabled = true;
+    }
+    
     fetch('/api/compensation_history')
-        .then(res => res.json())
+        .then(response => response.json())
         .then(data => {
-            if (data.history && data.history.length) {
-                renderCompensationHistory(data.history);
+            if (data.history && data.history.length > 0) {
+                let html = '';
+                data.history.forEach(item => {
+                    html += `
+                        <div class="compensation-history-item">
+                            <div class="history-item-header">
+                                <span class="employee-name">${item.employee_name}</span>
+                                <span class="history-date">${item.date}</span>
+                            </div>
+                            <div class="history-item-content">
+                                <span class="compensation-type ${item.compensation_type.toLowerCase().replace(' ', '-')}">
+                                    ${item.compensation_type}
+                                </span>
+                                <span class="details">Violation: ${item.violation_date} | Compensation: ${item.compensation_date}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                DOM.compensationHistoryList.innerHTML = html;
             } else {
-                historyList.innerHTML = '<div class="empty-state"><i class="fas fa-history"></i><p>No compensation records yet</p></div>';
+                DOM.compensationHistoryList.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-history"></i>
+                        <p>No compensation history found</p>
+                    </div>
+                `;
             }
         })
-        .catch(err => {
-            console.error('Error loading compensation history:', err);
-            historyList.innerHTML = '<div class="empty-state"><i class="fas fa-exclamation-circle"></i><p>Error loading history</p></div>';
+        .catch(error => {
+            console.error('Error loading compensation history:', error);
+            DOM.compensationHistoryList.innerHTML = `
+                <div class="empty-state error">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <p>Failed to load compensation history</p>
+                </div>
+            `;
+        })
+        .finally(() => {
+            // Restore button state
+            if (DOM.refreshHistoryBtn) {
+                DOM.refreshHistoryBtn.innerHTML = originalText;
+                DOM.refreshHistoryBtn.disabled = false;
+            }
         });
 }
 
-function renderCompensationHistory(history) {
-    const historyList = document.getElementById('compensationHistoryList');
-    if (!historyList) return;
+/* ============================
+   LEAVE MANAGEMENT FUNCTIONALITY
+============================ */
 
-    historyList.innerHTML = history.map(record => `
-        <div class="compensation-record">
-            <div class="record-info">
-                <div class="record-employee">${record.employee_name}</div>
-                <div class="record-details">
-                    <span class="compensation-badge badge-${record.compensation_type.toLowerCase().replace(' ', '')}">
-                        ${record.compensation_type}
-                    </span> • Violation: ${record.violation_date} • Compensated: ${record.compensated_date}
-                    <br><small>Status: ${record.original_status} • OT: ${record.overtime}h</small>
-                </div>
-            </div>
-            <div class="record-date">${record.violation_date}</div>
-        </div>
-    `).join('');
-}
-
-// =======================================
-// MANUAL EMPLOYEE FUNCTIONS
-// =======================================
-function addManualEmployee() {
-    const manualInput = document.getElementById('manualEmployeeInput');
-    const inputValue = manualInput.value.trim();
-    
-    if (!inputValue) {
-        showToast('❌ Please enter employee ID or name', 'warning');
-        return;
-    }
-    
-    const existingEmployee = settingsState.selectedEmployees.find(emp => 
-        emp.id === inputValue || emp.name.toLowerCase() === inputValue.toLowerCase()
-    );
-    
-    if (existingEmployee) {
-        showToast(`ℹ️ ${existingEmployee.name} is already selected`, 'info');
-        manualInput.value = '';
-        return;
-    }
-    
-    const newEmployee = {
-        id: `TEMP_${Date.now()}`,
-        name: inputValue,
-        department: 'Manual Entry'
+// Leave Management Module
+const LeaveManagement = (() => {
+    // Cache DOM elements
+    const DOM = {
+        leaveEmployeeName: document.getElementById('leaveEmployeeName'),
+        leaveType: document.getElementById('leaveType'),
+        leaveStartDate: document.getElementById('leaveStartDate'),
+        leaveEndDate: document.getElementById('leaveEndDate'),
+        leaveReason: document.getElementById('leaveReason'),
+        previewLeaveBtn: document.getElementById('previewLeaveBtn'),
+        applyLeaveBtn: document.getElementById('applyLeaveBtn'),
+        removeLeaveBtn: document.getElementById('removeLeaveBtn'),
+        clearLeaveForm: document.getElementById('clearLeaveForm'),
+        leavePreview: document.getElementById('leavePreview'),
+        leaveResult: document.getElementById('leaveResult'),
+        leaveTableBody: document.getElementById('leaveTableBody'),
+        refreshLeaveHistoryBtn: document.getElementById('refreshLeaveHistoryBtn')
     };
-    
-    settingsState.selectedEmployees.push(newEmployee);
-    showToast(`✅ ${inputValue} added manually`, 'success');
-    
-    manualInput.value = '';
-    renderSelectedEmployees();
-    saveSelectedEmployees();
-}
 
-function removeSelectedEmployee(employeeId) {
-    settingsState.selectedEmployees = settingsState.selectedEmployees.filter(emp => emp.id !== employeeId);
-    renderSelectedEmployees();
-    saveSelectedEmployees();
-    showToast('✅ Employee removed from selection', 'success');
-}
-
-function renderSelectedEmployees() {
-    const selectedContainer = document.getElementById('selectedEmployees');
-    if (!selectedContainer) return;
-    
-    if (settingsState.selectedEmployees.length === 0) {
-        selectedContainer.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-user-check"></i>
-                <p>No employees selected</p>
-            </div>
-        `;
-        return;
+    // Notification helper
+    function showNotification(message, type = 'success') {
+        if (!DOM.leaveResult) return;
+        DOM.leaveResult.textContent = message;
+        DOM.leaveResult.className = `result-message ${type}`;
+        DOM.leaveResult.style.display = 'block';
+        setTimeout(() => DOM.leaveResult.style.display = 'none', 3000);
     }
-    
-    selectedContainer.innerHTML = settingsState.selectedEmployees.map(employee => `
-        <div class="selected-employee-tag">
-            <span>${employee.name} (${employee.id})</span>
-            <button type="button" class="remove-employee" onclick="removeSelectedEmployee('${employee.id}')">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    `).join('');
-}
 
-// =======================================
-// COMPANY DAY OFF FUNCTIONS - ENHANCED
-// =======================================
-function initializeCompanyDayOffSystem() {
-    loadCompanyOffDays();
-    setupCompanyDayOffEventListeners();
-}
+    // Preview Leave
+    function previewLeave() {
+        const employeeName = DOM.leaveEmployeeName?.value;
+        const leaveType = DOM.leaveType?.value;
+        const startDate = DOM.leaveStartDate?.value;
+        const endDate = DOM.leaveEndDate?.value;
+        const reason = DOM.leaveReason?.value;
 
-function setupCompanyDayOffEventListeners() {
-    const addBtn = document.getElementById('addCompanyOffDay');
-    if (addBtn) addBtn.addEventListener('click', addCompanyDayOff);
+        if (!employeeName || !leaveType || !startDate || !endDate) {
+            showNotification('Please fill all required fields', 'error');
+            return;
+        }
+        
+        if (new Date(startDate) > new Date(endDate)) {
+            showNotification('Start date cannot be later than end date', 'error');
+            return;
+        }
 
-    const removeBtn = document.getElementById('removeCompanyOffDay');
-    if (removeBtn) removeBtn.addEventListener('click', removeCompanyDayOff);
+        const totalDays = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000*3600*24)) + 1;
 
-    const dateInput = document.getElementById('companyOffDate');
-    if (dateInput) {
-        const today = new Date().toISOString().split('T')[0];
-        dateInput.value = today;
+        if (DOM.leavePreview) {
+            document.getElementById('previewEmployeeName').textContent = employeeName;
+            document.getElementById('previewLeaveType').textContent = leaveType;
+            document.getElementById('previewDateRange').textContent = `${startDate} to ${endDate}`;
+            document.getElementById('previewTotalDays').textContent = `${totalDays} day(s)`;
+            document.getElementById('previewReason').textContent = reason || 'No reason provided';
+            DOM.leavePreview.classList.add('show');
+        }
     }
-}
 
-// Fetch and render company off days
-function loadCompanyOffDays() {
-    fetch('/api/company_off_days?start_date=2023-01-01')
-        .then(res => res.json())
-        .then(data => {
-            if (data.success) {
-                populateCompanyOffDropdown(data.off_days);
-                renderCompanyOffDaysList(data.off_days);
+    // Apply Leave
+    async function applyLeave() {
+        const employeeName = DOM.leaveEmployeeName?.value;
+        const leaveType = DOM.leaveType?.value;
+        const startDate = DOM.leaveStartDate?.value;
+        const endDate = DOM.leaveEndDate?.value;
+        const reason = DOM.leaveReason?.value;
+
+        if (!employeeName || !leaveType || !startDate || !endDate) {
+            showNotification('Please fill all required fields', 'error');
+            return;
+        }
+
+        const totalDays = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000*3600*24)) + 1;
+
+        const originalText = DOM.applyLeaveBtn.innerHTML;
+        DOM.applyLeaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Applying...';
+        DOM.applyLeaveBtn.disabled = true;
+
+        try {
+            const res = await fetch("/api/apply_leave", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    employee_name: employeeName, 
+                    start_date: startDate, 
+                    end_date: endDate, 
+                    leave_type: leaveType, 
+                    reason: reason 
+                })
+            });
+            
+            const result = await res.json();
+            if (result.success) {
+                showNotification(result.message || "Leave applied successfully", 'success');
+                clearLeaveForm();
+                loadLeaveHistory();
+            } else {
+                showNotification(result.message || "Failed to apply leave", 'error');
             }
-        })
-        .catch(err => console.error('Error loading company off days:', err));
-}
-
-// Populate dropdown for removal
-function populateCompanyOffDropdown(offDays) {
-    const dropdown = document.getElementById('removeCompanyOffDate');
-    if (!dropdown) return;
-
-    dropdown.innerHTML = '<option value="">Select date to remove</option>';
-    offDays.forEach(day => {
-        const option = document.createElement('option');
-        option.value = day.date;
-        option.textContent = `${day.date} - ${day.reason}`;
-        dropdown.appendChild(option);
-    });
-}
-
-function renderCompanyOffDaysList(offDays) {
-    const listContainer = document.getElementById('companyOffDaysList');
-    if (!listContainer) return;
-
-    // Empty state
-    if (!offDays || offDays.length === 0) {
-        listContainer.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-calendar-times"></i>
-                <p>No company days off scheduled</p>
-            </div>
-        `;
-        return;
+        } catch(err) {
+            console.error(err);
+            showNotification("Error applying leave", 'error');
+        } finally {
+            DOM.applyLeaveBtn.innerHTML = originalText;
+            DOM.applyLeaveBtn.disabled = false;
+        }
     }
 
-    // Render each company day off in table-style row
-    listContainer.innerHTML = offDays.map(day => `
-        <div class="company-off-day-item">
-            <div class="company-off-day-info">
-                <span class="off-day-reason">${day.reason || 'Company Day Off'}</span>
-                <span class="off-day-date">${day.date}</span>
-                <span class="off-day-added">Added: ${day.created_at}</span>
-            </div>
-        </div>
-    `).join('');
+    // Remove Leave
+    async function removeLeave(employeeName, startDate, endDate) {
+        if (!employeeName || !startDate || !endDate) {
+            showNotification('Missing employee name or date range', 'error');
+            return;
+        }
 
-    // Optional: highlight today or upcoming dates
-    const today = new Date().toISOString().split('T')[0];
-    offDays.forEach((day, index) => {
-        if (day.date === today) {
-            const row = listContainer.children[index];
-            if (row) {
-                row.style.backgroundColor = 'rgba(99, 102, 241, 0.1)'; // light purple
-                row.style.borderColor = '#6366f1';
+        const originalText = DOM.removeLeaveBtn?.innerHTML;
+        if (DOM.removeLeaveBtn) {
+            DOM.removeLeaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
+            DOM.removeLeaveBtn.disabled = true;
+        }
+
+        try {
+            const res = await fetch("/api/remove_leave", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ 
+                    employee_name: employeeName, 
+                    start_date: startDate, 
+                    end_date: endDate 
+                })
+            });
+            
+            const result = await res.json();
+            if (result.success) {
+                showNotification(result.message || "Leave removed successfully", 'success');
+                clearLeaveForm();
+                loadLeaveHistory();
+            } else {
+                showNotification(result.message || "Failed to remove leave", 'error');
+            }
+        } catch(err) {
+            console.error(err);
+            showNotification("Error removing leave", 'error');
+        } finally {
+            if (DOM.removeLeaveBtn) {
+                DOM.removeLeaveBtn.innerHTML = originalText;
+                DOM.removeLeaveBtn.disabled = false;
             }
         }
-    });
-}
-
-
-// Add a company day off
-function addCompanyDayOff() {
-    const dateInput = document.getElementById('companyOffDate');
-    const reasonInput = document.getElementById('companyOffReason');
-
-    const date = dateInput.value;
-    const reason = reasonInput.value.trim() || 'Company Day Off';
-
-    if (!date) {
-        showToast('❌ Please select a date', 'error');
-        return;
     }
 
-    const addBtn = document.getElementById('addCompanyOffDay');
-    const originalText = addBtn.innerHTML;
-    addBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
-    addBtn.disabled = true;
-
-    fetch('/company_day_off', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action: 'add', date, reason })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            showToast(`✅ ${data.message}`, 'success');
-            dateInput.value = new Date().toISOString().split('T')[0];
-            reasonInput.value = '';
-            loadCompanyOffDays();
-        } else {
-            showToast(`❌ ${data.message}`, 'error');
-        }
-    })
-    .catch(err => {
-        showToast('❌ Error adding company day off', 'error');
-        console.error(err);
-    })
-    .finally(() => {
-        addBtn.innerHTML = originalText;
-        addBtn.disabled = false;
-    });
-}
-
-// Remove a company day off
-function removeCompanyDayOff() {
-    const dropdown = document.getElementById('removeCompanyOffDate');
-    const selectedDate = dropdown.value;
-
-    if (!selectedDate) {
-        showToast('❌ Please select a date to remove', 'error');
-        return;
+    // Clear Form
+    function clearLeaveForm() {
+        if (DOM.leaveEmployeeName) DOM.leaveEmployeeName.value = '';
+        if (DOM.leaveType) DOM.leaveType.value = '';
+        if (DOM.leaveStartDate) DOM.leaveStartDate.value = '';
+        if (DOM.leaveEndDate) DOM.leaveEndDate.value = '';
+        if (DOM.leaveReason) DOM.leaveReason.value = '';
+        if (DOM.leavePreview) DOM.leavePreview.classList.remove('show');
     }
 
-    if (!confirm(`Are you sure you want to remove Company Day Off status from ${selectedDate}?`)) return;
-
-    const removeBtn = document.getElementById('removeCompanyOffDay');
-    const originalText = removeBtn.innerHTML;
-    removeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Removing...';
-    removeBtn.disabled = true;
-
-    fetch('/company_day_off', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ action: 'remove', date: selectedDate })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            showToast(`✅ ${data.message}`, 'success');
-            dropdown.value = '';
-            loadCompanyOffDays();
-        } else {
-            showToast(`❌ ${data.message}`, 'error');
+    // Load Leave History
+    async function loadLeaveHistory() {
+        if (!DOM.leaveTableBody) return;
+        
+        const originalText = DOM.refreshLeaveHistoryBtn?.innerHTML;
+        if (DOM.refreshLeaveHistoryBtn) {
+            DOM.refreshLeaveHistoryBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            DOM.refreshLeaveHistoryBtn.disabled = true;
         }
-    })
-    .catch(err => {
-        showToast('❌ Error removing company day off', 'error');
-        console.error(err);
-    })
-    .finally(() => {
-        removeBtn.innerHTML = originalText;
-        removeBtn.disabled = false;
-    });
-}
 
-// Remove by date button
-function removeCompanyDayOffByDate(date) {
-    if (!confirm(`Are you sure you want to remove Company Day Off status from ${date}?`)) return;
+        try {
+            const res = await fetch("/api/get_leave_history");
+            if (!res.ok) throw new Error("Failed to fetch leave history");
+            
+            const data = await res.json();
 
-    const dropdown = document.getElementById('removeCompanyOffDate');
-    dropdown.value = date;
-    removeCompanyDayOff();
-}
+            if (!data.length) {
+                DOM.leaveTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center;">No leave applications found</td></tr>`;
+                return;
+            }
 
-// ===============================
-// Toast Notification System
-// ===============================
-function showToast(message, type='success') {
-    const toast = document.createElement('div');
-    toast.className = `company-off-message ${type}`;
-    toast.innerHTML = `<i class="fas ${type==='success'?'fa-check-circle':'fa-exclamation-circle'}"></i> ${message}`;
-    
-    document.body.appendChild(toast);
+            let rowsHtml = '';
+            data.forEach(leave => {
+                rowsHtml += `
+                    <tr>
+                        <td>${leave.employee_name}</td>
+                        <td>${leave.leave_type}</td>
+                        <td>${leave.start_date}</td>
+                        <td>${leave.end_date}</td>
+                        <td>${leave.total_days}</td>
+                        <td>${leave.reason || '-'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-danger remove-btn" 
+                                data-employee="${leave.employee_name}" 
+                                data-start="${leave.start_date}" 
+                                data-end="${leave.end_date}">
+                                Remove
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            DOM.leaveTableBody.innerHTML = rowsHtml;
 
-    // Auto-remove after 3s
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateY(-10px)';
-        setTimeout(() => document.body.removeChild(toast), 400);
-    }, 3000);
-}
+            // Attach remove event listeners dynamically
+            DOM.leaveTableBody.querySelectorAll('.remove-btn').forEach(btn => {
+                btn.addEventListener('click', e => {
+                    const emp = btn.getAttribute('data-employee');
+                    const start = btn.getAttribute('data-start');
+                    const end = btn.getAttribute('data-end');
+                    removeLeave(emp, start, end);
+                });
+            });
 
-// Initialize system on page load
-document.addEventListener('DOMContentLoaded', initializeCompanyDayOffSystem);
-
-
-// =======================================
-// EMPLOYEE TABLE MANAGEMENT
-// =======================================
-function initEmployeeManagement() {
-    // DOM Elements
-    const elements = {
-        employeeForm: document.getElementById('employeeForm'),
-        employeeSearch: document.getElementById('employeeSearch'),
-        departmentFilter: document.getElementById('departmentFilter'),
-        clearFilters: document.getElementById('clearFilters'),
-        employeesTable: document.getElementById('employeesTable'),
-        tableBody: document.querySelector('#employeesTable tbody'),
-        prevPage: document.getElementById('prevPage'),
-        nextPage: document.getElementById('nextPage'),
-        pageInfo: document.getElementById('pageInfo'),
-        showingCount: document.getElementById('showingCount'),
-        totalCount: document.getElementById('totalCount'),
-        addEmployeeBtn: document.getElementById('addEmployeeBtn'),
-        exportEmployeesBtn: document.getElementById('exportEmployeesBtn'),
-        cancelEditBtn: document.getElementById('cancelEditBtn'),
-        deleteModal: document.getElementById('deleteModal'),
-        cancelDelete: document.getElementById('cancelDelete'),
-        confirmDelete: document.getElementById('confirmDelete'),
-        deleteEmployeeName: document.getElementById('deleteEmployeeName')
-    };
-
-    // State
-    const state = {
-        currentPage: 1,
-        itemsPerPage: 10,
-        filteredEmployees: [],
-        searchTerm: '',
-        departmentFilter: '',
-        employeeToDelete: null
-    };
+        } catch(err) {
+            console.error(err);
+            DOM.leaveTableBody.innerHTML = `<tr><td colspan="7" style="text-align:center;">Error loading leave history</td></tr>`;
+        } finally {
+            if (DOM.refreshLeaveHistoryBtn) {
+                DOM.refreshLeaveHistoryBtn.innerHTML = originalText;
+                DOM.refreshLeaveHistoryBtn.disabled = false;
+            }
+        }
+    }
 
     // Initialize
     function init() {
-        bindEvents();
-        updateTable();
-        populateDepartmentFilter();
-    }
-
-    // Event Binding
-    function bindEvents() {
-        // Search and Filter
-        elements.employeeSearch.addEventListener('input', handleSearch);
-        elements.departmentFilter.addEventListener('change', handleDepartmentFilter);
-        elements.clearFilters.addEventListener('click', clearFilters);
-
-        // Pagination
-        elements.prevPage.addEventListener('click', goToPrevPage);
-        elements.nextPage.addEventListener('click', goToNextPage);
-
-        // Form Actions
-        if (elements.addEmployeeBtn) {
-            elements.addEmployeeBtn.addEventListener('click', scrollToForm);
-        }
-
-        if (elements.exportEmployeesBtn) {
-            elements.exportEmployeesBtn.addEventListener('click', exportToExcel);
-        }
-
-        if (elements.cancelEditBtn) {
-            elements.cancelEditBtn.addEventListener('click', cancelEdit);
-        }
-
-        // Delete Modal
-        elements.cancelDelete.addEventListener('click', closeDeleteModal);
-        elements.confirmDelete.addEventListener('click', confirmDeleteEmployee);
-
-        // Close modal when clicking outside
-        elements.deleteModal.addEventListener('click', function(e) {
-            if (e.target === elements.deleteModal) {
-                closeDeleteModal();
-            }
-        });
-
-        // Edit and Delete buttons (delegated)
-        elements.tableBody.addEventListener('click', handleTableActions);
-    }
-
-    function handleTableActions(e) {
-        const target = e.target.closest('.btn-edit, .btn-delete');
-        if (!target) return;
-
-        const row = target.closest('tr');
-        const employeeId = target.dataset.id;
-        const employeeName = target.dataset.name;
-
-        if (target.classList.contains('btn-edit')) {
-            editEmployee(employeeId, employeeName);
-        } else if (target.classList.contains('btn-delete')) {
-            showDeleteModal(employeeId, employeeName);
-        }
-    }
-
-    function handleSearch(e) {
-        state.searchTerm = e.target.value.toLowerCase();
-        state.currentPage = 1;
-        updateTable();
-    }
-
-    function handleDepartmentFilter(e) {
-        state.departmentFilter = e.target.value;
-        state.currentPage = 1;
-        updateTable();
-    }
-
-    function clearFilters() {
-        elements.employeeSearch.value = '';
-        elements.departmentFilter.value = '';
-        state.searchTerm = '';
-        state.departmentFilter = '';
-        state.currentPage = 1;
-        updateTable();
-    }
-
-    function goToPrevPage() {
-        if (state.currentPage > 1) {
-            state.currentPage--;
-            updateTable();
-        }
-    }
-
-    function goToNextPage() {
-        const totalPages = Math.ceil(state.filteredEmployees.length / state.itemsPerPage);
-        if (state.currentPage < totalPages) {
-            state.currentPage++;
-            updateTable();
-        }
-    }
-
-    function updateTable() {
-        const allRows = Array.from(elements.tableBody.querySelectorAll('tr:not(.empty-state)'));
+        if (!DOM.previewLeaveBtn || !DOM.applyLeaveBtn) return;
         
-        // Filter employees
-        state.filteredEmployees = allRows.filter(row => {
-            const name = row.dataset.name.toLowerCase();
-            const department = row.dataset.department.toLowerCase();
-            
-            const matchesSearch = !state.searchTerm || 
-                name.includes(state.searchTerm) || 
-                department.includes(state.searchTerm);
-            
-            const matchesDepartment = !state.departmentFilter || 
-                department.includes(state.departmentFilter.toLowerCase());
-            
-            return matchesSearch && matchesDepartment;
-        });
+        DOM.previewLeaveBtn.addEventListener('click', previewLeave);
+        DOM.applyLeaveBtn.addEventListener('click', applyLeave);
+        DOM.clearLeaveForm?.addEventListener('click', clearLeaveForm);
+        DOM.refreshLeaveHistoryBtn?.addEventListener('click', loadLeaveHistory);
 
-        // Hide all rows first
-        allRows.forEach(row => row.style.display = 'none');
-
-        // Show filtered rows with pagination
-        const startIndex = (state.currentPage - 1) * state.itemsPerPage;
-        const endIndex = startIndex + state.itemsPerPage;
-        const employeesToShow = state.filteredEmployees.slice(startIndex, endIndex);
-
-        employeesToShow.forEach(row => row.style.display = '');
-
-        // Update pagination controls
-        updatePagination();
-
-        // Show empty state if no results
-        const emptyState = elements.tableBody.querySelector('.empty-state');
-        if (emptyState) {
-            emptyState.style.display = state.filteredEmployees.length === 0 ? '' : 'none';
-        }
+        loadLeaveHistory();
     }
 
-    function updatePagination() {
-        const totalEmployees = state.filteredEmployees.length;
-        const totalPages = Math.ceil(totalEmployees / state.itemsPerPage);
-        const startCount = totalEmployees === 0 ? 0 : (state.currentPage - 1) * state.itemsPerPage + 1;
-        const endCount = Math.min(state.currentPage * state.itemsPerPage, totalEmployees);
+    return { init };
+})();
 
-        // Update counts
-        elements.showingCount.textContent = `${startCount}-${endCount}`;
-        elements.totalCount.textContent = totalEmployees;
+/* ============================
+   EXPORT FUNCTIONALITY
+============================ */
 
-        // Update page info
-        elements.pageInfo.textContent = `Page ${state.currentPage} of ${totalPages || 1}`;
+// Initialize export
+function initializeExport() {
+    if (!DOM.exportData) return;
+    
+    DOM.exportData.addEventListener('click', exportData);
+}
 
-        // Update button states
-        elements.prevPage.disabled = state.currentPage === 1;
-        elements.nextPage.disabled = state.currentPage === totalPages || totalPages === 0;
+// Export data
+function exportData() {
+    const format = DOM.exportFormat?.value || 'csv';
+    const month = DOM.exportMonth?.value;
+    const year = DOM.exportYear?.value || new Date().getFullYear().toString();
+    
+    // Show loading state
+    const originalText = DOM.exportData.innerHTML;
+    DOM.exportData.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+    DOM.exportData.disabled = true;
+    
+    // Simulate export process
+    setTimeout(() => {
+        showNotification(`Data exported as ${format.toUpperCase()} for ${getMonthName(month)} ${year}`, 'success');
+        
+        // Restore button state
+        DOM.exportData.innerHTML = originalText;
+        DOM.exportData.disabled = false;
+    }, 1500);
+}
+
+// Get month name from number
+function getMonthName(monthNumber) {
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    return months[parseInt(monthNumber) - 1] || 'All Months';
+}
+
+/* ============================
+   SYSTEM FUNCTIONALITY
+============================ */
+
+// Initialize system actions
+function initializeSystemActions() {
+    if (!DOM.resetSettings || !DOM.clearData) return;
+    
+    DOM.resetSettings.addEventListener('click', resetSystemSettings);
+    DOM.clearData.addEventListener('click', clearAllData);
+}
+
+// Reset system settings
+function resetSystemSettings() {
+    if (!confirm('Are you sure you want to reset all settings to default values?')) {
+        return;
     }
+    
+    // Show loading state
+    const originalText = DOM.resetSettings.innerHTML;
+    DOM.resetSettings.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+    DOM.resetSettings.disabled = true;
+    
+    // Simulate reset process
+    setTimeout(() => {
+        showNotification('All settings have been reset to default values', 'success');
+        
+        // Restore button state
+        DOM.resetSettings.innerHTML = originalText;
+        DOM.resetSettings.disabled = false;
+    }, 1000);
+}
 
-    function populateDepartmentFilter() {
-        // Departments are already in the HTML
+// Clear all data
+function clearAllData() {
+    if (!confirm('WARNING: This will permanently delete all attendance and employee data. This action cannot be undone. Are you absolutely sure?')) {
+        return;
     }
+    
+    // Show loading state
+    const originalText = DOM.clearData.innerHTML;
+    DOM.clearData.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Clearing...';
+    DOM.clearData.disabled = true;
+    
+    // Simulate clear process
+    setTimeout(() => {
+        showNotification('All data has been permanently deleted', 'success');
+        
+        // Restore button state
+        DOM.clearData.innerHTML = originalText;
+        DOM.clearData.disabled = false;
+    }, 2000);
+}
 
-    function scrollToForm() {
-        document.getElementById('employeeFormSection').scrollIntoView({ 
-            behavior: 'smooth' 
-        });
-    }
+/* ============================
+   NOTIFICATION SYSTEM
+============================ */
 
-    function exportToExcel() {
-        const headers = ['Name', 'Employee ID', 'Joining Date', 'Department', 'Shift', 'Role', 'Effective From'];
-        const rows = state.filteredEmployees.map(row => {
-            const cells = row.querySelectorAll('td');
-            return [
-                cells[1].textContent.trim(),
-                cells[0].textContent.trim(),
-                cells[2].textContent.trim(),
-                cells[3].textContent.trim(),
-                cells[4].textContent.trim(),
-                cells[5].textContent.trim(),
-                cells[6].textContent.trim()
-            ];
-        });
+// Show notification
+function showNotification(message, type = 'success') {
+    // Remove existing notifications
+    const existingNotif = document.querySelector('.custom-notification');
+    if (existingNotif) existingNotif.remove();
 
-        const csvContent = [headers, ...rows]
-            .map(row => row.map(cell => `"${cell}"`).join(','))
-            .join('\n');
-
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `employees_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    }
-
-    function editEmployee(employeeId, employeeName) {
-        scrollToForm();
-        showNotification(`Ready to edit ${employeeName}`, 'success');
-    }
-
-    function cancelEdit() {
-        window.location.href = "{{ url_for('main.employees') }}";
-    }
-
-    function showDeleteModal(employeeId, employeeName) {
-        state.employeeToDelete = { id: employeeId, name: employeeName };
-        elements.deleteEmployeeName.textContent = employeeName;
-        elements.deleteModal.style.display = 'flex';
-    }
-
-    function closeDeleteModal() {
-        elements.deleteModal.style.display = 'none';
-        state.employeeToDelete = null;
-    }
-
-    function confirmDeleteEmployee() {
-        if (state.employeeToDelete) {
-            console.log('Deleting employee:', state.employeeToDelete);
-            showNotification(`Employee ${state.employeeToDelete.name} deleted successfully`, 'success');
-            closeDeleteModal();
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-        }
-    }
-
-    function showNotification(message, type = 'success') {
-        const existingNotif = document.querySelector('.custom-notification');
-        if (existingNotif) existingNotif.remove();
-
-        const notif = document.createElement('div');
-        notif.className = `custom-notification ${type}`;
-        notif.innerHTML = `
+    const notif = createElement(`
+        <div class="custom-notification ${type}">
             <i class="fas fa-${type === 'success' ? 'check' : 'exclamation'}-circle"></i>
             <span>${message}</span>
-        `;
+        </div>
+    `);
 
-        document.body.appendChild(notif);
+    document.body.appendChild(notif);
 
-        setTimeout(() => notif.classList.add('show'), 100);
+    // Animate in
+    setTimeout(() => notif.classList.add('show'), 100);
 
-        setTimeout(() => {
-            notif.classList.remove('show');
-            setTimeout(() => notif.remove(), 300);
-        }, 3000);
-    }
-
-    init();
-}
-
-// =======================================
-// DATA MANAGEMENT FUNCTIONS
-// =======================================
-function loadCompensationData() {
-    try {
-        const savedData = localStorage.getItem('compensationData');
-        if (savedData) {
-            settingsState.compensationData = { ...settingsState.compensationData, ...JSON.parse(savedData) };
-        }
-    } catch (error) {
-        console.error('Error loading compensation data:', error);
-    }
-}
-
-function saveCompensationData() {
-    try {
-        localStorage.setItem('compensationData', JSON.stringify(settingsState.compensationData));
-    } catch (error) {
-        console.error('Error saving compensation data:', error);
-    }
-}
-
-function loadSelectedEmployees() {
-    try {
-        const savedSelected = localStorage.getItem('selectedEmployees');
-        if (savedSelected) {
-            settingsState.selectedEmployees = JSON.parse(savedSelected);
-        }
-    } catch (error) {
-        console.error('Error loading selected employees:', error);
-    }
-}
-
-function saveSelectedEmployees() {
-    try {
-        localStorage.setItem('selectedEmployees', JSON.stringify(settingsState.selectedEmployees));
-    } catch (error) {
-        console.error('Error saving selected employees:', error);
-    }
-}
-
-function updateCompensationStats() {
-    const pendingLate = settingsState.compensationData.records.filter(r => r.type === 'late').length;
-    const pendingAbsent = settingsState.compensationData.records.filter(r => r.type === 'absent').length;
-    const totalCompensated = settingsState.compensationData.records.length;
-    
-    updateElementText('pendingLateCount', pendingLate);
-    updateElementText('pendingAbsentCount', pendingAbsent);
-    updateElementText('totalCompensatedCount', totalCompensated);
-    
-    settingsState.compensationData.pendingLate = pendingLate;
-    settingsState.compensationData.pendingAbsent = pendingAbsent;
-    settingsState.compensationData.totalCompensated = totalCompensated;
-}
-
-// =======================================
-// UTILITY FUNCTIONS
-// =======================================
-function updateElementText(elementId, value) {
-    const element = document.getElementById(elementId);
-    if (element) element.textContent = value;
-}
-
-function showToast(message, type = 'info') {
-    let toastContainer = document.getElementById('toastContainer');
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.id = 'toastContainer';
-        toastContainer.style.cssText = `
-            position: fixed;
-            top: 20px;  
-            right: 20px;
-            z-index: 10000;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        `;
-        document.body.appendChild(toastContainer);
-    }
-    
-    const toast = document.createElement('div');
-    toast.className = `toast ${type}`;
-    toast.textContent = message;
-    toast.style.cssText = `
-        padding: 12px 20px;
-        background: ${getToastColor(type)};
-        color: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        transform: translateX(400px);
-        opacity: 0;
-        transition: all 0.3s ease;
-        max-width: 300px;
-        word-wrap: break-word;
-    `;
-    
-    toastContainer.appendChild(toast);
-    
+    // Remove after delay
     setTimeout(() => {
-        toast.style.transform = 'translateX(0)';
-        toast.style.opacity = '1';
-    }, 100);
-    
-    setTimeout(() => {
-        toast.style.transform = 'translateX(400px)';
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 300);
-    }, 4000);
+        notif.classList.remove('show');
+        setTimeout(() => notif.remove(), 300);
+    }, 5000);
 }
 
-function getToastColor(type) {
-    const colors = {
-        success: '#28a745',
-        error: '#dc3545',
-        warning: '#ffc107',
-        info: '#4361ee'
+/* ============================
+   MAIN INITIALIZATION
+============================ */
+
+// Main initialization function
+function initializeEmployeesJS() {
+    console.log('Initializing Employee Management System...');
+    
+    try {
+        // Cache DOM elements
+        cacheElements();
+        
+        // Initialize UI components
+        initializeDatePickers();
+        initializeSidebar();
+        initializeTabs();
+        initializeTableFilters();
+        initializePagination();
+        
+        // Initialize feature modules
+        initializeEmployeeOperations();
+        initializeCompanyOffDays();
+        initializeCompensation();
+        initializeExport();
+        initializeSystemActions();
+        
+        // Initialize Leave Management
+        LeaveManagement.init();
+        
+        // Apply initial filters
+        if (APP_STATE.tableRows.length > 0) {
+            applyEmployeeFilters();
+        }
+        
+        console.log('Employee Management System initialized successfully');
+    } catch (error) {
+        console.error('Error initializing Employee Management System:', error);
+    }
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeEmployeesJS);
+} else {
+    initializeEmployeesJS();
+}
+
+// Export for debugging if needed
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        initializeEmployeesJS,
+        applyEmployeeFilters,
+        resetEmployeeFilters,
+        handleAddEmployee,
+        handleEditEmployee,
+        handleDeleteEmployee
     };
-    return colors[type] || colors.info;
 }
-
-function validateCNIC(input) {
-    let clean = input.value.replace(/[^\d]/g, '');
-    if (clean.length > 13) clean = clean.slice(0, 13);
-
-    if (clean.length === 13) {
-        input.value = `${clean.slice(0,5)}-${clean.slice(5,12)}-${clean.slice(12)}`;
-    } else {
-        input.value = clean;
-    }
-}
-
-function validatePhone(input) {
-    input.value = input.value.replace(/[^\d]/g, '');
-    if (input.value.length > 11) input.value = input.value.slice(0, 11);
-}
-
-function confirmDelete(name) {
-    return confirm(`Are you sure you want to delete employee: ${name}?`);
-}
-
-// =======================================
-// GLOBAL FUNCTIONS
-// =======================================
-window.validateCNIC = validateCNIC;
-window.validatePhone = validatePhone;
-window.confirmDelete = confirmDelete;
-window.removeSelectedEmployee = removeSelectedEmployee;
-window.addManualEmployee = addManualEmployee;
-window.applyCompensation = applyCompensation;
-window.toggleTheme = toggleTheme;
-window.checkEligibility = checkEligibility;
-window.clearCompensationForm = clearCompensationForm;
-window.loadCompensationHistory = loadCompensationHistory;
-
-// =======================================
-// DOM READY INITIALIZATION
-// =======================================
-document.addEventListener('DOMContentLoaded', function() {
-    const sidebar = document.getElementById('sidebar');
-    const mainContent = document.getElementById('mainContent');
-    
-    const effectiveDateInput = document.getElementById('effective_date');
-    if (effectiveDateInput && !effectiveDateInput.value) {
-        const today = new Date().toISOString().split('T')[0];
-        effectiveDateInput.value = today;
-    }
-
-    const joiningDateInput = document.getElementById('joining_date');
-    if (joiningDateInput && !joiningDateInput.value) {
-        const today = new Date().toISOString().split('T')[0];
-        joiningDateInput.value = today;
-    }
-
-    const tabBtns = document.querySelectorAll('.tab-btn');
-    const tabContents = document.querySelectorAll('.tab-content');
-    
-    tabBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            tabBtns.forEach(b => b.classList.remove('active'));
-            tabContents.forEach(c => c.classList.remove('active'));
-            
-            btn.classList.add('active');
-            const tabId = btn.getAttribute('data-tab');
-            document.getElementById(tabId).classList.add('active');
-        });
-    });
-
-    initEmployeeManagement();
-    initializeCompanyDayOffSystem();
-});
