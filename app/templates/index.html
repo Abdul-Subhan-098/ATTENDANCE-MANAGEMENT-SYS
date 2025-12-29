@@ -4,16 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Monthly Attendance Summary</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/monthly.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
 </head>
 <body>
-    <!-- Sidebar Toggle Button -->
-    <button class="sidebar-toggle" id="sidebarToggle">
-        <i class="fas fa-bars"></i>
-    </button>
 
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
@@ -23,28 +18,31 @@
         </div>
 
         <nav class="sidebar-nav">
-            <a href="{{ url_for('main.employees') }}">
-                <i class="fas fa-users"></i> Employee Manage
-            </a>
-            <a href="{{ url_for('main.index') }}" class="active">
-                <i class="fas fa-chart-bar"></i> Monthly Report
-            </a>
-            <a href="{{ url_for('main.daily') }}">
-                <i class="fas fa-calendar-day"></i> Daily Report
-            </a>
-            <a href="{{ url_for('main.activity_logs') }}">
-                <i class="fas fa-history"></i> Activity Logs
-            </a>
-            <a href="{{ url_for('main.admin_panel') }}">
-                <i class="fas fa-user-shield"></i> Admin
-            </a>
+        <a href="{{ url_for('main.employees') }}">
+            <i class="fas fa-users"></i> Employee Manage
+        </a>
+        <a href="{{ url_for('main.new_employees') }}">
+            <i class="fas fa-user-plus"></i> New Employees
+        </a>
+        <a href="{{ url_for('main.index') }}" class="active">
+            <i class="fas fa-chart-bar"></i> Monthly Report
+        </a>
+        <a href="{{ url_for('main.daily') }}">
+            <i class="fas fa-calendar-day"></i> Daily Report
+        </a>
+        <a href="{{ url_for('main.activity_logs') }}">
+            <i class="fas fa-history"></i> Activity Logs
+        </a>
+        <a href="{{ url_for('main.admin_panel') }}">
+            <i class="fas fa-user-shield"></i> Admin
+        </a>
 
-            <div class="sidebar-bottom">
-                <a href="{{ url_for('main.logout') }}" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
-            </div>
-        </nav>
+        <div class="sidebar-bottom">
+            <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </nav>
     </div>
 
     <!-- Main Content -->
@@ -261,6 +259,9 @@
                                     <th>Absent</th>
                                     <th>Late</th>
                                     <th>Half Days</th>
+                                    <th>Medical</th>
+                                    <th>Casual</th>
+                                    <th>Punch Missed HD</th>
                                     <th>Half Sat</th> 
                                     <th>Full Sat</th>
                                     <th>OT Hours</th>
@@ -289,6 +290,9 @@
                                         <td>{{ row.Absent if row.Absent is defined else 0 }}</td>
                                         <td>{{ row.Late if row.Late is defined else 0 }}</td>
                                         <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
+                                        <td>{{ row.MedicalLeave if row.MedicalLeave is defined else 0 }}</td>
+                                        <td>{{ row.CasualLeave if row.CasualLeave is defined else 0 }}</td>
+                                        <td>{{ row.PunchMissed if row.PunchMissed is defined else 0 }}</td>
                                         <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td>
                                         <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td>
                                         <td>{{ row.OverTime if row.OverTime is defined else 0.0 }}</td>
@@ -315,217 +319,5 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
     
-    <script>
-        // Sidebar toggle functionality
-        document.addEventListener('DOMContentLoaded', function() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            
-            sidebarToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('collapsed');
-                mainContent.classList.toggle('expanded');
-                
-                // Change the icon based on sidebar state
-                const icon = sidebarToggle.querySelector('i');
-                if (sidebar.classList.contains('collapsed')) {
-                    icon.classList.remove('fa-bars');
-                    icon.classList.add('fa-arrow-right');
-                } else {
-                    icon.classList.remove('fa-arrow-right');
-                    icon.classList.add('fa-bars');
-                }
-            });
-            
-            // Initialize Select2 for dropdowns
-            $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').select2({
-                placeholder: "Select...",
-                allowClear: true,
-                width: '100%'
-            });
-            
-            // Filter functionality
-            const applyFiltersBtn = document.getElementById('applyFilters');
-            const resetFiltersBtn = document.getElementById('resetFilters');
-            const filterTagsContainer = document.getElementById('filterTags');
-            const tableRows = document.querySelectorAll('.data-row');
-            const filterCount = document.getElementById('filterCount');
-            const searchInput = document.getElementById('agentSearch');
-            
-            let activeFilters = {
-                employee: '',
-                department: '',
-                role: '',
-                month: ''
-            };
-            
-            // Apply filters
-            applyFiltersBtn.addEventListener('click', function() {
-                activeFilters = {
-                    employee: document.getElementById('employeeFilter').value,
-                    department: document.getElementById('departmentFilter').value,
-                    role: document.getElementById('roleFilter').value,
-                    month: document.getElementById('monthFilter').value
-                };
-                
-                applyTableFilters();
-                updateFilterTags();
-            });
-            
-            // Reset filters
-            resetFiltersBtn.addEventListener('click', function() {
-                // Reset dropdowns
-                $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').val('').trigger('change');
-                
-                activeFilters = {
-                    employee: '',
-                    department: '',
-                    role: '',
-                    month: ''
-                };
-                
-                applyTableFilters();
-                updateFilterTags();
-            });
-            
-            // Apply table filters
-            function applyTableFilters() {
-                let visibleCount = 0;
-                
-                tableRows.forEach(row => {
-                    let showRow = true;
-                    
-                    // Check each filter
-                    if (activeFilters.employee && row.dataset.name !== activeFilters.employee) {
-                        showRow = false;
-                    }
-                    
-                    if (activeFilters.department && row.dataset.department !== activeFilters.department) {
-                        showRow = false;
-                    }
-                    
-                    if (activeFilters.role && row.dataset.role !== activeFilters.role) {
-                        showRow = false;
-                    }
-                    
-                    if (activeFilters.month) {
-                        // Extract month from date if available
-                        const dateStr = row.dataset.month;
-                        if (dateStr) {
-                            const date = new Date(dateStr);
-                            const month = date.getMonth() + 1; // getMonth returns 0-11
-                            if (month.toString() !== activeFilters.month) {
-                                showRow = false;
-                            }
-                        } else {
-                            // If no month data, hide if month filter is applied
-                            showRow = false;
-                        }
-                    }
-                    
-                    // Apply search filter if any
-                    const searchTerm = searchInput.value.toLowerCase();
-                    if (searchTerm) {
-                        const name = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-                        if (!name.includes(searchTerm)) {
-                            showRow = false;
-                        }
-                    }
-                    
-                    // Show/hide row
-                    if (showRow) {
-                        row.style.display = '';
-                        visibleCount++;
-                    } else {
-                        row.style.display = 'none';
-                    }
-                });
-                
-                // Update filter count
-                filterCount.textContent = `Showing ${visibleCount} of ${tableRows.length} employees`;
-            }
-            
-            // Update filter tags
-            function updateFilterTags() {
-                filterTagsContainer.innerHTML = '';
-                
-                for (const [key, value] of Object.entries(activeFilters)) {
-                    if (value) {
-                        let label = '';
-                        let displayValue = value;
-                        
-                        switch(key) {
-                            case 'employee':
-                                label = 'Employee';
-                                break;
-                            case 'department':
-                                label = 'Department';
-                                break;
-                            case 'role':
-                                label = 'Role';
-                                break;
-                            case 'month':
-                                label = 'Month';
-                                displayValue = getMonthName(value);
-                                break;
-                        }
-                        
-                        const tag = document.createElement('div');
-                        tag.className = 'filter-tag';
-                        tag.innerHTML = `${label}: ${displayValue} <i class="fas fa-times" data-filter="${key}"></i>`;
-                        filterTagsContainer.appendChild(tag);
-                    }
-                }
-                
-                // Add click events to remove individual filters
-                filterTagsContainer.querySelectorAll('.fa-times').forEach(icon => {
-                    icon.addEventListener('click', function() {
-                        const filterKey = this.getAttribute('data-filter');
-                        activeFilters[filterKey] = '';
-                        
-                        // Reset the corresponding dropdown
-                        if (filterKey === 'month') {
-                            $('#monthFilter').val('').trigger('change');
-                        } else {
-                            $(`#${filterKey}Filter`).val('').trigger('change');
-                        }
-                        
-                        applyTableFilters();
-                        updateFilterTags();
-                    });
-                });
-            }
-            
-            // Helper function to get month name from number
-            function getMonthName(monthNumber) {
-                const months = [
-                    'January', 'February', 'March', 'April', 'May', 'June',
-                    'July', 'August', 'September', 'October', 'November', 'December'
-                ];
-                return months[parseInt(monthNumber) - 1] || monthNumber;
-            }
-            
-            // Search functionality
-            searchInput.addEventListener('input', function() {
-                applyTableFilters();
-            });
-            
-            // Initialize with no filters
-            applyTableFilters();
-            
-            // Auto-apply filters when dropdown values change (optional)
-            $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').on('change', function() {
-                // Don't auto-apply, wait for the apply button
-                // Uncomment below if you want auto-apply on change
-                // applyFiltersBtn.click();
-            });
-        });
-        
-        // File input label update
-        document.getElementById('excelFile').addEventListener('change', function(e) {
-            const fileName = e.target.files[0] ? e.target.files[0].name : 'Choose File';
-            document.getElementById('fileText').textContent = fileName;
-        });
-    </script>
 </body>
 </html>

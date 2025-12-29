@@ -3,7 +3,7 @@ from datetime import datetime, date, timedelta, time
 from typing import Optional, Tuple, Set, List, Dict
 from flask import flash
 from app import db
-from app.models import DailyReport, MonthlyReport, Employee, CompanyDayOff
+from app.models import DailyReport, MonthlyReport, Employee, CompanyDayOff, LeaveApplication
 from app.service.daily_service import AttendanceCalculator, DailyReportGenerator
 from app.service.activity_service import log_activity  # ADDED FROM B
 from app.service.new_employees_service import NewEmployeeService
@@ -11,6 +11,11 @@ import logging
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+class ShiftDefaults:
+    DEFAULT_SHIFT_START = "10:00"
+    DEFAULT_SHIFT_END = "19:00"
+    DEFAULT_SHIFT_STR = "10:00 - 19:00"
 
 # ===========================================================
 #              EMPLOYEE SERVICE 
@@ -227,64 +232,115 @@ class EmployeeService:
         db.session.commit()
         return affected_months
 
-    def _update_single_daily_record(self, daily_record: DailyReport, employee: Employee,
-                                    shift_start: time, shift_end: time):
-        """Update a single daily record with new employee data - IMPROVED FROM B"""
-        # ------------------ COMPANY DAY OFF FIX (Do NOT touch this record) ------------------
-        if getattr(daily_record, "is_company_off", False):  # FROM B
-            daily_record.status = "Company Day Off"
-            daily_record.overtime = 0.0
-            daily_record.missed_checkin = False
-            daily_record.missed_checkout = False
-            daily_record.shift = employee.shift
-            daily_record.department = employee.department
-            daily_record.joining_date = employee.joining_date
-            daily_record.last_updated_date = employee.last_updated_date
-            daily_record.role = employee.role
-            daily_record.gender = employee.gender  # Add gender FROM B
-            daily_record.manual_override = True
-            return
-        # ------------------------------------------------------------------------------------
 
-        # ---------- SUNDAY CHECK (FIRST PRIORITY) ----------
-        if daily_record.date.weekday() == 6:  # Sunday
-            daily_record.status = "Sunday"
-            daily_record.overtime = 0.0
-            daily_record.missed_checkin = False
-            daily_record.missed_checkout = False
-            daily_record.gender = employee.gender  # Add gender FROM B
-            return
 
-        # ---------- SHIFT REASSIGN ----------
+
+    def _update_single_daily_record(
+        self,
+        daily_record: DailyReport,
+        employee,
+        shift_start: time,
+        shift_end: time
+    ):
+
+        # ---------------- UPDATE EMPLOYEE INFO ----------------
         daily_record.shift = employee.shift
         daily_record.department = employee.department
         daily_record.joining_date = employee.joining_date
-        daily_record.last_updated_date = employee.last_updated_date
+        daily_record.last_updated_date = employee.last_updated_date or datetime.utcnow().date()
         daily_record.role = employee.role
-        daily_record.gender = employee.gender  # Add gender FROM B
+        daily_record.gender = employee.gender
         daily_record.manual_override = True
 
-        # ---------- DETERMINE FULL-TIME STATUS ----------
+        # ---------------- COMPANY OFF ----------------
+        if getattr(daily_record, "is_company_off", False):
+            daily_record.status = "Company Day Off"
+            daily_record.leave_type = None
+            daily_record.overtime = 0
+            return
+
+        # ---------------- PRESERVE EXISTING LEAVE ----------------
+        if daily_record.leave_type:
+            # Do not recalc if leave already exists
+            daily_record.status = daily_record.leave_type
+            daily_record.overtime = 0
+            return
+
+        # ---------------- CHECK FOR NEW LEAVE ----------------
+        leave_record = LeaveApplication.query.filter(
+            LeaveApplication.employee_name == employee.name,
+            LeaveApplication.start_date <= daily_record.date,
+            LeaveApplication.end_date >= daily_record.date
+        ).first()
+
+        # ================= MEDICAL WEEKEND LOGIC =================
+        if leave_record and leave_record.leave_type.lower() == "medical":
+            weekday = daily_record.date.weekday()
+
+            # Friday
+            if weekday == 4:
+                daily_record.status = "Medical"
+                daily_record.leave_type = "Medical"
+                daily_record.overtime = 0
+                return
+
+            # Saturday / Sunday
+            if weekday in (5, 6):
+                if not daily_record.check_in and not daily_record.check_out:
+                    daily_record.status = "Medical"
+                    daily_record.leave_type = "Medical"
+                    daily_record.overtime = 0
+                    return
+                if weekday == 6:
+                    daily_record.status = "Sunday"
+                    daily_record.leave_type = None
+                    daily_record.overtime = 0
+                    return
+
+        # ---------------- SUNDAY ----------------
+        if daily_record.date.weekday() == 6:
+            daily_record.status = "Sunday"
+            daily_record.leave_type = None
+            daily_record.overtime = 0
+            return
+
+        # ---------------- REGULAR ----------------
         shift_start_dt = datetime.combine(daily_record.date, shift_start)
         shift_end_dt = datetime.combine(daily_record.date, shift_end)
-        shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
-        full_time = shift_duration >= 9.0  # FULL_TIMER_MIN_HOURS
+        full_time = (shift_end_dt - shift_start_dt).total_seconds() / 3600 >= 9
 
-        # Recalculate status and overtime only for non-Sunday days
-        check_in_dt = datetime.combine(daily_record.date, daily_record.check_in) if daily_record.check_in else None
-        check_out_dt = datetime.combine(daily_record.date, daily_record.check_out) if daily_record.check_out else None
-
-        # Use the UPDATED calculate_status method with full_time parameter
-        daily_record.status, daily_record.overtime = self.calculator.calculate_status(
-            check_in_dt, check_out_dt, daily_record.date, shift_start, shift_end, full_time
+        check_in_dt = (
+            datetime.combine(daily_record.date, daily_record.check_in)
+            if daily_record.check_in else None
+        )
+        check_out_dt = (
+            datetime.combine(daily_record.date, daily_record.check_out)
+            if daily_record.check_out else None
         )
 
-        # Update missed punches
-        missed_in, missed_out = self.calculator.determine_missed_punches(check_in_dt, check_out_dt)
+        # ---------------- CALCULATE STATUS ----------------
+        daily_record.status, daily_record.overtime = self.calculator.calculate_status(
+            check_in_dt,
+            check_out_dt,
+            daily_record.date,
+            shift_start,
+            shift_end,
+            full_time
+        )
+
+        missed_in, missed_out = self.calculator.determine_missed_punches(
+            check_in_dt,
+            check_out_dt
+        )
+
         daily_record.missed_checkin = (missed_in == "Yes")
         daily_record.missed_checkout = (missed_out == "Yes")
 
-        logger.debug(f"Updated {employee.name} - {daily_record.date}: Status={daily_record.status}, OT={daily_record.overtime}, Full-Timer={full_time}")
+
+
+
+
+
 
     def _update_monthly_reports(self, employee: Employee, affected_months: Set[str]):
         """Update monthly reports for affected months with recalculated metrics."""
@@ -301,12 +357,19 @@ class EmployeeService:
         for month in affected_months:
             self._regenerate_monthly_report(employee.name, month)
 
+
+
     def _regenerate_monthly_report(self, employee_name: str, month_str: str):
-        """Regenerate monthly report with correct WorkingDays, OT, compensation, and missed punches."""
+        """
+        Regenerate monthly report strictly based on DailyReport.
+        NO DUPLICATES:
+        - emp_id + report_month is treated as unique
+        """
+
         try:
-            # -------------------------
-            # Date Range Setup
-            # -------------------------
+            # --------------------------------------------------
+            # Date range
+            # --------------------------------------------------
             start_date = datetime.strptime(f"{month_str}-01", "%Y-%m-%d").date()
             next_month = start_date.replace(day=28) + timedelta(days=4)
             end_date = next_month.replace(day=1)
@@ -321,193 +384,172 @@ class EmployeeService:
                 logger.info(f"No daily records for {employee_name} in {month_str}")
                 return
 
-            # -------------------------
-            # Employee Fetch
-            # -------------------------
+            # --------------------------------------------------
+            # Employee
+            # --------------------------------------------------
             employee = Employee.query.filter_by(name=employee_name).first()
             if not employee:
-                logger.warning(f"Employee {employee_name} not found for monthly report {month_str}")
+                logger.warning(f"Employee {employee_name} not found")
                 return
 
-            # -------------------------
-            # Gender Handling
-            # -------------------------
-            gender = getattr(employee, "gender", None)
-            if not gender:
-                gender = getattr(daily_records[0], "gender", "Male")
+            gender = employee.gender or "Male"
 
-            # -------------------------
-            # Determine full-time status via shift duration
-            # -------------------------
-            is_full_time = True
-            if employee.shift:
-                try:
-                    parts = employee.shift.split('-')
-                    if len(parts) == 2:
-                        st = datetime.strptime(parts[0].strip(), "%H:%M").time()
-                        et = datetime.strptime(parts[1].strip(), "%H:%M").time()
-                        hrs = (datetime.combine(datetime.today(), et) -
-                            datetime.combine(datetime.today(), st)).total_seconds() / 3600
-                        is_full_time = hrs >= 9
-                except:
-                    pass
-
-            # -------------------------
+            # --------------------------------------------------
             # Counters
-            # -------------------------
-            present = absent = late = 0
-            half_day_weekdays = 0
-            half_day_sat = 0
-            full_day_sat = 0
-            compensated = 0
-            sundays = 0
-            by_late_count = 0
-            by_half_day_count = 0
-            by_absent_count = 0
-            weekday_ot_hours = 0.0
-            punch_missed = 0  # NEW: Count HD (Missed IN/OUT)
+            # --------------------------------------------------
             total_days = len(daily_records)
 
-            # -------------------------
-            # Loop Records
-            # -------------------------
-            for row in daily_records:
-                status = row.status or ""
+            present = absent = late = 0
+            half_day_weekdays = half_day_sat = full_day_sat = 0
+            compensated = sundays = 0
+            by_late_count = by_half_day_count = by_absent_count = 0
+            weekday_ot_hours = 0.0
+            punch_missed = 0
+            medical_leave = casual_leave = 0
 
-                # Skip Company Day Off
-                if status == "Company Day Off":
-                    continue
+            # --------------------------------------------------
+            # Company offs
+            # --------------------------------------------------
+            company_off_dates = {
+                r.date for r in CompanyDayOff.query.filter(
+                    CompanyDayOff.date >= start_date,
+                    CompanyDayOff.date < end_date
+                ).all()
+            }
 
-                # Status count
-                if status == "Present":
-                    present += 1
-                elif status == "Absent":
-                    absent += 1
-                elif status == "Late":
-                    late += 1
-                elif status == "Half Day":
-                    half_day_weekdays += 1
-                elif status == "Compensated":
-                    compensated += 1
-                elif status == "Sunday":
-                    sundays += 1
-                elif status == "Half Day (Sat)":
-                    half_day_sat += 1
-                elif status == "Full Day (Sat)":
-                    full_day_sat += 1
-                elif status in ["HD (Missed IN)", "HD (Missed OUT)"]:
-                    punch_missed += 1  # NEW
-
-                # Compensation type
-                if hasattr(row, 'compensation_type') and row.compensation_type:
-                    if row.compensation_type == "By Late":
-                        by_late_count += 1
-                    elif row.compensation_type == "By Half Day":
-                        by_half_day_count += 1
-                    elif row.compensation_type == "By Absent":
-                        by_absent_count += 1
-
-                # Weekday OT only for full-timers
-                if is_full_time and row.date.weekday() < 5:
-                    weekday_ot_hours += float(row.overtime or 0.0)
-
-            # -------------------------
-            # APPLY COMPENSATION FIXES
-            # -------------------------
-            late = max(0, late - by_late_count)
-            half_day_weekdays = max(0, half_day_weekdays - by_half_day_count)
-            absent = max(0, absent - by_absent_count)
-
-            # -------------------------
-            # Calendar-based Working Days
-            # -------------------------
-            from calendar import monthrange
-            year, month = map(int, month_str.split('-'))
-            total_days_in_month = monthrange(year, month)[1]
-            working_days = 0
-
+            # --------------------------------------------------
+            # Latest month check
+            # --------------------------------------------------
             latest_daily_date = db.session.query(db.func.max(DailyReport.date)).scalar()
             latest_month_str = latest_daily_date.strftime("%Y-%m") if latest_daily_date else None
             is_latest_month = month_str == latest_month_str
 
-            for day in range(1, total_days_in_month + 1):
-                current_date = datetime(year, month, day).date()
+            # --------------------------------------------------
+            # Process Daily Records
+            # --------------------------------------------------
+            for dr in daily_records:
+                current_date = dr.date
                 weekday = current_date.weekday()
 
-                # Skip pre-joining days (latest month only)
-                if is_latest_month and employee.joining_date and employee.joining_date > start_date:
-                    if current_date < employee.joining_date:
-                        continue
-
-                # Skip Company Day Off
-                day_record = next((d for d in daily_records if d.date == current_date), None)
-                if day_record and day_record.status == "Company Day Off":
+                # Skip before joining date (only for current month)
+                if is_latest_month and employee.joining_date and current_date < employee.joining_date:
                     continue
 
-                if is_full_time:
-                    if weekday < 5:
-                        working_days += 1
-                else:
-                    if weekday != 6:
-                        working_days += 1
+                # Skip company off
+                if current_date in company_off_dates:
+                    continue
 
-            # -------------------------
-            # Save Monthly Report
-            # -------------------------
-            monthly_report = MonthlyReport(
+                status = dr.status
+
+                if status == "Present":
+                    present += 1
+                elif status == "Late":
+                    late += 1
+                elif status == "Absent":
+                    absent += 1
+                elif status == "Half Day":
+                    half_day_weekdays += 1
+                elif status == "Half Day (Sat)":
+                    half_day_sat += 1
+                elif status == "Full Day (Sat)":
+                    full_day_sat += 1
+                elif status == "Sunday":
+                    sundays += 1
+                elif status == "Compensated":
+                    compensated += 1
+                elif status in ("HD (Missed IN)", "HD (Missed OUT)"):
+                    punch_missed += 1
+                elif status == "Medical":
+                    medical_leave += 1
+                elif status == "Casual":
+                    casual_leave += 1
+
+                # Compensation counters
+                if dr.compensation_type == "By Late":
+                    by_late_count += 1
+                elif dr.compensation_type == "By Half Day":
+                    by_half_day_count += 1
+                elif dr.compensation_type == "By Absent":
+                    by_absent_count += 1
+
+                # OT
+                weekday_ot_hours += float(dr.overtime or 0.0)
+
+            # --------------------------------------------------
+            # Adjust after compensation
+            # --------------------------------------------------
+            late = max(0, late - by_late_count)
+            half_day_weekdays = max(0, half_day_weekdays - by_half_day_count)
+            absent = max(0, absent - by_absent_count)
+
+            # --------------------------------------------------
+            # Working days
+            # --------------------------------------------------
+            working_days = 0
+            days_in_month = (end_date - start_date).days
+
+            for i in range(days_in_month):
+                d = start_date + timedelta(days=i)
+                if is_latest_month and employee.joining_date and d < employee.joining_date:
+                    continue
+                if d in company_off_dates:
+                    continue
+                if d.weekday() < 5:
+                    working_days += 1
+
+            # --------------------------------------------------
+            # 🔥 UPDATE OR CREATE (NO DUPLICATE)
+            # --------------------------------------------------
+            monthly_report = MonthlyReport.query.filter_by(
                 emp_id=employee.emp_id,
-                name=employee_name,
-                gender=gender,
-                joining_date=employee.joining_date,
-                department=employee.department or "Cold Calling",
-                last_updated_date=datetime.utcnow().date(),
-                shift=employee.shift,
-                role=employee.role,
-                report_month=month_str,
-                total_days=total_days,
-                present=present,
-                absent=absent,
-                late=late,
-                half_day_weekdays=half_day_weekdays,
-                half_day_sat=half_day_sat,
-                full_day_sat=full_day_sat,
-                compensated=compensated,
-                sundays=sundays,
-                ot_hours=round(weekday_ot_hours, 2),
-                working_days=working_days,
-                by_late_count=by_late_count,
-                by_half_day_count=by_half_day_count,
-                by_absent_count=by_absent_count,
-                punch_missed=punch_missed  # NEW
-            )
+                report_month=month_str
+            ).first()
+
+            if not monthly_report:
+                monthly_report = MonthlyReport(
+                    emp_id=employee.emp_id,
+                    report_month=month_str
+                )
+
+            monthly_report.name = employee_name
+            monthly_report.gender = gender
+            monthly_report.joining_date = employee.joining_date
+            monthly_report.department = employee.department or "Unknown"
+            monthly_report.last_updated_date = datetime.utcnow().date()
+            monthly_report.shift = employee.shift or ShiftDefaults.DEFAULT_SHIFT_STR
+            monthly_report.role = employee.role
+
+            monthly_report.total_days = total_days
+            monthly_report.present = present
+            monthly_report.absent = absent
+            monthly_report.late = late
+            monthly_report.half_day_weekdays = half_day_weekdays
+            monthly_report.half_day_sat = half_day_sat
+            monthly_report.full_day_sat = full_day_sat
+            monthly_report.compensated = compensated
+            monthly_report.sundays = sundays
+            monthly_report.ot_hours = round(weekday_ot_hours, 2)
+            monthly_report.working_days = working_days
+            monthly_report.by_late_count = by_late_count
+            monthly_report.by_half_day_count = by_half_day_count
+            monthly_report.by_absent_count = by_absent_count
+            monthly_report.punch_missed = punch_missed
+            monthly_report.medical_leave = medical_leave
+            monthly_report.casual_leave = casual_leave
 
             db.session.add(monthly_report)
             db.session.commit()
 
-            # -------------------------
-            # Activity Logging
-            # -------------------------
-            log_activity(
-                username="System",
-                action=f"Regenerated monthly report for {employee_name}",
-                entity_type="report_regeneration",
-                entity_id=f"{employee_name}_{month_str}",
-                details=f"Month: {month_str}, WorkingDays: {working_days}, OT: {weekday_ot_hours:.2f}h, "
-                        f"Present: {present}, Absent: {absent}, Gender: {gender}, PunchMissed: {punch_missed}"
-            )
-
             logger.info(
-                f"[MONTHLY REPORT ✔] {employee_name} {month_str} | "
-                f"Late Adjusted={late} | "
-                f"HalfDay Adjusted={half_day_weekdays} | "
-                f"Absent Adjusted={absent} | "
-                f"PunchMissed={punch_missed}"
+                f"[MONTHLY REPORT ✔ UPDATED] {employee_name} {month_str} | "
+                f"Present={present}, Absent={absent}, Medical={medical_leave}"
             )
 
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error regenerating monthly report for {employee_name} - {month_str}: {e}")
-
+            logger.error(
+                f"[MONTHLY REPORT ❌ ERROR] {employee_name} {month_str}: {e}"
+            )
 
     def _parse_employee_shift(self, employee: Employee) -> Tuple[time, time]:
         """Parse employee shift string into time objects."""

@@ -511,59 +511,7 @@ document.addEventListener("DOMContentLoaded", () => {
         serverSearch(state.selectedEmployee || "");
     }
 
-    /* ============================
-       ✅ MARK AS COMPENSATED (OPTIMIZED) - Combined from both codes
-    ============================ */
-    function initCompensationHandler() {
-        document.addEventListener("click", e => {
-            const badge = e.target.closest(".status-badge");
-            if (badge) {
-                state.selectedBadge = badge;
-                
-                // Show dropdown (from Code B)
-                const rect = badge.getBoundingClientRect();
-                elements.dropdown.style.display = "block";
-                elements.dropdown.style.position = "fixed";
-                elements.dropdown.style.left = `${rect.left}px`;
-                elements.dropdown.style.top = `${rect.bottom + 8}px`;
-                elements.dropdown.dataset.empName = badge.dataset.empName;
-                elements.dropdown.dataset.date = badge.dataset.date;
-            } else if (!e.target.closest("#compensateDropdown")) {
-                elements.dropdown.style.display = "none";
-            }
-        });
-        // Dropdown compensation button (from Code B)
-        elements.compensateBtn.addEventListener("click", async () => {
-            if (!state.selectedBadge) return;
-            const empName = elements.dropdown.dataset.empName;
-            const date = elements.dropdown.dataset.date;
-            
-            try {
-                const res = await fetch("/update_compensate", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ emp_name: empName, date })
-                });
-                const result = await res.json();
-                
-                if (result.success) {
-                    state.selectedBadge.textContent = "Compensated";
-                    state.selectedBadge.className = "status-badge status-compensated";
-                    showNotification(`${empName} marked as compensated for ${date}`, "success");
-                    applyFilters();
-                } else {
-                    showNotification(`${result.message || "Update failed"}`, "error");
-                }
-            } catch (err) {
-                console.error(err);
-                showNotification("Server error while updating", "error");
-            } finally {
-                elements.dropdown.style.display = "none";
-                state.selectedBadge = null;
-            }
-        });
-    }
-
+    
     /* ============================
        ⚙️ LOADING STATES
     ============================ */
@@ -585,7 +533,6 @@ document.addEventListener("DOMContentLoaded", () => {
     ============================ */
     function init() {
         initSearchableDropdown();
-        initCompensationHandler();
         loadInitialData();
         
         // Initialize summary cards to zero

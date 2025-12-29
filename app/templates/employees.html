@@ -75,6 +75,7 @@
                 <button class="tab-btn" data-tab="update-employee">Update Employee</button>
                 <button class="tab-btn" data-tab="company-off">Company Off Days</button>
                 <button class="tab-btn" data-tab="compensation-settings">Compensation</button>
+                <button class="tab-btn" data-tab="leave-management">Leave Management</button>
                 <button class="tab-btn" data-tab="export-settings">Export</button>
                 <button class="tab-btn" data-tab="system-settings">System</button>
             </div>
@@ -138,6 +139,7 @@
                                     <option value="09:00 - 13:30">09:00 - 13:30 (07:00 to 11:30)</option>
                                     <option value="10:00 - 14:30">10:00 - 14:30 (08:00 to 12:30)</option>
                                     <option value="09:00 - 14:30">09:00 - 14:30 (07:00 to 12:30)</option>
+                                    <option value="13:30 - 18:00">13:30 - 18:00 (11:30 to 04:00)</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -244,6 +246,7 @@
                                     <option value="09:00 - 13:30" {% if edit_employee and edit_employee.shift == '09:00 - 13:30' %}selected{% endif %}>09:00 - 13:30 (07:00 to 11:30)</option>
                                     <option value="10:00 - 14:30" {% if edit_employee and edit_employee.shift == '10:00 - 14:30' %}selected{% endif %}>10:00 - 14:30 (08:00 to 12:30)</option>
                                     <option value="09:00 - 14:30" {% if edit_employee and edit_employee.shift == '09:00 - 14:30' %}selected{% endif %}>09:00 - 14:30 (07:00 to 12:30)</option>
+                                    <option value="13:30 - 18:00" {% if edit_employee and edit_employee.shift == '13:30 - 18:00' %}selected{% endif %}>13:30 - 18:00 (11:30 to 04:00)</option>
                                 </select>
                             </div>
 
@@ -283,7 +286,7 @@
                 </div>
             </div>
 
-            <!-- In the Company Off Days tab section -->
+            <!-- Company Off Days Tab -->
             <div class="tab-content" id="company-off">
                 <div class="settings-section">
                     <h3 class="section-title">Company Day Off Management</h3>
@@ -337,7 +340,6 @@
                     </div>
                 </div>
             </div>
-
 
             <!-- Compensation Tab -->
             <div class="tab-content" id="compensation-settings">
@@ -402,7 +404,6 @@
                             </button>
                         </div>
 
-
                         <!-- Result Message -->
                         <div id="compensationResult" class="result-message" style="display: none;"></div>
                     </div>
@@ -422,6 +423,134 @@
                 </div>
             </div>
 
+            <!-- Leave Management Tab -->
+            <div class="tab-content" id="leave-management">
+                <div class="settings-section">
+                    <h3 class="section-title">Employee Leave Management</h3>
+
+                    <!-- Leave Application Form -->
+                    <div class="settings-form" id="leaveForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Employee Name *</label>
+                                <select class="form-input" id="leaveEmployeeName" required>
+                                    <option value="" disabled selected>Select employee name</option>
+                                    {% for name in daily_names %}
+                                    <option value="{{ name }}">{{ name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Leave Type *</label>
+                                <select class="form-input" id="leaveType" required>
+                                    <option value="" disabled selected>Select leave type</option>
+                                    <option value="Medical">Medical Leave</option>
+                                    <option value="Casual">Casual Leave</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Starting Date *</label>
+                                <input type="text" class="form-input date-picker" id="leaveStartDate" required placeholder="Select starting date">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Ending Date *</label>
+                                <input type="text" class="form-input date-picker" id="leaveEndDate" required placeholder="Select ending date">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Reason (Optional)</label>
+                            <textarea class="form-input" id="leaveReason" placeholder="Enter reason for leave" rows="2"></textarea>
+                        </div>
+
+                        <!-- Leave Preview -->
+                        <div class="leave-preview" id="leavePreview">
+                            <h4 class="preview-title">
+                                <i class="fas fa-eye"></i> Leave Application Preview
+                            </h4>
+                            <div class="leave-preview-row">
+                                <span class="leave-preview-label">Employee:</span>
+                                <span class="leave-preview-value" id="previewEmployeeName"></span>
+                            </div>
+                            <div class="leave-preview-row">
+                                <span class="leave-preview-label">Leave Type:</span>
+                                <span class="leave-preview-value" id="previewLeaveType"></span>
+                            </div>
+                            <div class="leave-preview-row">
+                                <span class="leave-preview-label">Date Range:</span>
+                                <span class="leave-preview-value" id="previewDateRange"></span>
+                            </div>
+                            <div class="leave-preview-row">
+                                <span class="leave-preview-label">Total Days:</span>
+                                <span class="leave-preview-value" id="previewTotalDays"></span>
+                            </div>
+                            <div class="leave-preview-row">
+                                <span class="leave-preview-label">Reason:</span>
+                                <span class="leave-preview-value" id="previewReason"></span>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="previewLeaveBtn">
+                                <i class="fas fa-eye"></i> Preview Leave
+                            </button>
+                            <button type="button" class="btn btn-primary" id="applyLeaveBtn">
+                                <i class="fas fa-check-circle"></i> Apply Leave
+                            </button>
+                            <button type="button" class="btn btn-danger" id="removeLeaveBtn">
+                                <i class="fas fa-trash-alt"></i> Remove Leave
+                            </button>
+                            <button type="button" class="btn btn-outline" id="clearLeaveForm">
+                                <i class="fas fa-times"></i> Clear Form
+                            </button>
+                        </div>
+
+                        <!-- Result Message -->
+                        <div id="leaveResult" class="result-message" style="display: none;"></div>
+                    </div>
+                    
+                    <!-- Leave Table -->
+                    <div class="leave-table-section">
+                        <h4 class="section-subtitle">
+                            <i class="fas fa-list-alt"></i> Applied Leaves
+                            <button class="btn btn-sm btn-outline" id="refreshLeaveHistoryBtn">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </h4>
+                        
+                        <div class="table-container">
+                            <table class="leave-table" id="leaveTable">
+                                <thead>
+                                    <tr>
+                                        <th>Employee Name</th>
+                                        <th>Leave Type</th>
+                                        <th>Start Date</th>
+                                        <th>End Date</th>
+                                        <th>Total Days</th>
+                                        <th>Reason</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leaveTableBody">
+                                    <!-- Leave rows will be injected dynamically via JS -->
+                                    <tr class="empty-state">
+                                        <td colspan="7">
+                                            <i class="fas fa-calendar-alt empty-state-icon"></i>
+                                            <h3>No Leave Applications</h3>
+                                            <p>Apply leave to see history here</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+                    
             <!-- Export Tab -->
             <div class="tab-content" id="export-settings">
                 <div class="settings-section">
@@ -547,7 +676,7 @@
                 </div>
             </div>
 
-            <!-- Employee Table Section - Now placed OUTSIDE all tabs so it's visible on both Add and Update Employee tabs -->
+            <!-- Employee Table Section - Visible on Add and Update Employee tabs only -->
             <div class="table-section" id="globalTableSection">
                 <div class="section-header">
                     <i class="fas fa-list-alt"></i>
@@ -669,121 +798,5 @@
 
     <script src="{{ url_for('static', filename='js/employees.js') }}"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        // Initialize date pickers with max date limit (today)
-        const datePickers = document.querySelectorAll('.date-picker');
-        datePickers.forEach(picker => {
-            flatpickr(picker, {
-                dateFormat: "Y-m-d",
-                allowInput: true,
-                maxDate: "today",
-                defaultDate: picker.value || "today"
-            });
-        });
-
-        // Initialize date picker for company off days WITHOUT max date limit
-        const companyOffDatePicker = document.getElementById('companyOffDate');
-        if (companyOffDatePicker) {
-            flatpickr(companyOffDatePicker, {
-                dateFormat: "Y-m-d",
-                allowInput: true,
-                // No maxDate restriction for company off days
-                defaultDate: "today"
-            });
-        }
-
-        // Handle the compensation form date pickers
-        const violationDate = document.getElementById('violationDate');
-        const compensationDate = document.getElementById('compensationDate');
-        
-        if (violationDate) {
-            flatpickr(violationDate, {
-                dateFormat: "Y-m-d",
-                allowInput: true,
-                maxDate: "today"
-            });
-        }
-        
-        if (compensationDate) {
-            flatpickr(compensationDate, {
-                dateFormat: "Y-m-d",
-                allowInput: true,
-                maxDate: "today"
-            });
-        }
-
-        // Handle the add employee form date picker
-        const employeeJoinDate = document.getElementById('employeeJoinDate');
-        if (employeeJoinDate) {
-            flatpickr(employeeJoinDate, {
-                dateFormat: "Y-m-d",
-                allowInput: true,
-                maxDate: "today",
-                defaultDate: "today"
-            });
-        }
-
-        // Initialize joining_date picker with specific settings
-        const joiningDatePicker = document.getElementById('joining_date');
-        if (joiningDatePicker) {
-            flatpickr(joiningDatePicker, {
-                dateFormat: "Y-m-d",
-                allowInput: true,
-                maxDate: "today",
-                defaultDate: joiningDatePicker.value || "today"
-            });
-        }
-
-        // Initialize effective_date picker with specific settings
-        const effectiveDatePicker = document.getElementById('effective_date');
-        if (effectiveDatePicker) {
-            flatpickr(effectiveDatePicker, {
-                dateFormat: "Y-m-d",
-                allowInput: true,
-                maxDate: "today",
-                defaultDate: effectiveDatePicker.value || "today"
-            });
-        }
-        
-        // Tab switching functionality
-        const tabBtns = document.querySelectorAll('.tab-btn');
-        const tabContents = document.querySelectorAll('.tab-content');
-        const tableSection = document.getElementById('globalTableSection');
-        
-        tabBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                // Remove active class from all buttons and contents
-                tabBtns.forEach(b => b.classList.remove('active'));
-                tabContents.forEach(c => c.classList.remove('active'));
-                
-                // Add active class to clicked button
-                btn.classList.add('active');
-                
-                // Show corresponding content
-                const tabId = btn.getAttribute('data-tab');
-                document.getElementById(tabId).classList.add('active');
-                
-                // Show/hide table based on which tab is active
-                if (tabId === 'add-employee' || tabId === 'update-employee') {
-                    tableSection.style.display = 'block';
-                } else {
-                    tableSection.style.display = 'none';
-                }
-            });
-        });
-        
-        // Initialize - hide table for non-employee tabs
-        const activeTab = document.querySelector('.tab-btn.active');
-        const activeTabId = activeTab ? activeTab.getAttribute('data-tab') : 'add-employee';
-        
-        if (activeTabId === 'add-employee' || activeTabId === 'update-employee') {
-            tableSection.style.display = 'block';
-        } else {
-            tableSection.style.display = 'none';
-        }
-    });
-    </script>
-
 </body>
 </html>

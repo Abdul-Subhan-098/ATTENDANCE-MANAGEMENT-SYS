@@ -55,9 +55,6 @@ class Employee(db.Model):
         return "10:00", "19:00"  # Default shift
 
 
-# ===========================================================
-#               DAILY REPORT 
-# ===========================================================
 class DailyReport(db.Model):
     __tablename__ = "daily_report"
 
@@ -65,11 +62,11 @@ class DailyReport(db.Model):
     emp_id = db.Column(db.Integer, nullable=False)
     date = db.Column(db.Date, nullable=False)
     employee_name = db.Column(db.String(100), nullable=False)
-    gender = db.Column(db.String(10), nullable=True)  # From A
+    gender = db.Column(db.String(10), nullable=True)
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    role = db.Column(db.String(20), default="Full Timer")  # Kept from B
+    role = db.Column(db.String(20), default="Full Timer")
     compensation_type = db.Column(db.String(20), nullable=True)
     compensated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50))
@@ -83,9 +80,15 @@ class DailyReport(db.Model):
     missed_checkout = db.Column(db.Boolean, default=False)
     overtime = db.Column(db.Float, default=0.0)
     manual_override = db.Column(db.Boolean, default=False)
+    leave_type = db.Column(db.String(20), nullable=True)
+
+    __table_args__ = (
+        db.UniqueConstraint('emp_id', 'date', name='uix_emp_date'),
+    )
 
     def __repr__(self):
         return f"<DailyReport {self.employee_name} - {self.date}>"
+
 
 
 # ===========================================================
@@ -118,9 +121,11 @@ class MonthlyReport(db.Model):
     by_half_day_count = db.Column(db.Integer, default=0)
     by_absent_count = db.Column(db.Integer, default=0)
     working_days = db.Column(db.Integer, default=0)
-    punch_missed = db.Column(db.Integer, default=0)  # Naya column add kiya gaya
+    punch_missed = db.Column(db.Integer, default=0)  
     report_month = db.Column(db.String(20))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    medical_leave = db.Column(db.Integer, default=0)
+    casual_leave = db.Column(db.Integer, default=0)
 
     def __repr__(self):
         return f"<MonthlyReport {self.name} - {self.report_month}>"
@@ -202,3 +207,30 @@ class NewEmployee(db.Model):
 
     def __repr__(self):
         return f"<NewEmployee {self.emp_id} - {self.name}>"
+
+
+
+# ===========================================================
+#               NEW LeaveApplication MODEL
+# ===========================================================
+
+
+class LeaveApplication(db.Model):
+    __tablename__ = "leave_applications"
+
+    id = db.Column(db.Integer, primary_key=True)
+    emp_id = db.Column(db.String(50), nullable=False)
+    employee_name = db.Column(db.String(120), nullable=False)
+    applied_date = db.Column(db.Date, nullable=False, default=datetime.utcnow().date)
+    applied_day = db.Column(db.String(10), nullable=False)  # Monday, Tuesday, etc.
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    leave_type = db.Column(db.String(20), nullable=False)  # Medical / Casual etc.
+    reason = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return (
+            f"<LeaveApplication {self.employee_name} | "
+            f"{self.start_date} → {self.end_date} | {self.leave_type}>"
+        )

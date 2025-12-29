@@ -1,8 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from app import db
-from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin, NewEmployee
-from datetime import datetime,timedelta
-from app.service.activity_service import log_activity, get_activity_logs, ActivityService, get_user_activity_logs  # From B
+from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin, NewEmployee, LeaveApplication
+from datetime import datetime, timedelta
+from app.service.activity_service import log_activity, get_activity_logs, ActivityService, get_user_activity_logs
 from sqlalchemy import func
 from app.service.file_service import get_uploaded_files, delete_uploaded_file
 from functools import wraps
@@ -109,15 +109,16 @@ def _format_daily_record(record):
         "Overtime": record.overtime or 0.0,
         "Department": record.department or "Cold Calling",
         "CompensationType": record.compensation_type or "",
+        "LeaveType": record.leave_type or "",
         "CompensatedDate": record.compensated_date.strftime("%Y-%m-%d") if record.compensated_date else ""
     }
 
 def _format_monthly_record(record):
-    """Format a single monthly record for display."""
+    """Format a single monthly record for display, including medical & casual leaves."""
     return {
         "EmpID": record.emp_id or "",
         "Name": record.name or "",
-        "Gender": getattr(record, "gender", "Male") or "Male",  # From A
+        "Gender": getattr(record, "gender", "Male") or "Male",
         "Role": getattr(record, "role", "Full-Timer") or "Full-Timer",
         "Shift": record.shift or "",
         "Department": record.department or "Cold Calling",
@@ -137,8 +138,11 @@ def _format_monthly_record(record):
         "ByHalfDayCount": record.by_half_day_count or 0,
         "ByAbsentCount": record.by_absent_count or 0,
         "WorkingDays": getattr(record, "working_days", 0) or 0,
-        "PunchMissed": getattr(record, "punch_missed", 0) or 0  # New column added
+        "PunchMissed": getattr(record, "punch_missed", 0) or 0,
+        "MedicalLeave": getattr(record, "medical_leave", 0) or 0,  # NEW
+        "CasualLeave": getattr(record, "casual_leave", 0) or 0     # NEW
     }
+
 
 
 
@@ -991,3 +995,109 @@ def new_employees():
         "new_employees.html",
         new_employees=employees_data
     )
+
+
+from flask import request, jsonify
+from datetime import datetime
+from app.service.leave_service import LeaveService
+from app.routes import main   
+
+leave_service = LeaveService()
+
+
+# ==========================================================
+# APPLY LEAVE (DATE RANGE)
+# ==========================================================
+@main.route("/api/apply_leave", methods=["POST"])
+def apply_leave():
+    try:
+        data = request.get_json()
+
+        employee_name = data.get("employee_name")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+        leave_type = data.get("leave_type")
+        reason = data.get("reason")
+
+        if not all([employee_name, start_date, end_date, leave_type]):
+            return jsonify({
+                "success": False,
+                "message": "Missing required data"
+            }), 400
+
+        success, message = leave_service.apply_leave(
+            employee_name=employee_name,
+            start_date_str=start_date,
+            end_date_str=end_date,
+            leave_type=leave_type,
+            reason=reason
+        )
+
+        return jsonify({
+            "success": success,
+            "message": message
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
+# ==========================================================
+# REMOVE LEAVE (DATE RANGE)
+# ==========================================================
+@main.route("/api/remove_leave", methods=["POST"])
+def remove_leave():
+    try:
+        data = request.get_json()
+
+        employee_name = data.get("employee_name")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+
+        if not all([employee_name, start_date, end_date]):
+            return jsonify({
+                "success": False,
+                "message": "Missing required data"
+            }), 400
+
+        success, message = leave_service.remove_leave(
+            employee_name=employee_name,
+            start_date_str=start_date,
+            end_date_str=end_date
+        )
+
+        return jsonify({
+            "success": success,
+            "message": message
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+
+@main.route("/api/get_leave_history", methods=["GET"])
+def get_leave_history():
+    try:
+        leaves = LeaveApplication.query.order_by(LeaveApplication.applied_date.desc()).all()
+        data = []
+        for leave in leaves:
+            total_days = (leave.end_date - leave.start_date).days + 1
+            data.append({
+                "employee_name": leave.employee_name,
+                "leave_type": leave.leave_type,
+                "start_date": leave.start_date.strftime("%Y-%m-%d"),
+                "end_date": leave.end_date.strftime("%Y-%m-%d"),
+                "total_days": total_days,
+                "reason": leave.reason or "",
+                "applied_date": leave.applied_date.strftime("%Y-%m-%d") if leave.applied_date else "",
+                "status": "Approved"  # or get real status if you track it
+            })
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500

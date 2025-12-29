@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, time, date
 from typing import Dict, List, Tuple, Optional, Any
 from sqlalchemy import inspect, text
 from app import db
-from app.models import DailyReport, Employee
+from app.models import DailyReport, Employee, LeaveApplication
 import pandas as pd
 import logging
 import numpy as np
@@ -159,11 +159,6 @@ class AttendanceProcessor:
 
         return result
 
-from datetime import datetime, date, time, timedelta
-from typing import Optional, Tuple
-
-from datetime import datetime, date, time, timedelta
-from typing import Optional, Tuple
 
 class AttendanceCalculator:
     """FINAL — Updated with special Half Day status for missed punches"""
@@ -345,141 +340,191 @@ class AttendanceCalculator:
             return True
 
 
+
 # ===========================================================
-#         DAILY REPORT GENERATOR
+#         DAILY REPORT GENERATOR - DUPLICATE SAFE
 # ===========================================================
 class DailyReportGenerator:
-    """Massively optimized for 50k+ rows"""
+    """Optimized for 50k+ rows with LeaveApplication integration
+       and duplicate-safe database insertion.
+    """
 
     def __init__(self):
         self.processor = AttendanceProcessor()
         self.calculator = AttendanceCalculator()
 
-    def generate_daily_report(self, employee_shifts: Optional[Dict[str, str]] = None,
-                              compensated_dates: Optional[Dict[str, set]] = None) -> Dict[str, Any]:
+    def generate_daily_report(
+        self,
+        employee_shifts: Optional[Dict[str, str]] = None,
+        compensated_dates: Optional[Dict[str, set]] = None
+    ) -> Dict[str, Any]:
         """Ultra-fast daily report generation"""
         total_start = time_module.time()
-        logger.info("🚀 Starting ultra-fast daily report generation...")
+        logger.info("🚀 Starting daily report generation...")
 
         employee_shifts = employee_shifts or {}
         compensated_dates = compensated_dates or {}
 
         inspector = inspect(db.engine)
         if "attendance_raw" not in inspector.get_table_names():
-            return {
-                "error": "No attendance data found. Please upload attendance file first.",
-                "daily_table": []
-            }
+            return {"error": "No attendance data found. Please upload attendance file first.",
+                    "daily_table": []}
 
         # Step 1: Get cleaned data
         df_start = time_module.time()
         df = self.processor.get_clean_attendance()
         df_time = time_module.time() - df_start
-        
+
         if df.empty:
             return {"error": "No valid attendance records found.", "daily_table": []}
 
         logger.info(f"📊 Cleaned data: {len(df)} rows in {df_time:.2f}s")
 
-        # Step 2: Generate report data with bulk operations
+        # Step 2: Fetch existing database keys to prevent duplicates
+        existing_keys = set(
+            db.session.query(DailyReport.emp_id, DailyReport.date).all()
+        )
+
+        # Step 3: Generate report data with bulk operations
         report_start = time_module.time()
-        daily_table = self._ultra_fast_generate_report_data(df, employee_shifts, compensated_dates)
+        daily_table = self._ultra_fast_generate_report_data(df, employee_shifts, compensated_dates, existing_keys)
         report_time = time_module.time() - report_start
-        
+
         logger.info(f"📈 Report data generated: {len(daily_table)} records in {report_time:.2f}s")
 
-        # Step 3: Save to database with bulk operations
+        # Step 4: Save to database with bulk operations
         save_start = time_module.time()
         result = self._ultra_fast_save_and_return_results(daily_table, df)
         save_time = time_module.time() - save_start
-        
+
         total_time = time_module.time() - total_start
         logger.info(f"✅ Daily report completed in {total_time:.2f}s "
-                   f"(Data: {df_time:.2f}s, Report: {report_time:.2f}s, Save: {save_time:.2f}s)")
+                    f"(Data: {df_time:.2f}s, Report: {report_time:.2f}s, Save: {save_time:.2f}s)")
 
         return result
 
-    def _ultra_fast_generate_report_data(self, df: pd.DataFrame, employee_shifts: Dict, 
-                                       compensated_dates: Dict) -> List[Dict[str, Any]]:
-        """Ultra-fast report data generation"""
+    # ----------------------------
+    # REPORT DATA GENERATION
+    # ----------------------------
+    def _ultra_fast_generate_report_data(
+        self,
+        df: pd.DataFrame,
+        employee_shifts: Dict[str, str],
+        compensated_dates: Dict[str, set],
+        existing_keys: set
+    ) -> List[Dict[str, Any]]:
+        """Generate daily records, skip duplicates"""
         start_time = time_module.time()
-        
+
         employees = sorted(df["Name"].unique())
         all_dates = self._get_all_dates(df)
-        
-        # Pre-fetch all employee data in one query
-        employees_start = time_module.time()
         employees_data = self._get_all_employees_data(employees)
-        employees_time = time_module.time() - employees_start
-        
-        logger.info(f"👥 Employee data fetched: {len(employees_data)} employees in {employees_time:.2f}s")
+
+        logger.info(f"👥 Employee data fetched: {len(employees_data)} employees")
 
         records = []
         total_employees = len(employees)
-        
-        # Process employees with progress tracking
+
         for i, emp in enumerate(employees):
             emp_records = self._fast_generate_employee_records(
-                emp, df, all_dates, employees_data, compensated_dates
+                emp, df, all_dates, employees_data, compensated_dates, existing_keys
             )
             records.extend(emp_records)
-            
-            # Progress every 10 employees
+
             if i > 0 and i % 10 == 0:
                 elapsed = time_module.time() - start_time
                 logger.info(f"📊 Processed {i}/{total_employees} employees ({elapsed:.2f}s)")
 
         records.sort(key=lambda x: (x["Name"], x["Date"]))
-        
-        total_time = time_module.time() - start_time
-        logger.info(f"📋 Generated {len(records)} daily records in {total_time:.2f}s")
-        
+        logger.info(f"📋 Generated {len(records)} daily records in {time_module.time() - start_time:.2f}s")
         return records
 
     def _get_all_employees_data(self, employee_names: List[str]) -> Dict[str, Employee]:
-        """Fetch all employee data in one optimized query"""
         if not employee_names:
             return {}
-            
         employees = Employee.query.filter(Employee.name.in_(employee_names)).all()
         return {emp.name: emp for emp in employees}
 
     def _fast_generate_employee_records(
-        self,
-        employee_name: str,
-        df: pd.DataFrame,
-        all_dates: List[date],
-        employees_data: Dict,
-        compensated_dates: Dict
-    ) -> List[Dict[str, Any]]:
-        """Fast employee record generation with correct gender and company day off logic"""
+            self,
+            employee_name: str,
+            df: pd.DataFrame,
+            all_dates: List[date],
+            employees_data: Dict,
+            compensated_dates: Dict,
+            existing_keys: set
+        ) -> List[Dict[str, Any]]:
+        """Generate records for one employee, apply medical/compensation rules, skip duplicates"""
         emp_data = df[df["Name"] == employee_name]
         if emp_data.empty:
             return []
 
         emp_id = str(emp_data["Emp ID"].iloc[0]) if not emp_data["Emp ID"].isna().all() else ""
-
-        # Get employee configuration
         employee_obj = employees_data.get(employee_name)
-        shift_start_str, shift_end_str = self._get_employee_shift(employee_obj, employee_name)
-        department = getattr(employee_obj, 'department', 'Cold Calling')
-        joining_date = getattr(employee_obj, 'joining_date', None)
-        last_updated_date = getattr(employee_obj, 'last_updated_date', datetime.utcnow().date())
-        role = getattr(employee_obj, 'role', 'Full-Timer')
-        gender = getattr(employee_obj, 'gender', 'Not Specified')  # ✅ Fetch from Employee table
 
+        shift_start_str, shift_end_str = self._get_employee_shift(employee_obj, employee_name)
         shift_start, shift_end = self._parse_shift(f"{shift_start_str} - {shift_end_str}")
         full_time = self._is_full_time_employee(employee_obj, shift_start, shift_end)
 
-        # Check for Company Day Off dates
         company_off_dates = self._get_company_off_dates(all_dates)
+        department = getattr(employee_obj, "department", "Cold Calling")
+        joining_date = getattr(employee_obj, "joining_date", None)
+        last_updated_date = getattr(employee_obj, "last_updated_date", datetime.utcnow().date())
+        role = getattr(employee_obj, "role", "Full-Timer")
+        gender = getattr(employee_obj, "gender", "Not Specified")
 
         records = []
 
+        # ===== PRE-CALCULATE MEDICAL DAYS =====
+        medical_days = set()
+        month_start = min(all_dates)
+        month_end = max(all_dates)
+
+        # Friday Medical -> Fri+Sat+Sun
+        medical_leaves = LeaveApplication.query.filter(
+            LeaveApplication.employee_name == employee_name,
+            LeaveApplication.leave_type.ilike("medical"),
+            LeaveApplication.start_date <= month_end,
+            LeaveApplication.end_date >= month_start
+        ).all()
+
+        for leave in medical_leaves:
+            day = leave.start_date
+            while day <= leave.end_date:
+                if day.weekday() == 4:
+                    saturday = day + timedelta(days=1)
+                    sunday = day + timedelta(days=2)
+                    sat_data = emp_data[emp_data["Date"] == saturday]
+                    sat_in, sat_out = self._extract_check_times(sat_data)
+                    if not sat_in and not sat_out:
+                        medical_days.update({day, saturday, sunday})
+                day += timedelta(days=1)
+
+        # Saturday Absent + Monday Medical
         for day in all_dates:
-            # Company Day Off handling
+            if day.weekday() == 5:
+                sat_data = emp_data[emp_data["Date"] == day]
+                sat_in, sat_out = self._extract_check_times(sat_data)
+                if not sat_in and not sat_out:
+                    sunday = day + timedelta(days=1)
+                    monday = day + timedelta(days=2)
+                    monday_medical = LeaveApplication.query.filter(
+                        LeaveApplication.employee_name == employee_name,
+                        LeaveApplication.start_date <= monday,
+                        LeaveApplication.end_date >= monday,
+                        LeaveApplication.leave_type.ilike("medical")
+                    ).first()
+                    if monday_medical:
+                        medical_days.update({day, sunday, monday})
+
+        # ===== MAIN LOOP =====
+        for day in all_dates:
+            # Skip duplicates
+            if (emp_id, day) in existing_keys:
+                continue
+
+            # Company off
             if day in company_off_dates:
-                reason = company_off_dates[day]
                 records.append({
                     "EmpID": emp_id,
                     "Date": day.strftime("%Y-%m-%d"),
@@ -488,6 +533,7 @@ class DailyReportGenerator:
                     "CheckIn": "",
                     "CheckOut": "",
                     "Status": "Company Day Off",
+                    "LeaveType": None,
                     "MissedCheckIn": "",
                     "MissedCheckOut": "",
                     "Overtime": 0.0,
@@ -497,29 +543,45 @@ class DailyReportGenerator:
                     "Role": role,
                     "Gender": gender,
                     "IsCompanyOff": True,
-                    "CompanyOffReason": reason
+                    "CompanyOffReason": company_off_dates[day],
                 })
                 continue
 
             day_data = emp_data[emp_data["Date"] == day]
             check_in, check_out = self._extract_check_times(day_data)
 
-            # Sunday handling
-            if day.weekday() == 6:
-                status = AttendanceStatus.SUNDAY
-                overtime_hours = 0.0
-                missed_in, missed_out = "", ""
+            status = ""
+            overtime_hours = 0.0
+            missed_in = missed_out = ""
+            leave_type = None
+
+            if day in medical_days:
+                status = "Medical"
+                leave_type = "Medical"
+            elif day.weekday() == 6:
+                status = "Sunday"
             else:
+                leave_record = LeaveApplication.query.filter(
+                    LeaveApplication.employee_name == employee_name,
+                    LeaveApplication.start_date <= day,
+                    LeaveApplication.end_date >= day
+                ).first()
+                if leave_record:
+                    status = leave_record.leave_type
+                    leave_type = leave_record.leave_type
+
+            if not status:
                 status, overtime_hours = self.calculator.calculate_status(
                     check_in, check_out, day, shift_start, shift_end, full_time
                 )
+                missed_in, missed_out = self.calculator.determine_missed_punches(
+                    check_in, check_out
+                )
 
-                # Compensated date override
-                if str(day) in compensated_dates.get(employee_name, set()):
-                    status = AttendanceStatus.COMPENSATED
-                    overtime_hours = 0.0
-
-                missed_in, missed_out = self.calculator.determine_missed_punches(check_in, check_out)
+            if str(day) in compensated_dates.get(employee_name, set()):
+                status = "Compensated"
+                overtime_hours = 0.0
+                leave_type = None
 
             records.append({
                 "EmpID": emp_id,
@@ -529,6 +591,7 @@ class DailyReportGenerator:
                 "CheckIn": check_in.strftime("%H:%M:%S") if check_in else "",
                 "CheckOut": check_out.strftime("%H:%M:%S") if check_out else "",
                 "Status": status,
+                "LeaveType": leave_type,
                 "MissedCheckIn": missed_in,
                 "MissedCheckOut": missed_out,
                 "Overtime": overtime_hours,
@@ -536,95 +599,67 @@ class DailyReportGenerator:
                 "JoiningDate": joining_date,
                 "LastUpdatedDate": last_updated_date,
                 "Role": role,
-                "Gender": gender,  # ✅ Always from Employee table
+                "Gender": gender,
                 "IsCompanyOff": False,
-                "CompanyOffReason": None
+                "CompanyOffReason": None,
             })
 
         return records
 
-
+    # ----------------------------
+    # DATABASE SAVE
+    # ----------------------------
     def _ultra_fast_save_and_return_results(self, daily_table: List[Dict[str, Any]], df: pd.DataFrame) -> Dict[str, Any]:
-        """Ultra-fast database saving"""
         try:
             save_start = time_module.time()
             self._ultra_fast_save_daily_report(daily_table)
             db.session.commit()
             save_time = time_module.time() - save_start
-            
+
             logger.info(f"💾 Database save completed: {len(daily_table)} records in {save_time:.2f}s")
-            
-            return {
-                "daily_table": daily_table,
-                "employees": sorted(df["Name"].unique()),
-                "message": f"✅ Daily report generated successfully with {len(daily_table)} records in {save_time:.2f}s"
-            }
+            return {"daily_table": daily_table,
+                    "employees": sorted(df["Name"].unique()),
+                    "message": f"✅ Daily report generated successfully with {len(daily_table)} records in {save_time:.2f}s"}
         except Exception as e:
             db.session.rollback()
             logger.error(f"Error saving daily report: {e}")
             return {"error": f"Error saving daily report: {e}", "daily_table": []}
 
     def _ultra_fast_save_daily_report(self, daily_table: List[Dict[str, Any]]):
-        """Ultra-fast bulk save operations"""
         if not daily_table:
             return
 
+        # Delete existing rows for the dates you are about to insert
+        dates_to_insert = {datetime.strptime(row["Date"], "%Y-%m-%d").date() for row in daily_table}
+        emp_ids_to_insert = {row["EmpID"] for row in daily_table}
+
+        db.session.query(DailyReport).filter(
+            DailyReport.date.in_(dates_to_insert),
+            DailyReport.emp_id.in_(emp_ids_to_insert)
+        ).delete(synchronize_session=False)
+
+        # Then bulk insert
         batch_size = 1000
         total_records = len(daily_table)
-        
-        logger.info(f"💾 Starting bulk save of {total_records} records...")
-        
         for i in range(0, total_records, batch_size):
             batch = daily_table[i:i + batch_size]
-            batch_records = []
-            
-            for row in batch:
-                record = self._prepare_daily_record(row)
-                if record:
-                    batch_records.append(record)
-            
+            batch_records = [self._prepare_daily_record(row) for row in batch if self._prepare_daily_record(row)]
             if batch_records:
-                # Use bulk_insert_mappings for maximum performance
                 db.session.bulk_insert_mappings(DailyReport, batch_records)
-                
-            # Progress every batch
-            if i > 0 and i % 5000 == 0:
-                logger.info(f"💾 Saved {i}/{total_records} records...")
-        
-        logger.info(f"💾 Bulk save completed: {total_records} records")
+
 
     def _prepare_daily_record(self, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Prepare a single record for bulk insert with gender locked to Employee table"""
         try:
             date_obj = datetime.strptime(row["Date"], "%Y-%m-%d").date()
 
-            # Convert check-in/check-out strings to time objects
-            check_in_time = None
-            check_out_time = None
-
+            check_in_time, check_out_time = None, None
             if row["CheckIn"]:
-                time_str = row["CheckIn"]
-                if len(time_str) >= 5:
-                    try:
-                        hours = int(time_str[:2])
-                        minutes = int(time_str[3:5])
-                        seconds = int(time_str[6:8]) if len(time_str) > 6 else 0
-                        check_in_time = time(hours, minutes, seconds)
-                    except (ValueError, IndexError):
-                        logger.warning(f"Invalid time format: {time_str}")
-
+                h, m, s = int(row["CheckIn"][:2]), int(row["CheckIn"][3:5]), int(row["CheckIn"][6:8]) if len(row["CheckIn"]) > 6 else 0
+                check_in_time = time(h, m, s)
             if row["CheckOut"]:
-                time_str = row["CheckOut"]
-                if len(time_str) >= 5:
-                    try:
-                        hours = int(time_str[:2])
-                        minutes = int(time_str[3:5])
-                        seconds = int(time_str[6:8]) if len(time_str) > 6 else 0
-                        check_out_time = time(hours, minutes, seconds)
-                    except (ValueError, IndexError):
-                        logger.warning(f"Invalid time format: {time_str}")
+                h, m, s = int(row["CheckOut"][:2]), int(row["CheckOut"][3:5]), int(row["CheckOut"][6:8]) if len(row["CheckOut"]) > 6 else 0
+                check_out_time = time(h, m, s)
 
-            # Fetch gender from Employee table, fallback to 'Not Specified'
             employee_obj = Employee.query.filter_by(name=row["Name"]).first()
             gender = getattr(employee_obj, "gender", "Not Specified") if employee_obj else "Not Specified"
 
@@ -636,6 +671,7 @@ class DailyReportGenerator:
                 'check_in': check_in_time,
                 'check_out': check_out_time,
                 'status': row["Status"],
+                'leave_type': row.get("LeaveType"),
                 'missed_checkin': (row["MissedCheckIn"] == "Yes"),
                 'missed_checkout': (row["MissedCheckOut"] == "Yes"),
                 'overtime': row["Overtime"],
@@ -643,164 +679,51 @@ class DailyReportGenerator:
                 'joining_date': row["JoiningDate"],
                 'last_updated_date': row["LastUpdatedDate"],
                 'role': row.get("Role", "Full-Timer"),
-                'gender': gender  # ✅ Locked to Employee table
+                'gender': gender
             }
         except Exception as e:
             logger.error(f"Error preparing record {row}: {e}")
             return None
 
-
+    # ----------------------------
+    # HELPER METHODS
+    # ----------------------------
     def _get_employee_shift(self, employee_obj: Optional[Employee], employee_name: str) -> Tuple[str, str]:
         if employee_obj and employee_obj.shift and "-" in employee_obj.shift:
-            shift_parts = [s.strip() for s in employee_obj.shift.split("-", 1)]
-            return shift_parts[0], shift_parts[1]
+            return [s.strip() for s in employee_obj.shift.split("-", 1)]
         return ShiftDefaults.DEFAULT_SHIFT_START, ShiftDefaults.DEFAULT_SHIFT_END
 
     def _is_full_time_employee(self, employee_obj: Optional[Employee], shift_start: time, shift_end: time) -> bool:
         try:
-            shift_start_dt = datetime.combine(date.today(), shift_start)
-            shift_end_dt = datetime.combine(date.today(), shift_end)
-            shift_duration = (shift_end_dt - shift_start_dt).total_seconds() / 3600.0
-            return shift_duration >= AttendanceThresholds.FULL_TIMER_MIN_HOURS
-        except Exception as e:
-            logger.error(f"Error calculating shift duration: {e}")
+            duration = (datetime.combine(date.today(), shift_end) - datetime.combine(date.today(), shift_start)).total_seconds() / 3600
+            return duration >= AttendanceThresholds.FULL_TIMER_MIN_HOURS
+        except Exception:
             return True
 
     @staticmethod
     def _parse_shift(shift_str: str) -> Tuple[time, time]:
         try:
-            if "-" in shift_str:
-                shift_start_str, shift_end_str = [s.strip() for s in shift_str.split("-", 1)]
-            else:
-                shift_start_str, shift_end_str = ShiftDefaults.DEFAULT_SHIFT_STR.split("-", 1)
-                shift_start_str, shift_end_str = shift_start_str.strip(), shift_end_str.strip()
-
-            shift_start = datetime.strptime(shift_start_str, "%H:%M").time()
-            shift_end = datetime.strptime(shift_end_str, "%H:%M").time()
-            return shift_start, shift_end
-        except (ValueError, AttributeError):
-            default_start = datetime.strptime(ShiftDefaults.DEFAULT_SHIFT_START, "%H:%M").time()
-            default_end = datetime.strptime(ShiftDefaults.DEFAULT_SHIFT_END, "%H:%M").time()
-            return default_start, default_end
+            parts = [s.strip() for s in shift_str.split("-", 1)] if "-" in shift_str else [ShiftDefaults.DEFAULT_SHIFT_START, ShiftDefaults.DEFAULT_SHIFT_END]
+            return datetime.strptime(parts[0], "%H:%M").time(), datetime.strptime(parts[1], "%H:%M").time()
+        except Exception:
+            return datetime.strptime(ShiftDefaults.DEFAULT_SHIFT_START, "%H:%M").time(), datetime.strptime(ShiftDefaults.DEFAULT_SHIFT_END, "%H:%M").time()
 
     @staticmethod
     def _get_all_dates(df: pd.DataFrame) -> List[date]:
-        date_range = pd.date_range(df["Date"].min(), df["Date"].max())
-        return [d.date() for d in date_range]
+        return [d.date() for d in pd.date_range(df["Date"].min(), df["Date"].max())]
 
     @staticmethod
     def _extract_check_times(day_data: pd.DataFrame) -> Tuple[Optional[datetime], Optional[datetime]]:
         if day_data.empty:
             return None, None
-            
         check_in = day_data["CheckIn"].iloc[0] if not pd.isna(day_data["CheckIn"].iloc[0]) else None
         check_out = day_data["CheckOut"].iloc[0] if not pd.isna(day_data["CheckOut"].iloc[0]) else None
         return check_in, check_out
-    
-    def _fast_generate_employee_records(
-        self,
-        employee_name: str,
-        df: pd.DataFrame,
-        all_dates: List[date],
-        employees_data: Dict,
-        compensated_dates: Dict
-    ) -> List[Dict[str, Any]]:
-        """Fast employee record generation"""
-        emp_data = df[df["Name"] == employee_name]
-        if emp_data.empty:
-            return []
 
-        emp_id = str(emp_data["Emp ID"].iloc[0]) if not emp_data["Emp ID"].isna().all() else ""
-
-        # Get employee configuration
-        employee_obj = employees_data.get(employee_name)
-        shift_start_str, shift_end_str = self._get_employee_shift(employee_obj, employee_name)
-        department = getattr(employee_obj, 'department', 'Cold Calling')
-        joining_date = getattr(employee_obj, 'joining_date', None)
-        last_updated_date = getattr(employee_obj, 'last_updated_date', datetime.utcnow().date())
-        role = getattr(employee_obj, 'role', 'Full-Timer')
-
-        shift_start, shift_end = self._parse_shift(f"{shift_start_str} - {shift_end_str}")
-        full_time = self._is_full_time_employee(employee_obj, shift_start, shift_end)
-        
-        # Check for Company Day Off dates
-        company_off_dates = self._get_company_off_dates(all_dates)
-        
-        records = []
-
-        for day in all_dates:
-            # Check if this is a Company Day Off
-            if day in company_off_dates:
-                reason = company_off_dates[day]
-                records.append({
-                    "EmpID": emp_id,
-                    "Date": day.strftime("%Y-%m-%d"),
-                    "Name": employee_name,
-                    "Shift": f"{shift_start_str} - {shift_end_str}",
-                    "CheckIn": "",
-                    "CheckOut": "",
-                    "Status": "Company Day Off",
-                    "MissedCheckIn": "",
-                    "MissedCheckOut": "",
-                    "Overtime": 0.0,
-                    "Department": department,
-                    "JoiningDate": joining_date,
-                    "LastUpdatedDate": last_updated_date,
-                    "Role": role,
-                    "IsCompanyOff": True,
-                    "CompanyOffReason": reason
-                })
-                continue
-            
-            day_data = emp_data[emp_data["Date"] == day]
-            check_in, check_out = self._extract_check_times(day_data)
-
-            # Sunday handling
-            if day.weekday() == 6:
-                status = AttendanceStatus.SUNDAY
-                overtime_hours = 0.0
-                missed_in, missed_out = "", ""
-            else:
-                status, overtime_hours = self.calculator.calculate_status(
-                    check_in, check_out, day, shift_start, shift_end, full_time
-                )
-                
-                # Compensated date override
-                if str(day) in compensated_dates.get(employee_name, set()):
-                    status = AttendanceStatus.COMPENSATED
-                    overtime_hours = 0.0
-                    
-                missed_in, missed_out = self.calculator.determine_missed_punches(check_in, check_out)
-
-            records.append({
-                "EmpID": emp_id,
-                "Date": day.strftime("%Y-%m-%d"),
-                "Name": employee_name,
-                "Shift": f"{shift_start_str} - {shift_end_str}",
-                "CheckIn": check_in.strftime("%H:%M:%S") if check_in else "",
-                "CheckOut": check_out.strftime("%H:%M:%S") if check_out else "",
-                "Status": status,
-                "MissedCheckIn": missed_in,
-                "MissedCheckOut": missed_out,
-                "Overtime": overtime_hours,
-                "Department": department,
-                "JoiningDate": joining_date,
-                "LastUpdatedDate": last_updated_date,
-                "Role": role,
-                "IsCompanyOff": False,
-                "CompanyOffReason": None
-            })
-
-        return records
-    
     def _get_company_off_dates(self, dates: List[date]) -> Dict[date, str]:
-        """Get Company Day Off dates from database"""
         try:
-            company_off_records = CompanyDayOff.query.filter(
-                CompanyDayOff.date.in_(dates)
-            ).all()
-            
-            return {record.date: record.reason for record in company_off_records}
+            records = CompanyDayOff.query.filter(CompanyDayOff.date.in_(dates)).all()
+            return {r.date: r.reason for r in records}
         except Exception as e:
             logger.error(f"Error fetching Company Day Off dates: {e}")
             return {}
@@ -810,6 +733,5 @@ class DailyReportGenerator:
 # ===========================================================
 def generate_daily_report(employee_shifts: Optional[Dict[str, str]] = None,
                           compensated_dates: Optional[Dict[str, set]] = None) -> Dict[str, Any]:
-    """External entry point for generating daily reports."""
     generator = DailyReportGenerator()
     return generator.generate_daily_report(employee_shifts, compensated_dates)

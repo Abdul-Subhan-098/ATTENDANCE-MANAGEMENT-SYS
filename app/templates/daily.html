@@ -6,6 +6,8 @@
 <title>Daily Attendance Report | Attendance System</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='css/daily.css') }}">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<!-- Flatpickr CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 <body>
 
@@ -43,6 +45,9 @@
         </div>
     </nav>
 </div>
+
+<!-- Sidebar Toggle Button -->
+<button id="sidebarToggle" class="sidebar-toggle"><i class="fas fa-bars"></i></button>
 
 <!-- Main Content -->
 <div class="main-content" id="mainContent">
@@ -113,18 +118,7 @@
                 <!-- Date Filter -->
                 <div class="filter-group">
                     <label for="dateFilter"><i class="fas fa-calendar"></i> Filter by Date</label>
-                    <select id="dateFilter">
-                        <option value="">All Dates</option>
-                        {% if daily_table %}
-                            {% set seen_dates = [] %}
-                            {% for record in daily_table %}
-                                {% if record.Date not in seen_dates %}
-                                    {% set _ = seen_dates.append(record.Date) %}
-                                    <option value="{{ record.Date }}">{{ record.Date }}</option>
-                                {% endif %}
-                            {% endfor %}
-                        {% endif %}
-                    </select>
+                    <input type="text" id="dateFilter" class="date-picker" placeholder="Select a date">
                 </div>
 
                 <!-- Status Filter -->
@@ -236,29 +230,37 @@
 
 <!-- JS -->
 <script src="{{ url_for('static', filename='js/daily.js') }}"></script>
+<!-- Flatpickr JS -->
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
 <script>
-    // Sidebar toggle functionality
-    document.addEventListener('DOMContentLoaded', function() {
-        const sidebar = document.getElementById('sidebar');
-        const mainContent = document.getElementById('mainContent');
-        const sidebarToggle = document.getElementById('sidebarToggle');
-        
-        if (sidebarToggle) {
-            sidebarToggle.addEventListener('click', function() {
-                sidebar.classList.toggle('collapsed');
-                mainContent.classList.toggle('expanded');
-                
-                const icon = sidebarToggle.querySelector('i');
-                if (sidebar.classList.contains('collapsed')) {
-                    icon.classList.remove('fa-bars');
-                    icon.classList.add('fa-arrow-right');
-                } else {
-                    icon.classList.remove('fa-arrow-right');
-                    icon.classList.add('fa-bars');
-                }
-            });
+document.addEventListener('DOMContentLoaded', function() {
+    // Sidebar toggle
+    const sidebar = document.getElementById('sidebar');
+    const mainContent = document.getElementById('mainContent');
+    const sidebarToggle = document.getElementById('sidebarToggle');
+
+    sidebarToggle.addEventListener('click', function() {
+        sidebar.classList.toggle('collapsed');
+        mainContent.classList.toggle('expanded');
+
+        const icon = sidebarToggle.querySelector('i');
+        if (sidebar.classList.contains('collapsed')) {
+            icon.classList.replace('fa-bars', 'fa-arrow-right');
+        } else {
+            icon.classList.replace('fa-arrow-right', 'fa-bars');
         }
     });
+
+    // Initialize Flatpickr
+    flatpickr("#dateFilter", {
+        dateFormat: "Y-m-d",
+        allowInput: true,
+        altInput: true,
+        altFormat: "F j, Y"
+    });
+});
 </script>
+
 </body>
 </html>
