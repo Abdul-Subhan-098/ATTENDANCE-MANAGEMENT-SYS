@@ -256,11 +256,7 @@ class FileService:
                 else:
                     to_insert.append(Employee(
                         emp_id=emp_id,
-                        name=name,
-                        joining_date=None,
-                        department=None,
-                        last_updated_date=None,
-                        shift=None
+                        name=name
                     ))
 
             # Execute

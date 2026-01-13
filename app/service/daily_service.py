@@ -2,12 +2,11 @@ from datetime import datetime, timedelta, time, date
 from typing import Dict, List, Tuple, Optional, Any
 from sqlalchemy import inspect, text
 from app import db
-from app.models import DailyReport, Employee, LeaveApplication
+from app.models import db, DailyReport, MonthlyReport, Employee, CompanyDayOff, LeaveApplication, TemporaryShift
 import pandas as pd
 import logging
 import numpy as np
 import time as time_module
-from app.models import db, DailyReport, MonthlyReport, Employee, CompanyDayOff
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -517,11 +516,32 @@ class DailyReportGenerator:
                     if monday_medical:
                         medical_days.update({day, sunday, monday})
 
+        # ===== PRE-CALCULATE TEMPORARY SHIFTS =====
+        temp_shifts = TemporaryShift.query.filter(
+            TemporaryShift.emp_id == emp_id,
+            TemporaryShift.start_date <= month_end,
+            TemporaryShift.end_date >= month_start
+        ).all()
+        
+        # Create a mapping of date -> temporary shift string
+        temp_shift_map = {}
+        for ts in temp_shifts:
+            curr = max(ts.start_date, month_start)
+            last = min(ts.end_date, month_end)
+            while curr <= last:
+                temp_shift_map[curr] = ts.shift
+                curr += timedelta(days=1)
+
         # ===== MAIN LOOP =====
         for day in all_dates:
             # Skip duplicates
             if (emp_id, day) in existing_keys:
                 continue
+
+            # Determine Shift for today (Temporary or Original)
+            current_shift_str = temp_shift_map.get(day, f"{shift_start_str} - {shift_end_str}")
+            day_shift_start, day_shift_end = self._parse_shift(current_shift_str)
+            day_full_time = self.calculator.is_full_time_employee(day_shift_start, day_shift_end)
 
             # Company off
             if day in company_off_dates:
@@ -529,7 +549,7 @@ class DailyReportGenerator:
                     "EmpID": emp_id,
                     "Date": day.strftime("%Y-%m-%d"),
                     "Name": employee_name,
-                    "Shift": f"{shift_start_str} - {shift_end_str}",
+                    "Shift": current_shift_str,
                     "CheckIn": "",
                     "CheckOut": "",
                     "Status": "Company Day Off",
@@ -572,7 +592,7 @@ class DailyReportGenerator:
 
             if not status:
                 status, overtime_hours = self.calculator.calculate_status(
-                    check_in, check_out, day, shift_start, shift_end, full_time
+                    check_in, check_out, day, day_shift_start, day_shift_end, day_full_time
                 )
                 missed_in, missed_out = self.calculator.determine_missed_punches(
                     check_in, check_out
@@ -587,7 +607,7 @@ class DailyReportGenerator:
                 "EmpID": emp_id,
                 "Date": day.strftime("%Y-%m-%d"),
                 "Name": employee_name,
-                "Shift": f"{shift_start_str} - {shift_end_str}",
+                "Shift": current_shift_str,
                 "CheckIn": check_in.strftime("%H:%M:%S") if check_in else "",
                 "CheckOut": check_out.strftime("%H:%M:%S") if check_out else "",
                 "Status": status,

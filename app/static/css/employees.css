@@ -1306,6 +1306,13 @@ tr:last-child td {
     gap: 10px;
 }
 
+.section-description {
+    color: var(--gray);
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+    line-height: 1.5;
+}
+
 .settings-form {
     display: flex;
     flex-direction: column;

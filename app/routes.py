@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, session
 from app import db
-from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin, NewEmployee, LeaveApplication
+from app.models import AttendanceRaw, MonthlyReport, DailyReport, Employee, Admin, NewEmployee, LeaveApplication, TemporaryShift
 from datetime import datetime, timedelta
 from app.service.activity_service import log_activity, get_activity_logs, ActivityService, get_user_activity_logs
 from sqlalchemy import func
@@ -354,7 +354,8 @@ def employees():
             effective_date_str=request.form.get("effective_date", "").strip(),
             shift_full=request.form.get("shift", "").strip(),
             role=request.form.get("role", "").strip(),
-            gender=request.form.get("gender", "").strip()
+            gender=request.form.get("gender", "").strip(),
+            emp_id=request.form.get("emp_id", "").strip()
         )
 
         if result:
@@ -387,6 +388,9 @@ def employees():
     daily_employee_names_query = db.session.query(DailyReport.employee_name).distinct().all()
     daily_employee_names = sorted([name[0] for name in daily_employee_names_query if name[0]])
 
+    # New employees detected (not yet confirmed)
+    new_employees_list = NewEmployee.query.order_by(NewEmployee.name).all()
+
     # Role options and gender options for the form
     roles = ["Full-Timer", "Part-Timer"]
     genders = ["Male", "Female"]
@@ -394,11 +398,159 @@ def employees():
     return render_template(
         "employees.html",
         employees=employee_list,
+        new_employees=new_employees_list,
         daily_names=daily_employee_names,
         current_date=datetime.today().strftime("%Y-%m-%d"),
         roles=roles,
         genders=genders
     )
+
+
+@main.route("/api/employee/details/<name>")
+@login_required
+def get_employee_details(name):
+    """Fetch employee details by name for auto-filling the form."""
+    try:
+        employee = Employee.query.filter_by(name=name).first()
+        if not employee:
+            return jsonify({"success": False, "message": "Employee not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "employee": {
+                "name": employee.name,
+                "emp_id": employee.emp_id,
+                "joining_date": employee.joining_date.strftime("%Y-%m-%d") if employee.joining_date else "",
+                "department": employee.department,
+                "shift": employee.shift,
+                "role": employee.role,
+                "gender": employee.gender,
+                "last_updated_date": employee.last_updated_date.strftime("%Y-%m-%d") if employee.last_updated_date else ""
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error fetching employee details: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@main.route("/api/potential_employee/details/<name>")
+@login_required
+def get_potential_employee_details(name):
+    """Fetch potential employee (NewEmployee) details for auto-filling Add form."""
+    try:
+        # First check NewEmployee table
+        new_emp = NewEmployee.query.filter_by(name=name).first()
+        emp_id = new_emp.emp_id if new_emp else None
+        
+        # If not in NewEmployee, try AttendanceRaw just in case
+        if not emp_id:
+            raw_record = AttendanceRaw.query.filter_by(name=name).first()
+            emp_id = raw_record.emp_id if raw_record else None
+            
+        if not emp_id:
+            return jsonify({"success": False, "message": "Employee not found"}), 404
+            
+        # Try to find first attendance date as joining date
+        first_attendance = db.session.query(db.func.min(AttendanceRaw.time)).filter(
+            (AttendanceRaw.name == name) | (AttendanceRaw.emp_id == emp_id)
+        ).scalar()
+        
+        joining_date = first_attendance.strftime("%Y-%m-%d") if first_attendance else ""
+        
+        return jsonify({
+            "success": True,
+            "employee": {
+                "name": name,
+                "emp_id": emp_id,
+                "joining_date": joining_date
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error fetching potential employee details: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ===========================================================
+#               TEMPORARY SHIFTS API
+# ===========================================================
+
+@main.route("/api/temporary_shift/add", methods=["POST"])
+@login_required
+def add_temporary_shift():
+    """API endpoint to add a temporary shift."""
+    try:
+        data = request.get_json()
+        emp_id = data.get("emp_id")
+        shift = data.get("shift")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+
+        if not all([emp_id, shift, start_date, end_date]):
+            return jsonify({"success": False, "message": "Missing required fields"}), 400
+
+        success = EmployeeService().add_temporary_shift(emp_id, shift, start_date, end_date)
+        if success:
+            username = session.get('admin_username', 'Unknown')
+            log_activity(
+                username=username,
+                action=f"Added temporary shift for {emp_id}: {shift}",
+                entity_type="temporary_shift",
+                entity_id=emp_id
+            )
+            return jsonify({"success": True, "message": "Temporary shift added successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to add temporary shift"}), 500
+    except Exception as e:
+        logger.error(f"Error in add_temporary_shift: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@main.route("/api/temporary_shift/list/<emp_id>")
+@login_required
+def list_temporary_shifts(emp_id):
+    """API endpoint to list temporary shifts for an employee."""
+    try:
+        # If emp_id is "all", it will be None in get_temporary_shifts
+        filter_id = None if emp_id == "all" else emp_id
+        shifts = EmployeeService().get_temporary_shifts(filter_id)
+        
+        return jsonify({
+            "success": True,
+            "shifts": [
+                {
+                    "id": s.id,
+                    "emp_id": s.emp_id,
+                    "shift": s.shift,
+                    "start_date": s.start_date.strftime("%Y-%m-%d"),
+                    "end_date": s.end_date.strftime("%Y-%m-%d")
+                } for s in shifts
+            ]
+        })
+    except Exception as e:
+        logger.error(f"Error in list_temporary_shifts: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@main.route("/api/temporary_shift/delete/<int:shift_id>", methods=["DELETE"])
+@login_required
+def delete_temporary_shift(shift_id):
+    """API endpoint to delete a temporary shift."""
+    try:
+        success = EmployeeService().delete_temporary_shift(shift_id)
+        if success:
+            username = session.get('admin_username', 'Unknown')
+            log_activity(
+                username=username,
+                action=f"Deleted temporary shift ID: {shift_id}",
+                entity_type="temporary_shift",
+                entity_id=str(shift_id)
+            )
+            return jsonify({"success": True, "message": "Temporary shift deleted successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to delete temporary shift"}), 500
+    except Exception as e:
+        logger.error(f"Error in delete_temporary_shift: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @main.route("/admin_panel", methods=["GET", "POST"])
