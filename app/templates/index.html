@@ -144,21 +144,14 @@
                 </div>
 
                 <div class="filter-grid">
-                    <!-- Employee Name Filter -->
+                    <!-- Employee Name Search Panel -->
                     <div class="filter-group">
-                        <label for="employeeFilter"><i class="fas fa-user"></i> Employee Name</label>
-                        <select id="employeeFilter" class="filter-dropdown">
-                            <option value="">All Employees</option>
-                            {% if table %}
-                            {% set unique_names = [] %}
-                            {% for row in table %}
-                            {% if row.Name not in unique_names %}
-                            {% set _ = unique_names.append(row.Name) %}
-                            <option value="{{ row.Name }}">{{ row.Name }}</option>
-                            {% endif %}
-                            {% endfor %}
-                            {% endif %}
-                        </select>
+                        <label for="employeeSearch"><i class="fas fa-search"></i> Search Employee</label>
+                        <div class="search-input-wrapper">
+                            <input type="text" id="employeeSearch" class="filter-input"
+                                placeholder="Type name to search...">
+                            <i class="fas fa-user-search search-icon-inside"></i>
+                        </div>
                     </div>
 
                     <!-- Department Filter -->
