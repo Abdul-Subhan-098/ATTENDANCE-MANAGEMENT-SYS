@@ -387,6 +387,9 @@ def employees():
     daily_employee_names_query = db.session.query(DailyReport.employee_name).distinct().all()
     daily_employee_names = sorted([name[0] for name in daily_employee_names_query if name[0]])
 
+    # Fetch new employees (potential employees from attendance not yet confirmed)
+    new_employees_list = NewEmployee.query.order_by(NewEmployee.name).all()
+
     # Role options and gender options for the form
     roles = ["Full-Timer", "Part-Timer"]
     genders = ["Male", "Female"]
@@ -395,10 +398,35 @@ def employees():
         "employees.html",
         employees=employee_list,
         daily_names=daily_employee_names,
+        new_employees=new_employees_list,
         current_date=datetime.today().strftime("%Y-%m-%d"),
         roles=roles,
         genders=genders
     )
+
+
+@main.route("/api/potential_employee/details/<name>")
+@login_required
+def get_potential_employee_details(name):
+    """Fetch potential employee (NewEmployee) details by name for auto-filling."""
+    try:
+        new_emp = NewEmployee.query.filter_by(name=name).first()
+        if not new_emp:
+            return jsonify({"success": False, "message": "Potential employee not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "employee": {
+                "emp_id": new_emp.emp_id,
+                "name": new_emp.name,
+                "joining_date": new_emp.created_at.strftime("%Y-%m-%d") if new_emp.created_at else ""
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error fetching potential employee details: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 
 
 @main.route("/api/employee/details/<name>")
