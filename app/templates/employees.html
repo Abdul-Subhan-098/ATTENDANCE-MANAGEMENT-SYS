@@ -109,21 +109,22 @@
                         id="addEmployeeForm">
                         <div class="form-row">
                             <div class="form-group">
-                                <label class="form-label"><i class="fas fa-id-card"></i> Employee ID</label>
-                                <input type="text" class="form-input" id="employeeId" name="emp_id" required
-                                    placeholder="Enter unique employee ID">
-                            </div>
-                            <div class="form-group">
                                 <label class="form-label"><i class="fas fa-user"></i> Full Name</label>
                                 <input type="text" class="form-input" id="employeeName" name="name" required
-                                    list="potential-employee-datalist" placeholder="Enter full name">
+                                    list="potential-employee-datalist" placeholder="Enter or select employee name">
                                 <datalist id="potential-employee-datalist">
                                     {% for emp in new_employees %}
                                     <option value="{{ emp.name }}">
                                         {% endfor %}
                                 </datalist>
                             </div>
+                            <div class="form-group">
+                                <label class="form-label"><i class="fas fa-id-card"></i> Employee ID</label>
+                                <input type="text" class="form-input" id="employeeId" name="emp_id" required
+                                    placeholder="Auto-fills when name selected" readonly>
+                            </div>
                         </div>
+
                         <div class="form-row">
                             <div class="form-group">
                                 <label class="form-label"><i class="fas fa-calendar-plus"></i> Joining Date</label>
