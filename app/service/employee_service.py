@@ -3,7 +3,7 @@ from datetime import datetime, date, timedelta, time
 from typing import Optional, Tuple, Set, List, Dict
 from flask import flash
 from app import db
-from app.models import DailyReport, MonthlyReport, Employee, CompanyDayOff, LeaveApplication
+from app.models import DailyReport, MonthlyReport, Employee, CompanyDayOff, LeaveApplication, TemporaryShift
 from app.service.daily_service import AttendanceCalculator, DailyReportGenerator
 from app.service.activity_service import log_activity  # ADDED FROM B
 from app.service.new_employees_service import NewEmployeeService
@@ -64,22 +64,31 @@ class EmployeeService:
         effective_date_str: str,
         shift_full: str,
         role: str = None,
-        gender: str = None
+        gender: str = None,
+        emp_id: str = None
     ) -> bool:
         """
         Add or update an employee, ensure gender is handled, 
         update related reports, and cleanup from new_employee if confirmed.
         """
         try:
+            # Check if employee exists
+            existing_employee = Employee.query.filter_by(name=name).first()
+
             # Validate required inputs
-            if not all([name, joining_date_str, department, effective_date_str, shift_full]):
+            # joining_date_str is now optional for existing employees
+            required_fields = [name, department, effective_date_str, shift_full]
+            if not existing_employee and not joining_date_str:
+                raise ValueError("Joining date is required for new employees")
+            
+            if not all(required_fields):
                 raise ValueError("Missing required employee data")
 
             if not gender:
                 raise ValueError("Gender must be provided (Male/Female/Other)")
 
             # Parse dates
-            joining_date = datetime.strptime(joining_date_str, "%Y-%m-%d").date()
+            joining_date = datetime.strptime(joining_date_str, "%Y-%m-%d").date() if joining_date_str else None
             effective_date = datetime.strptime(effective_date_str, "%Y-%m-%d").date()
 
             # Extract main shift (e.g., "10:00 - 19:00")
@@ -93,7 +102,8 @@ class EmployeeService:
                 effective_date=effective_date,
                 shift_main=shift_main,
                 role=role,
-                gender=gender
+                gender=gender,
+                emp_id=emp_id
             )
 
             # Update related reports if any
@@ -149,7 +159,8 @@ class EmployeeService:
         effective_date: date,
         shift_main: str,
         role: Optional[str],
-        gender: str
+        gender: str,
+        emp_id: str = None
     ) -> Employee:
         """
         Save or update an employee with guaranteed gender handling.
@@ -158,12 +169,18 @@ class EmployeeService:
 
         if employee:
             # Update existing employee
-            employee.joining_date = joining_date
+            if joining_date:
+                employee.joining_date = joining_date
             employee.department = department
             employee.last_updated_date = effective_date
             employee.shift = shift_main
             employee.role = role or employee.role
             employee.gender = gender
+            
+            # If emp_id is provided, update it (though it's usually readonly in UI)
+            if emp_id:
+                employee.emp_id = emp_id
+                
             action = "Updated"
         else:
             # Create new employee
@@ -174,7 +191,8 @@ class EmployeeService:
                 last_updated_date=effective_date,
                 shift=shift_main,
                 role=role or "Full-Timer",
-                gender=gender
+                gender=gender,
+                emp_id=emp_id
             )
             db.session.add(employee)
             action = "Added new"
@@ -570,8 +588,62 @@ class EmployeeService:
         try:
             return Employee.query.filter_by(name=name).first()
         except Exception as e:
-            logger.error(f"Error fetching employee '{name}': {e}")
-            return None
+            flash(f"❌ Error fetching employee for name '{name}': {e}", "error")
+        return None
+
+    def add_temporary_shift(self, emp_id: str, shift: str, start_date_str: str, end_date_str: str) -> bool:
+        """Add a temporary shift for an employee."""
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+
+            if start_date > end_date:
+                raise ValueError("Start date cannot be after end_date")
+
+            # Check if this employee exists
+            employee = Employee.query.filter_by(emp_id=emp_id).first()
+            if not employee:
+                raise ValueError(f"Employee with ID {emp_id} not found")
+
+            # Add temporary shift
+            temp_shift = TemporaryShift(
+                emp_id=emp_id,
+                shift=shift,
+                start_date=start_date,
+                end_date=end_date
+            )
+            db.session.add(temp_shift)
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error adding temporary shift: {e}")
+            return False
+
+    def get_temporary_shifts(self, emp_id: str = None) -> List[TemporaryShift]:
+        """Get temporary shifts, optionally filtered by employee ID."""
+        try:
+            query = TemporaryShift.query
+            if emp_id:
+                query = query.filter_by(emp_id=emp_id)
+            return query.order_by(TemporaryShift.start_date.desc()).all()
+        except Exception as e:
+            logger.error(f"Error fetching temporary shifts: {e}")
+            return []
+
+    def delete_temporary_shift(self, shift_id: int) -> bool:
+        """Delete a temporary shift."""
+        try:
+            temp_shift = TemporaryShift.query.get(shift_id)
+            if not temp_shift:
+                return False
+            db.session.delete(temp_shift)
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error deleting temporary shift: {e}")
+            return False
 
     def get_all_employees(self) -> list:
         """Get all employees with error handling."""

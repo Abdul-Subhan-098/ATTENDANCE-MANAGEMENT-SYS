@@ -10,7 +10,7 @@ class AttendanceRaw(db.Model):
     __tablename__ = "attendance_raw"
 
     id = db.Column(db.Integer, primary_key=True)
-    emp_id = db.Column("Emp ID", db.Integer)
+    emp_id = db.Column("Emp ID", db.String(50))
     name = db.Column("Name", db.String(255))
     time = db.Column("Time", db.DateTime)
     work_code = db.Column("Work Code", db.String(50))
@@ -33,12 +33,12 @@ class Employee(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     emp_id = db.Column(db.String(50), unique=True, nullable=False)
     name = db.Column(db.String(120), nullable=False)
-    gender = db.Column(db.String(10), nullable=True)  # From A
-    joining_date = db.Column(db.Date, nullable=False)
-    department = db.Column(db.String(100), nullable=False)
+    gender = db.Column(db.String(20), nullable=True)  # Increased from 10
+    joining_date = db.Column(db.Date, nullable=True)
+    department = db.Column(db.String(100), nullable=False, default="Cold Calling") # Added default
     last_updated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50), nullable=True)
-    role = db.Column(db.String(20), nullable=False, default="FullTime")  # Kept from A
+    role = db.Column(db.String(20), nullable=False, default="FullTime")
 
     def __repr__(self):
         return f"<Employee {self.emp_id} - {self.name}>"
@@ -59,14 +59,14 @@ class DailyReport(db.Model):
     __tablename__ = "daily_report"
 
     id = db.Column(db.Integer, primary_key=True)
-    emp_id = db.Column(db.Integer, nullable=False)
+    emp_id = db.Column(db.String(50), nullable=False)
     date = db.Column(db.Date, nullable=False)
     employee_name = db.Column(db.String(100), nullable=False)
-    gender = db.Column(db.String(10), nullable=True)
+    gender = db.Column(db.String(20), nullable=True) # Increased from 10
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    role = db.Column(db.String(20), default="Full Timer")
+    role = db.Column(db.String(50), default="Full Timer") # Increased from 20 just in case
     compensation_type = db.Column(db.String(20), nullable=True)
     compensated_date = db.Column(db.Date, nullable=True)
     shift = db.Column(db.String(50))
@@ -100,11 +100,11 @@ class MonthlyReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     emp_id = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(255), nullable=False)
-    gender = db.Column(db.String(10), nullable=True)  # From A
+    gender = db.Column(db.String(20), nullable=True)  # Increased from 10
     joining_date = db.Column(db.Date, nullable=True)
     department = db.Column(db.String(100), default="Cold Calling")
     last_updated_date = db.Column(db.Date, nullable=True)
-    role = db.Column(db.String(20), default="Full Timer")  # Kept from B
+    role = db.Column(db.String(50), default="Full Timer") # Increased from 20
     shift = db.Column(db.String(50))
     total_days = db.Column(db.Integer, default=0)
     present = db.Column(db.Integer, default=0)
@@ -193,6 +193,22 @@ class ActivityLog(db.Model):
             "user_agent": self.user_agent,
             "timestamp": self.timestamp.strftime("%Y-%m-%d %H:%M:%S")
         }
+
+# ===========================================================
+#               TEMPORARY SHIFT MODEL
+# ===========================================================
+class TemporaryShift(db.Model):
+    __tablename__ = "temporary_shifts"
+
+    id = db.Column(db.Integer, primary_key=True)
+    emp_id = db.Column(db.String(50), nullable=False)
+    shift = db.Column(db.String(50), nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<TemporaryShift {self.emp_id}: {self.shift} ({self.start_date} to {self.end_date})>"
 
 # ===========================================================
 #               NEW EMPLOYEE TRACKING

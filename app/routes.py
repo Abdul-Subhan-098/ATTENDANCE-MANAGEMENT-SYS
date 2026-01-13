@@ -401,6 +401,33 @@ def employees():
     )
 
 
+@main.route("/api/employee/details/<name>")
+@login_required
+def get_employee_details(name):
+    """Fetch employee details by name for auto-filling the form."""
+    try:
+        employee = Employee.query.filter_by(name=name).first()
+        if not employee:
+            return jsonify({"success": False, "message": "Employee not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "employee": {
+                "name": employee.name,
+                "emp_id": employee.emp_id,
+                "joining_date": employee.joining_date.strftime("%Y-%m-%d") if employee.joining_date else "",
+                "department": employee.department,
+                "shift": employee.shift,
+                "role": employee.role,
+                "gender": employee.gender,
+                "last_updated_date": employee.last_updated_date.strftime("%Y-%m-%d") if employee.last_updated_date else ""
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error fetching employee details: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 @main.route("/admin_panel", methods=["GET", "POST"])
 @login_required
 def admin_panel():
@@ -1096,7 +1123,7 @@ def get_leave_history():
                 "total_days": total_days,
                 "reason": leave.reason or "",
                 "applied_date": leave.applied_date.strftime("%Y-%m-%d") if leave.applied_date else "",
-                "status": "Approved"  # or get real status if you track it
+                "status": "Approved"
             })
         return jsonify(data)
     except Exception as e:

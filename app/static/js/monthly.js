@@ -62,7 +62,7 @@ const createElement = (html) => {
 function cacheElements() {
     const elements = [
         'sidebar', 'mainContent', 'sidebarToggle',
-        'employeeFilter', 'departmentFilter', 'roleFilter', 'monthFilter',
+        'employeeSearch', 'departmentFilter', 'roleFilter', 'monthFilter',
         'filterTags', 'filterCount', 'applyFilters', 'resetFilters',
         'agentSearch', 'summaryTable', 'tableContainer', 'noResultsMessage',
         'fileDropdown', 'deleteFileBtn', 'batchIdInput', 'dropdownSpinner',
@@ -88,7 +88,7 @@ function cacheElements() {
 
 function initializeSelect2() {
     if (window.$ && $.fn.select2) {
-        $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').select2({
+        $('#departmentFilter, #roleFilter, #monthFilter').select2({
             placeholder: "Select...",
             allowClear: true,
             width: '100%'
@@ -99,10 +99,10 @@ function initializeSelect2() {
 function initializeSidebar() {
     if (!DOM.sidebarToggle) return;
 
-    DOM.sidebarToggle.addEventListener('click', function() {
+    DOM.sidebarToggle.addEventListener('click', function () {
         DOM.sidebar.classList.toggle('collapsed');
         DOM.mainContent.classList.toggle('expanded');
-        
+
         const icon = DOM.sidebarToggle.querySelector('i');
         if (DOM.sidebar.classList.contains('collapsed')) {
             icon.classList.remove('fa-bars');
@@ -122,12 +122,12 @@ function initializeFilters() {
 
     DOM.applyFilters.addEventListener('click', applyTableFilters);
     DOM.resetFilters.addEventListener('click', resetAllFilters);
-    
-    // Auto-apply filters when Select2 changes (optional)
-    $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').on('change', function() {
-        // Uncomment for auto-apply on change:
-        // applyTableFilters();
-    });
+
+    // Auto-apply filters when inputs change
+    $('#departmentFilter, #roleFilter, #monthFilter').on('change', applyTableFilters);
+    if (DOM.employeeSearch) {
+        DOM.employeeSearch.addEventListener('input', applyTableFilters);
+    }
 
     // Initialize with no filters
     applyTableFilters();
@@ -136,7 +136,7 @@ function initializeFilters() {
 function applyTableFilters() {
     // Update active filters
     APP_STATE.activeFilters = {
-        employee: DOM.employeeFilter?.value || '',
+        employee: DOM.employeeSearch?.value.trim().toLowerCase() || '',
         department: DOM.departmentFilter?.value || '',
         role: DOM.roleFilter?.value || '',
         month: DOM.monthFilter?.value || ''
@@ -150,19 +150,22 @@ function applyTableFilters() {
     APP_STATE.tableRows.forEach(row => {
         let showRow = true;
 
-        // Apply dropdown filters
-        if (APP_STATE.activeFilters.employee && row.dataset.name !== APP_STATE.activeFilters.employee) {
-            showRow = false;
+        // Apply employee search filter (partial match)
+        if (APP_STATE.activeFilters.employee) {
+            const employeeName = row.dataset.name?.toLowerCase() || '';
+            if (!employeeName.includes(APP_STATE.activeFilters.employee)) {
+                showRow = false;
+            }
         }
-        
+
         if (APP_STATE.activeFilters.department && row.dataset.department !== APP_STATE.activeFilters.department) {
             showRow = false;
         }
-        
+
         if (APP_STATE.activeFilters.role && row.dataset.role !== APP_STATE.activeFilters.role) {
             showRow = false;
         }
-        
+
         if (APP_STATE.activeFilters.month) {
             const dateStr = row.dataset.month;
             if (dateStr) {
@@ -196,11 +199,12 @@ function applyTableFilters() {
 
 function resetAllFilters() {
     // Reset dropdowns
-    $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').val('').trigger('change');
-    
-    // Reset search
+    $('#departmentFilter, #roleFilter, #monthFilter').val('').trigger('change');
+
+    // Reset search inputs
+    if (DOM.employeeSearch) DOM.employeeSearch.value = '';
     if (DOM.agentSearch) DOM.agentSearch.value = '';
-    
+
     // Reset active filters
     APP_STATE.activeFilters = {
         employee: '',
@@ -220,35 +224,35 @@ function updateFilterCount(visibleCount) {
 
 function updateFilterTags() {
     if (!DOM.filterTags) return;
-    
+
     DOM.filterTags.innerHTML = '';
-    
+
     for (const [key, value] of Object.entries(APP_STATE.activeFilters)) {
         if (value) {
             let label = '';
             let displayValue = value;
-            
-            switch(key) {
+
+            switch (key) {
                 case 'employee': label = 'Employee'; break;
                 case 'department': label = 'Department'; break;
                 case 'role': label = 'Role'; break;
-                case 'month': 
+                case 'month':
                     label = 'Month';
                     displayValue = getMonthName(value);
                     break;
             }
-            
+
             const tag = createElement(`
                 <div class="filter-tag">
                     ${label}: ${displayValue} 
                     <i class="fas fa-times" data-filter="${key}"></i>
                 </div>
             `);
-            
+
             DOM.filterTags.appendChild(tag);
-            
+
             // Add click event to remove filter
-            tag.querySelector('.fa-times').addEventListener('click', function() {
+            tag.querySelector('.fa-times').addEventListener('click', function () {
                 removeFilter(key);
             });
         }
@@ -257,14 +261,16 @@ function updateFilterTags() {
 
 function removeFilter(filterKey) {
     APP_STATE.activeFilters[filterKey] = '';
-    
-    // Reset the corresponding dropdown
+
+    // Reset the corresponding dropdown or input
     if (filterKey === 'month') {
         $('#monthFilter').val('').trigger('change');
+    } else if (filterKey === 'employee') {
+        if (DOM.employeeSearch) DOM.employeeSearch.value = '';
     } else {
         $(`#${filterKey}Filter`).val('').trigger('change');
     }
-    
+
     applyTableFilters();
 }
 
@@ -282,16 +288,16 @@ function getMonthName(monthNumber) {
 function initializeTableSearch() {
     if (!DOM.agentSearch) return;
 
-    const searchHandler = debounce(function() {
+    const searchHandler = debounce(function () {
         if (APP_STATE.abortController) {
             APP_STATE.abortController.abort();
         }
-        
+
         applyTableFilters(); // Re-apply all filters including search
     });
 
     DOM.agentSearch.addEventListener("input", searchHandler);
-    
+
     // Add clear search functionality
     initClearSearch();
 }
@@ -333,9 +339,9 @@ function initClearSearch() {
     });
 
     // Show/hide clear button
-    DOM.agentSearch.addEventListener('input', function() {
+    DOM.agentSearch.addEventListener('input', function () {
         clearButton.style.display = this.value ? 'block' : 'none';
-        
+
         if (this.value) {
             clearButton.style.background = '#f0f0f0';
             clearButton.addEventListener('mouseenter', () => {
@@ -357,14 +363,14 @@ function initializeTableSorting() {
     if (!DOM.summaryTable || !DOM.thead) return;
 
     const headers = DOM.thead.querySelectorAll('th');
-    
+
     headers.forEach((header, index) => {
         header.style.cursor = 'pointer';
         header.addEventListener('click', () => {
             sortTableByColumn(index);
         });
     });
-    
+
     addSortStyles();
 }
 
@@ -380,7 +386,7 @@ function sortTableByColumn(columnIndex) {
 
     // Sort rows
     const sortedRows = sortRows(APP_STATE.tableRows, columnIndex, isAscending);
-    
+
     // Update DOM
     updateTableRows(sortedRows);
 }
@@ -389,17 +395,17 @@ function sortRows(rows, columnIndex, isAscending) {
     return [...rows].sort((a, b) => {
         const aText = a.cells[columnIndex]?.textContent?.trim() || '';
         const bText = b.cells[columnIndex]?.textContent?.trim() || '';
-        
+
         // Numeric sorting for potential numeric columns
         const aNum = parseFloat(aText.replace(/[^\d.-]/g, ''));
         const bNum = parseFloat(bText.replace(/[^\d.-]/g, ''));
-        
+
         if (!isNaN(aNum) && !isNaN(bNum)) {
             return isAscending ? aNum - bNum : bNum - aNum;
         }
-        
+
         // Text sorting
-        return isAscending 
+        return isAscending
             ? aText.localeCompare(bText, undefined, { numeric: true, sensitivity: 'base' })
             : bText.localeCompare(aText, undefined, { numeric: true, sensitivity: 'base' });
     });
@@ -408,10 +414,10 @@ function sortRows(rows, columnIndex, isAscending) {
 function updateTableRows(sortedRows) {
     const fragment = document.createDocumentFragment();
     sortedRows.forEach(row => fragment.appendChild(row));
-    
+
     DOM.tbody.innerHTML = '';
     DOM.tbody.appendChild(fragment);
-    
+
     // Update cached rows
     APP_STATE.tableRows = sortedRows;
 }
@@ -448,9 +454,9 @@ function initializeFileManagement() {
 
     // Load files on page load
     loadUploadedFiles();
-    
+
     // Enable/disable delete button based on selection
-    DOM.fileDropdown.addEventListener('change', function() {
+    DOM.fileDropdown.addEventListener('change', function () {
         const hasSelection = this.value !== '';
         if (DOM.deleteFileBtn) {
             DOM.deleteFileBtn.disabled = !hasSelection;
@@ -461,7 +467,7 @@ function initializeFileManagement() {
     });
 
     // Reload files when dropdown is focused
-    DOM.fileDropdown.addEventListener('focus', function() {
+    DOM.fileDropdown.addEventListener('focus', function () {
         if (this.options.length <= 1 || (this.options.length === 2 && this.options[1].disabled)) {
             loadUploadedFiles();
         }
@@ -469,7 +475,7 @@ function initializeFileManagement() {
 
     // Initialize file upload display
     if (DOM.excelFile) {
-        DOM.excelFile.addEventListener('change', function(e) {
+        DOM.excelFile.addEventListener('change', function (e) {
             const fileName = e.target.files[0] ? e.target.files[0].name : 'Choose File';
             if (DOM.fileText) {
                 DOM.fileText.textContent = fileName;
@@ -491,7 +497,7 @@ async function loadUploadedFiles() {
             method: 'GET',
             credentials: 'include'
         });
-        
+
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             const text = await response.text();
@@ -509,7 +515,7 @@ async function loadUploadedFiles() {
 
     } catch (error) {
         console.error('Error loading files:', error);
-        
+
         let errorMessage = 'Failed to load file list';
         if (error.message.includes('HTML')) {
             errorMessage = 'Authentication required. Please refresh the page.';
@@ -518,7 +524,7 @@ async function loadUploadedFiles() {
         } else {
             errorMessage = error.message;
         }
-        
+
         showNotification(errorMessage, 'error');
         populateFileDropdown([]);
     } finally {
@@ -539,7 +545,7 @@ function populateFileDropdown(files) {
         emptyOption.textContent = '-- No files uploaded yet --';
         emptyOption.disabled = true;
         DOM.fileDropdown.appendChild(emptyOption);
-        
+
         updateDeleteButtonState(false);
         return;
     }
@@ -554,10 +560,10 @@ function populateFileDropdown(files) {
     files.forEach(file => {
         const option = document.createElement('option');
         option.value = file.batch_id;
-        
+
         const displayText = `${file.filename} (${file.upload_date}) - ${file.record_count} records`;
         option.textContent = displayText.length > 80 ? displayText.substring(0, 77) + '...' : displayText;
-        
+
         option.title = `Filename: ${file.filename}\nUploaded: ${file.upload_date}\nRecords: ${file.record_count}`;
         DOM.fileDropdown.appendChild(option);
     });
@@ -574,14 +580,14 @@ function updateDeleteButtonState(enabled) {
 function confirmDeleteFile() {
     const dropdown = DOM.fileDropdown;
     const selectedOption = dropdown.options[dropdown.selectedIndex];
-    
+
     if (!selectedOption || selectedOption.value === '') {
         showNotification('Please select a file first', 'error');
         return false;
     }
-    
+
     const filename = selectedOption.textContent.split(' (')[0];
-    
+
     return confirm(`⚠️ DELETE CONFIRMATION\n\nFile: "${filename}"\n\nThis will:\n• Remove this file's data from database\n• Remove this file from UI\n• Keep all other files safe\n\nContinue?`);
 }
 
@@ -602,7 +608,7 @@ function exportTableToCSV() {
     }
 
     const visibleRows = APP_STATE.tableRows.filter(row => row.style.display !== 'none');
-    
+
     if (visibleRows.length === 0) {
         showNotification('No visible data to export', 'error');
         return;
@@ -621,7 +627,7 @@ function exportTableToCSV() {
     const csv = `${headers}\n${csvData}`;
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    
+
     const a = document.createElement('a');
     a.href = url;
     a.download = `monthly-report-${new Date().toISOString().split('T')[0]}.csv`;
@@ -629,7 +635,7 @@ function exportTableToCSV() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     showNotification('Data exported successfully', 'success');
 }
 
@@ -687,13 +693,13 @@ function initializeKeyboardShortcuts() {
             e.preventDefault();
             DOM.agentSearch.focus();
         }
-        
+
         // Ctrl/Cmd + R to reset filters
         if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
             e.preventDefault();
             resetAllFilters();
         }
-        
+
         // Escape to clear search
         if (e.key === 'Escape' && DOM.agentSearch && DOM.agentSearch.value) {
             DOM.agentSearch.value = '';
@@ -707,13 +713,13 @@ function initializeKeyboardShortcuts() {
 ============================ */
 function initializeMonthlyJS() {
     console.log('Initializing Monthly Attendance System...');
-    
+
     // Cache DOM elements
     cacheElements();
-    
+
     // Initialize libraries
     initializeSelect2();
-    
+
     // Initialize UI components
     initializeSidebar();
     initializeFilters();
@@ -722,12 +728,12 @@ function initializeMonthlyJS() {
     initializeFileManagement();
     initializeDataExport();
     initializeKeyboardShortcuts();
-    
+
     // Apply initial filters
     if (APP_STATE.tableRows.length > 0) {
         applyTableFilters();
     }
-    
+
     console.log('Monthly Attendance System initialized successfully');
 }
 
