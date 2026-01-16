@@ -335,7 +335,11 @@ class FileService:
             # Step 5: Report Generation
             self.progress.update("📊 Generating daily report...", 1)
             daily_start = time.time()
-            daily_result = generate_daily_report(self.employee_shifts, self.compensated_dates)
+            
+            # Extract dates from the uploaded dataframe to force update them
+            force_dates = set(df["Date"].unique()) if "Date" in df.columns else set()
+            
+            daily_result = generate_daily_report(self.employee_shifts, self.compensated_dates, force_update_dates=force_dates)
             daily_time = time.time() - daily_start
             self.progress.log(f"📈 Daily report generated in {daily_time:.2f}s")
             

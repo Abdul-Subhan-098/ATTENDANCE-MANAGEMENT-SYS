@@ -355,7 +355,8 @@ class DailyReportGenerator:
     def generate_daily_report(
         self,
         employee_shifts: Optional[Dict[str, str]] = None,
-        compensated_dates: Optional[Dict[str, set]] = None
+        compensated_dates: Optional[Dict[str, set]] = None,
+        force_update_dates: Optional[Tuple[date]] = None
     ) -> Dict[str, Any]:
         """Ultra-fast daily report generation"""
         total_start = time_module.time()
@@ -363,6 +364,7 @@ class DailyReportGenerator:
 
         employee_shifts = employee_shifts or {}
         compensated_dates = compensated_dates or {}
+        force_update_dates_set = set(force_update_dates) if force_update_dates else set()
 
         inspector = inspect(db.engine)
         if "attendance_raw" not in inspector.get_table_names():
@@ -386,7 +388,13 @@ class DailyReportGenerator:
 
         # Step 3: Generate report data with bulk operations
         report_start = time_module.time()
-        daily_table = self._ultra_fast_generate_report_data(df, employee_shifts, compensated_dates, existing_keys)
+        daily_table = self._ultra_fast_generate_report_data(
+            df, 
+            employee_shifts, 
+            compensated_dates, 
+            existing_keys,
+            force_update_dates_set
+        )
         report_time = time_module.time() - report_start
 
         logger.info(f"📈 Report data generated: {len(daily_table)} records in {report_time:.2f}s")
@@ -410,9 +418,10 @@ class DailyReportGenerator:
         df: pd.DataFrame,
         employee_shifts: Dict[str, str],
         compensated_dates: Dict[str, set],
-        existing_keys: set
+        existing_keys: set,
+        force_update_dates: set
     ) -> List[Dict[str, Any]]:
-        """Generate daily records, skip duplicates"""
+        """Generate daily records, skip duplicates unless forced"""
         start_time = time_module.time()
 
         employees = sorted(df["Name"].unique())
@@ -426,7 +435,7 @@ class DailyReportGenerator:
 
         for i, emp in enumerate(employees):
             emp_records = self._fast_generate_employee_records(
-                emp, df, all_dates, employees_data, compensated_dates, existing_keys
+                emp, df, all_dates, employees_data, compensated_dates, existing_keys, force_update_dates
             )
             records.extend(emp_records)
 
@@ -451,7 +460,8 @@ class DailyReportGenerator:
             all_dates: List[date],
             employees_data: Dict,
             compensated_dates: Dict,
-            existing_keys: set
+            existing_keys: set,
+            force_update_dates: set
         ) -> List[Dict[str, Any]]:
         """Generate records for one employee, apply medical/compensation rules, skip duplicates"""
         emp_data = df[df["Name"] == employee_name]
@@ -534,9 +544,10 @@ class DailyReportGenerator:
 
         # ===== MAIN LOOP =====
         for day in all_dates:
-            # Skip duplicates
+            # Skip duplicates ONLY if not forced
             if (emp_id, day) in existing_keys:
-                continue
+                if day not in force_update_dates:
+                    continue
 
             # Determine Shift for today (Temporary or Original)
             current_shift_str = temp_shift_map.get(day, f"{shift_start_str} - {shift_end_str}")
@@ -752,6 +763,7 @@ class DailyReportGenerator:
 #              EXTERNAL ENTRY POINT
 # ===========================================================
 def generate_daily_report(employee_shifts: Optional[Dict[str, str]] = None,
-                          compensated_dates: Optional[Dict[str, set]] = None) -> Dict[str, Any]:
+                          compensated_dates: Optional[Dict[str, set]] = None,
+                          force_update_dates: Optional[Tuple[date]] = None) -> Dict[str, Any]:
     generator = DailyReportGenerator()
-    return generator.generate_daily_report(employee_shifts, compensated_dates)
+    return generator.generate_daily_report(employee_shifts, compensated_dates, force_update_dates)
