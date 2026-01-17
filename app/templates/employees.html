@@ -114,8 +114,8 @@
                                     list="potential-employee-datalist" placeholder="Enter or select employee name">
                                 <datalist id="potential-employee-datalist">
                                     {% for emp in new_employees %}
-                                    <option value="{{ emp.name }}">
-                                        {% endfor %}
+                                    <option value="{{ emp.name }}">{{ emp.name }}</option>
+                                    {% endfor %}
                                 </datalist>
                             </div>
                             <div class="form-group">

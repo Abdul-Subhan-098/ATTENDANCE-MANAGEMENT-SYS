@@ -392,9 +392,13 @@ def employees():
     roles = ["Full-Timer", "Part-Timer"]
     genders = ["Male", "Female"]
 
+    # Get potential new employees for Add Employee tab
+    new_employees_list = NewEmployee.query.order_by(NewEmployee.created_at.desc()).all()
+
     return render_template(
         "employees.html",
         employees=employee_list,
+        new_employees=new_employees_list,
         daily_names=daily_employee_names,
         current_date=datetime.today().strftime("%Y-%m-%d"),
         roles=roles,
@@ -796,6 +800,92 @@ from datetime import datetime
 
 comp_service = CompensationService()
 
+@main.route("/api/temporary_shift/add", methods=["POST"])
+@login_required
+def add_temporary_shift():
+    """API endpoint to add a temporary shift."""
+    try:
+        data = request.get_json()
+        emp_id = data.get("emp_id")
+        shift = data.get("shift")
+        start_date = data.get("start_date")
+        end_date = data.get("end_date")
+
+        if not all([emp_id, shift, start_date, end_date]):
+            return jsonify({"success": False, "message": "Missing required fields"}), 400
+
+        employee_service = EmployeeService()
+        
+        # Resolve emp_id if it's a name
+        employee = Employee.query.filter((Employee.emp_id == emp_id) | (Employee.name == emp_id)).first()
+        if not employee:
+            return jsonify({"success": False, "message": f"Employee '{emp_id}' not found"}), 404
+        
+        actual_emp_id = employee.emp_id
+
+        success = employee_service.add_temporary_shift(actual_emp_id, shift, start_date, end_date)
+        
+        if success:
+            log_activity(
+                username=session.get('admin_username', 'Admin'),
+                action=f"Added temporary shift for {employee.name}",
+                entity_type="temporary_shift",
+                entity_id=actual_emp_id,
+                details=f"Shift: {shift}, From: {start_date}, To: {end_date}"
+            )
+            return jsonify({"success": True, "message": "Temporary shift added successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to add temporary shift"}), 500
+
+    except Exception as e:
+        logger.error(f"Error in add_temporary_shift: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@main.route("/api/temporary_shift/list/all", methods=["GET"])
+@login_required
+def list_temporary_shifts():
+    """API endpoint to list all temporary shifts."""
+    try:
+        employee_service = EmployeeService()
+        shifts = employee_service.get_temporary_shifts()
+        
+        formatted_shifts = []
+        for s in shifts:
+            formatted_shifts.append({
+                "id": s.id,
+                "emp_id": s.emp_id,
+                "shift": s.shift,
+                "start_date": s.start_date.strftime("%Y-%m-%d"),
+                "end_date": s.end_date.strftime("%Y-%m-%d")
+            })
+            
+        return jsonify({"success": True, "shifts": formatted_shifts})
+    except Exception as e:
+        logger.error(f"Error in list_temporary_shifts: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@main.route("/api/temporary_shift/delete/<int:shift_id>", methods=["DELETE"])
+@login_required
+def delete_temporary_shift(shift_id):
+    """API endpoint to delete a temporary shift."""
+    try:
+        employee_service = EmployeeService()
+        success = employee_service.delete_temporary_shift(shift_id)
+        
+        if success:
+            log_activity(
+                username=session.get('admin_username', 'Admin'),
+                action=f"Deleted temporary shift (ID: {shift_id})",
+                entity_type="temporary_shift",
+                entity_id=str(shift_id)
+            )
+            return jsonify({"success": True, "message": "Temporary shift deleted successfully"})
+        else:
+            return jsonify({"success": False, "message": "Failed to delete temporary shift"}), 500
+    except Exception as e:
+        logger.error(f"Error in delete_temporary_shift: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @main.route('/check_compensation_eligibility', methods=['POST'])
 def check_compensation_eligibility():
     try:
@@ -967,6 +1057,54 @@ def get_recent_activities():
             "activities": []
         }), 500
     
+@main.route("/api/employee/details/<string:name>")
+@login_required
+def get_employee_details(name):
+    """Get full details of an existing employee by name for auto-fill."""
+    try:
+        employee = Employee.query.filter_by(name=name).first()
+        if not employee:
+            return jsonify({"success": False, "message": "Employee not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "employee": {
+                "emp_id": employee.emp_id,
+                "name": employee.name,
+                "department": employee.department,
+                "shift": employee.shift,
+                "role": employee.role,
+                "gender": employee.gender,
+                "joining_date": employee.joining_date.strftime("%Y-%m-%d") if employee.joining_date else None,
+                "last_updated_date": employee.last_updated_date.strftime("%Y-%m-%d") if employee.last_updated_date else None
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error in get_employee_details: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@main.route("/api/potential_employee/details/<string:name>")
+@login_required
+def get_potential_employee_details(name):
+    """Get details of a new/potential employee by name for auto-fill."""
+    try:
+        from app.models import NewEmployee
+        new_emp = NewEmployee.query.filter_by(name=name).first()
+        if not new_emp:
+            return jsonify({"success": False, "message": "Potential employee not found"}), 404
+        
+        return jsonify({
+            "success": True,
+            "employee": {
+                "emp_id": new_emp.emp_id,
+                "name": new_emp.name,
+                "joining_date": new_emp.created_at.strftime("%Y-%m-%d") if new_emp.created_at else datetime.now().strftime("%Y-%m-%d")
+            }
+        })
+    except Exception as e:
+        logger.error(f"Error in get_potential_employee_details: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @main.route("/new_employees")
 @login_required
 def new_employees():
