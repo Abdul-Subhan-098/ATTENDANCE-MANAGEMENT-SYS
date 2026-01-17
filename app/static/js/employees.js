@@ -514,9 +514,21 @@ async function loadTemporaryShifts() {
             }
 
             data.shifts.forEach(shift => {
+                // Try to find employee name from APP_STATE.tableRows if available
+                let employeeName = shift.emp_id;
+                if (APP_STATE.tableRows && APP_STATE.tableRows.length > 0) {
+                    const employeeRow = APP_STATE.tableRows.find(row => {
+                        const cells = row.querySelectorAll('td');
+                        return cells[0] && cells[0].textContent.trim() === shift.emp_id;
+                    });
+                    if (employeeRow) {
+                        employeeName = employeeRow.querySelectorAll('td')[1].textContent.trim();
+                    }
+                }
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td>${shift.emp_id}</td>
+                    <td>${employeeName} (${shift.emp_id})</td>
                     <td>${shift.shift}</td>
                     <td>${shift.start_date}</td>
                     <td>${shift.end_date}</td>
@@ -531,7 +543,7 @@ async function loadTemporaryShifts() {
         }
     } catch (error) {
         console.error('Error loading temporary shifts:', error);
-        showAlert('error', 'Failed to load temporary shifts');
+        showNotification('Failed to load temporary shifts', 'error');
     }
 }
 
@@ -545,27 +557,23 @@ async function handleAddTempShift() {
     const endDate = DOM.tempShiftEndDate.value;
 
     if (!empNameOrId || !shift || !startDate || !endDate) {
-        showAlert('warning', 'Please fill in all required fields');
+        showNotification('Please fill in all required fields', 'warning');
         return;
     }
 
-    // Try to get emp_id from the employee suggestions if it's a name
-    // For now, we assume the user might have typed an ID or a Name.
-    // Let's try to resolve it.
     let empId = empNameOrId;
 
-    // Check if it's a name (heuristic: contains space or more than 5 chars but not all numeric)
-    // Actually, it's better to just send it to backend and let it handle ID lookup or validation.
-    // However, the backend expects emp_id.
+    // Try to resolve emp_id from name if possible
+    if (APP_STATE.tableRows && APP_STATE.tableRows.length > 0) {
+        const employee = APP_STATE.tableRows.find(row => {
+            const cells = row.querySelectorAll('td');
+            // Assuming cells[0] is ID and cells[1] is Name
+            return (cells[1] && cells[1].textContent.trim() === empNameOrId) || (cells[0] && cells[0].textContent.trim() === empNameOrId);
+        });
 
-    // We can try to find the emp_id from the global state if available
-    const employee = APP_STATE.tableRows.find(row => {
-        const cells = row.querySelectorAll('td');
-        return cells[1].textContent === empNameOrId || cells[0].textContent === empNameOrId;
-    });
-
-    if (employee) {
-        empId = employee.querySelectorAll('td')[0].textContent;
+        if (employee) {
+            empId = employee.querySelectorAll('td')[0].textContent.trim();
+        }
     }
 
     try {
@@ -583,15 +591,15 @@ async function handleAddTempShift() {
         const data = await response.json();
 
         if (data.success) {
-            showAlert('success', 'Temporary shift added successfully');
+            showNotification('Temporary shift added successfully', 'success');
             clearTempShiftForm();
             loadTemporaryShifts();
         } else {
-            showAlert('error', data.message || 'Failed to add temporary shift');
+            showNotification(data.message || 'Failed to add temporary shift', 'error');
         }
     } catch (error) {
         console.error('Error adding temporary shift:', error);
-        showAlert('error', 'An error occurred while adding the shift');
+        showNotification('An error occurred while adding the shift', 'error');
     }
 }
 
@@ -609,14 +617,14 @@ async function deleteTempShift(id) {
         const data = await response.json();
 
         if (data.success) {
-            showAlert('success', 'Temporary shift deleted successfully');
+            showNotification('Temporary shift deleted successfully', 'success');
             loadTemporaryShifts();
         } else {
-            showAlert('error', data.message || 'Failed to delete temporary shift');
+            showNotification(data.message || 'Failed to delete temporary shift', 'error');
         }
     } catch (error) {
         console.error('Error deleting temporary shift:', error);
-        showAlert('error', 'An error occurred while deleting the shift');
+        showNotification('An error occurred while deleting the shift', 'error');
     }
 }
 

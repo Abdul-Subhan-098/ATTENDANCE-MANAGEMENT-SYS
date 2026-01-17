@@ -220,31 +220,43 @@ class EmployeeService:
         db.session.commit()
         logger.info(f"Updated gender '{employee.gender}' for employee '{employee.name}' in all reports")
 
-    def _update_related_reports(self, employee: Employee, effective_date: date):
+    def _update_related_reports(self, employee: Employee, effective_date: date, end_date: Optional[date] = None):
         """Update daily and monthly reports for the employee."""
         try:
-            affected_months = self._update_daily_reports(employee, effective_date)
+            affected_months = self._update_daily_reports(employee, effective_date, end_date)
             self._update_monthly_reports(employee, affected_months)
-            logger.info(f"Updated reports for employee '{employee.name}' from {effective_date}")
+            range_info = f"from {effective_date} to {end_date}" if end_date else f"from {effective_date}"
+            logger.info(f"Updated reports for employee '{employee.name}' {range_info}")
         except Exception as e:
             logger.error(f"Error updating reports for employee '{employee.name}': {e}")
             raise
 
-    def _update_daily_reports(self, employee: Employee, effective_date: date) -> Set[str]:
+    def _update_daily_reports(self, employee: Employee, effective_date: date, end_date: Optional[date] = None) -> Set[str]:
         """Update daily reports for the employee and return affected months."""
-        daily_rows = DailyReport.query.filter(
+        query = DailyReport.query.filter(
             DailyReport.employee_name == employee.name,
             DailyReport.date >= effective_date
-        ).all()
+        )
+        if end_date:
+            query = query.filter(DailyReport.date <= end_date)
+            
+        daily_rows = query.all()
 
         if not daily_rows:
             return set()
 
-        shift_start, shift_end = self._parse_employee_shift(employee)
-        affected_months = set()
+        # Fetch all temporary shifts for this employee once to optimize performance
+        temp_shifts = TemporaryShift.query.filter_by(emp_id=employee.emp_id).all()
 
+        affected_months = set()
         for daily_record in daily_rows:
-            self._update_single_daily_record(daily_record, employee, shift_start, shift_end)
+            # Determine shift for THIS date (Temporary or Default)
+            active_temp_shift = next((ts for ts in temp_shifts if ts.start_date <= daily_record.date <= ts.end_date), None)
+            
+            shift_str = active_temp_shift.shift if active_temp_shift else employee.shift
+            shift_start, shift_end = self._parse_shift_string(shift_str)
+            
+            self._update_single_daily_record(daily_record, employee, shift_start, shift_end, shift_str)
             affected_months.add(daily_record.date.strftime("%Y-%m"))
 
         db.session.commit()
@@ -258,11 +270,12 @@ class EmployeeService:
         daily_record: DailyReport,
         employee,
         shift_start: time,
-        shift_end: time
+        shift_end: time,
+        applied_shift: str
     ):
 
         # ---------------- UPDATE EMPLOYEE INFO ----------------
-        daily_record.shift = employee.shift
+        daily_record.shift = applied_shift
         daily_record.department = employee.department
         daily_record.joining_date = employee.joining_date
         daily_record.last_updated_date = employee.last_updated_date or datetime.utcnow().date()
@@ -571,13 +584,19 @@ class EmployeeService:
 
     def _parse_employee_shift(self, employee: Employee) -> Tuple[time, time]:
         """Parse employee shift string into time objects."""
+        return self._parse_shift_string(employee.shift)
+
+    def _parse_shift_string(self, shift_str: str) -> Tuple[time, time]:
+        """Helper to parse any shift string 'HH:MM - HH:MM' into time objects."""
         try:
-            shift_start_str, shift_end_str = [s.strip() for s in employee.shift.split("-", 1)]
+            if not shift_str or "-" not in shift_str:
+                raise ValueError("Invalid shift format")
+            shift_start_str, shift_end_str = [s.strip() for s in shift_str.split("-", 1)]
             shift_start = datetime.strptime(shift_start_str, "%H:%M").time()
             shift_end = datetime.strptime(shift_end_str, "%H:%M").time()
             return shift_start, shift_end
-        except (ValueError, AttributeError) as e:
-            logger.error(f"Error parsing shift for employee '{employee.name}': {e}")
+        except (ValueError, AttributeError, IndexError) as e:
+            logger.error(f"Error parsing shift string '{shift_str}': {e}")
             # Return default shift times
             default_start = datetime.strptime("10:00", "%H:%M").time()
             default_end = datetime.strptime("19:00", "%H:%M").time()
@@ -613,7 +632,9 @@ class EmployeeService:
                 end_date=end_date
             )
             db.session.add(temp_shift)
-            db.session.commit()
+            # Trigger report updates for the affected range
+            self._update_related_reports(employee, start_date, end_date)
+            
             return True
         except Exception as e:
             db.session.rollback()
@@ -632,13 +653,24 @@ class EmployeeService:
             return []
 
     def delete_temporary_shift(self, shift_id: int) -> bool:
-        """Delete a temporary shift."""
+        """Delete a temporary shift and revert affected reports."""
         try:
             temp_shift = TemporaryShift.query.get(shift_id)
             if not temp_shift:
                 return False
+            
+            emp_id = temp_shift.emp_id
+            start_date = temp_shift.start_date
+            end_date = temp_shift.end_date
+            
             db.session.delete(temp_shift)
             db.session.commit()
+            
+            # Recalculate reports to revert to default shift
+            employee = Employee.query.filter_by(emp_id=emp_id).first()
+            if employee:
+                self._update_related_reports(employee, start_date, end_date)
+                
             return True
         except Exception as e:
             db.session.rollback()
