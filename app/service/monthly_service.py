@@ -292,7 +292,8 @@ def generate_monthly_report_from_daily(month_str: Optional[str] = None) -> List[
             "WorkingDays": working_days,
             "PunchMissed": safe(data["PunchMissedCount"]),
             "MedicalLeave": safe(data["MedicalLeave"]),
-            "CasualLeave": safe(data["CasualLeave"])
+            "CasualLeave": safe(data["CasualLeave"]),
+            "Month": month_str
         })
 
     return results
