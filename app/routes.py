@@ -140,7 +140,8 @@ def _format_monthly_record(record):
         "WorkingDays": getattr(record, "working_days", 0) or 0,
         "PunchMissed": getattr(record, "punch_missed", 0) or 0,
         "MedicalLeave": getattr(record, "medical_leave", 0) or 0,  # NEW
-        "CasualLeave": getattr(record, "casual_leave", 0) or 0     # NEW
+        "CasualLeave": getattr(record, "casual_leave", 0) or 0,     # NEW
+        "Month": record.report_month or ""  # NEW: Required for filtering
     }
 
 
@@ -387,9 +388,6 @@ def employees():
     daily_employee_names_query = db.session.query(DailyReport.employee_name).distinct().all()
     daily_employee_names = sorted([name[0] for name in daily_employee_names_query if name[0]])
 
-    # Fetch new employees (potential employees from attendance not yet confirmed)
-    new_employees_list = NewEmployee.query.order_by(NewEmployee.name).all()
-
     # Role options and gender options for the form
     roles = ["Full-Timer", "Part-Timer"]
     genders = ["Male", "Female"]
@@ -398,62 +396,10 @@ def employees():
         "employees.html",
         employees=employee_list,
         daily_names=daily_employee_names,
-        new_employees=new_employees_list,
         current_date=datetime.today().strftime("%Y-%m-%d"),
         roles=roles,
         genders=genders
     )
-
-
-@main.route("/api/potential_employee/details/<name>")
-@login_required
-def get_potential_employee_details(name):
-    """Fetch potential employee (NewEmployee) details by name for auto-filling."""
-    try:
-        new_emp = NewEmployee.query.filter_by(name=name).first()
-        if not new_emp:
-            return jsonify({"success": False, "message": "Potential employee not found"}), 404
-        
-        return jsonify({
-            "success": True,
-            "employee": {
-                "emp_id": new_emp.emp_id,
-                "name": new_emp.name,
-                "joining_date": new_emp.created_at.strftime("%Y-%m-%d") if new_emp.created_at else ""
-            }
-        })
-    except Exception as e:
-        logger.error(f"Error fetching potential employee details: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
-
-
-
-
-@main.route("/api/employee/details/<name>")
-@login_required
-def get_employee_details(name):
-    """Fetch employee details by name for auto-filling the form."""
-    try:
-        employee = Employee.query.filter_by(name=name).first()
-        if not employee:
-            return jsonify({"success": False, "message": "Employee not found"}), 404
-        
-        return jsonify({
-            "success": True,
-            "employee": {
-                "name": employee.name,
-                "emp_id": employee.emp_id,
-                "joining_date": employee.joining_date.strftime("%Y-%m-%d") if employee.joining_date else "",
-                "department": employee.department,
-                "shift": employee.shift,
-                "role": employee.role,
-                "gender": employee.gender,
-                "last_updated_date": employee.last_updated_date.strftime("%Y-%m-%d") if employee.last_updated_date else ""
-            }
-        })
-    except Exception as e:
-        logger.error(f"Error fetching employee details: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
 
 
 @main.route("/admin_panel", methods=["GET", "POST"])
@@ -589,12 +535,18 @@ def upload_file():
 
     employee_names = _get_unique_employee_names()
     _initialize_default_shifts(employee_names)
-    monthly_data = generate_monthly_report_from_daily()
+    
+    # Generate report (updates DB)
+    generate_monthly_report_from_daily()
+
+    # Fetch ALL monthly data to ensure UI remains consistent with index route
+    all_monthly_data = MonthlyReport.query.order_by(MonthlyReport.name).all()
+    formatted_monthly_data = [_format_monthly_record(record) for record in all_monthly_data]
 
     return render_template(
         "index.html",
         message=status_message,
-        table=monthly_data,
+        table=formatted_monthly_data,
         employees=employee_names,
         employee_shifts=_employee_shifts
     )
@@ -1151,7 +1103,7 @@ def get_leave_history():
                 "total_days": total_days,
                 "reason": leave.reason or "",
                 "applied_date": leave.applied_date.strftime("%Y-%m-%d") if leave.applied_date else "",
-                "status": "Approved"
+                "status": "Approved"  # or get real status if you track it
             })
         return jsonify(data)
     except Exception as e:

@@ -62,7 +62,7 @@ const createElement = (html) => {
 function cacheElements() {
     const elements = [
         'sidebar', 'mainContent', 'sidebarToggle',
-        'employeeSearch', 'departmentFilter', 'roleFilter', 'monthFilter',
+        'employeeFilter', 'departmentFilter', 'roleFilter', 'monthFilter',
         'filterTags', 'filterCount', 'applyFilters', 'resetFilters',
         'agentSearch', 'summaryTable', 'tableContainer', 'noResultsMessage',
         'fileDropdown', 'deleteFileBtn', 'batchIdInput', 'dropdownSpinner',
@@ -88,7 +88,7 @@ function cacheElements() {
 
 function initializeSelect2() {
     if (window.$ && $.fn.select2) {
-        $('#departmentFilter, #roleFilter, #monthFilter').select2({
+        $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').select2({
             placeholder: "Select...",
             allowClear: true,
             width: '100%'
@@ -123,11 +123,11 @@ function initializeFilters() {
     DOM.applyFilters.addEventListener('click', applyTableFilters);
     DOM.resetFilters.addEventListener('click', resetAllFilters);
 
-    // Auto-apply filters when inputs change
-    $('#departmentFilter, #roleFilter, #monthFilter').on('change', applyTableFilters);
-    if (DOM.employeeSearch) {
-        DOM.employeeSearch.addEventListener('input', applyTableFilters);
-    }
+    // Auto-apply filters when Select2 changes (optional)
+    $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').on('change', function () {
+        // Uncomment for auto-apply on change:
+        // applyTableFilters();
+    });
 
     // Initialize with no filters
     applyTableFilters();
@@ -136,7 +136,7 @@ function initializeFilters() {
 function applyTableFilters() {
     // Update active filters
     APP_STATE.activeFilters = {
-        employee: DOM.employeeSearch?.value.trim().toLowerCase() || '',
+        employee: DOM.employeeFilter?.value || '',
         department: DOM.departmentFilter?.value || '',
         role: DOM.roleFilter?.value || '',
         month: DOM.monthFilter?.value || ''
@@ -150,12 +150,9 @@ function applyTableFilters() {
     APP_STATE.tableRows.forEach(row => {
         let showRow = true;
 
-        // Apply employee search filter (partial match)
-        if (APP_STATE.activeFilters.employee) {
-            const employeeName = row.dataset.name?.toLowerCase() || '';
-            if (!employeeName.includes(APP_STATE.activeFilters.employee)) {
-                showRow = false;
-            }
+        // Apply dropdown filters
+        if (APP_STATE.activeFilters.employee && row.dataset.name !== APP_STATE.activeFilters.employee) {
+            showRow = false;
         }
 
         if (APP_STATE.activeFilters.department && row.dataset.department !== APP_STATE.activeFilters.department) {
@@ -169,10 +166,14 @@ function applyTableFilters() {
         if (APP_STATE.activeFilters.month) {
             const dateStr = row.dataset.month;
             if (dateStr) {
-                const date = new Date(dateStr);
-                const month = date.getMonth() + 1;
-                if (month.toString() !== APP_STATE.activeFilters.month) {
-                    showRow = false;
+                // Parse "YYYY-MM" or "YYYY-MM-DD"
+                // Split by '-' to get components safely
+                const parts = dateStr.split('-');
+                if (parts.length >= 2) {
+                    const month = parseInt(parts[1], 10); // "05" -> 5
+                    if (month.toString() !== APP_STATE.activeFilters.month) {
+                        showRow = false;
+                    }
                 }
             } else if (APP_STATE.activeFilters.month) {
                 showRow = false;
@@ -199,10 +200,9 @@ function applyTableFilters() {
 
 function resetAllFilters() {
     // Reset dropdowns
-    $('#departmentFilter, #roleFilter, #monthFilter').val('').trigger('change');
+    $('#employeeFilter, #departmentFilter, #roleFilter, #monthFilter').val('').trigger('change');
 
-    // Reset search inputs
-    if (DOM.employeeSearch) DOM.employeeSearch.value = '';
+    // Reset search
     if (DOM.agentSearch) DOM.agentSearch.value = '';
 
     // Reset active filters
@@ -262,11 +262,9 @@ function updateFilterTags() {
 function removeFilter(filterKey) {
     APP_STATE.activeFilters[filterKey] = '';
 
-    // Reset the corresponding dropdown or input
+    // Reset the corresponding dropdown
     if (filterKey === 'month') {
         $('#monthFilter').val('').trigger('change');
-    } else if (filterKey === 'employee') {
-        if (DOM.employeeSearch) DOM.employeeSearch.value = '';
     } else {
         $(`#${filterKey}Filter`).val('').trigger('change');
     }

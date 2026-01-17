@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css">
 </head>
-
 <body>
 
     <!-- Sidebar -->
@@ -20,31 +18,31 @@
         </div>
 
         <nav class="sidebar-nav">
-            <a href="{{ url_for('main.employees') }}">
-                <i class="fas fa-users"></i> Employee Manage
-            </a>
-            <a href="{{ url_for('main.new_employees') }}">
-                <i class="fas fa-user-plus"></i> New Employees
-            </a>
-            <a href="{{ url_for('main.index') }}" class="active">
-                <i class="fas fa-chart-bar"></i> Monthly Report
-            </a>
-            <a href="{{ url_for('main.daily') }}">
-                <i class="fas fa-calendar-day"></i> Daily Report
-            </a>
-            <a href="{{ url_for('main.activity_logs') }}">
-                <i class="fas fa-history"></i> Activity Logs
-            </a>
-            <a href="{{ url_for('main.admin_panel') }}">
-                <i class="fas fa-user-shield"></i> Admin
-            </a>
+        <a href="{{ url_for('main.employees') }}">
+            <i class="fas fa-users"></i> Employee Manage
+        </a>
+        <a href="{{ url_for('main.new_employees') }}">
+            <i class="fas fa-user-plus"></i> New Employees
+        </a>
+        <a href="{{ url_for('main.index') }}" class="active">
+            <i class="fas fa-chart-bar"></i> Monthly Report
+        </a>
+        <a href="{{ url_for('main.daily') }}">
+            <i class="fas fa-calendar-day"></i> Daily Report
+        </a>
+        <a href="{{ url_for('main.activity_logs') }}">
+            <i class="fas fa-history"></i> Activity Logs
+        </a>
+        <a href="{{ url_for('main.admin_panel') }}">
+            <i class="fas fa-user-shield"></i> Admin
+        </a>
 
-            <div class="sidebar-bottom">
-                <a href="{{ url_for('main.logout') }}" class="logout-btn">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
-            </div>
-        </nav>
+        <div class="sidebar-bottom">
+            <a href="{{ url_for('main.logout') }}" class="logout-btn">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </a>
+        </div>
+    </nav>
     </div>
 
     <!-- Main Content -->
@@ -58,11 +56,11 @@
 
             <!-- Flash Messages -->
             {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            {% for category, msg in messages %}
-            <div class="message {{ category }}">{{ msg }}</div>
-            {% endfor %}
-            {% endif %}
+                {% if messages %}
+                    {% for category, msg in messages %}
+                        <div class="message {{ category }}">{{ msg }}</div>
+                    {% endfor %}
+                {% endif %}
             {% endwith %}
 
             <!-- Action Buttons (Upload + File Management) -->
@@ -76,8 +74,7 @@
                             <p>Select Excel file</p>
                         </div>
                     </div>
-                    <form method="POST" action="{{ url_for('main.upload_file') }}" enctype="multipart/form-data"
-                        class="upload-form-compact">
+                    <form method="POST" action="{{ url_for('main.upload_file') }}" enctype="multipart/form-data" class="upload-form-compact">
                         <div class="file-input-wrapper-compact">
                             <input type="file" name="file" required accept=".xlsx, .xls" id="excelFile">
                             <label for="excelFile" class="file-label-compact">
@@ -100,7 +97,7 @@
                             <p>Remove uploaded files</p>
                         </div>
                     </div>
-
+                    
                     <div class="file-management-content">
                         <!-- File Selection Dropdown -->
                         <div class="file-selection-group">
@@ -117,15 +114,15 @@
 
                         <!-- Delete Buttons -->
                         <div class="delete-buttons-group">
-                            <form method="POST" action="{{ url_for('main.delete_file') }}" id="deleteFileForm"
+                            <form method="POST" action="{{ url_for('main.delete_file') }}" id="deleteFileForm" 
                                 onsubmit="return confirm('⚠️ This will delete the selected file and all its attendance data. Continue?');">
                                 <input type="hidden" name="batch_id" id="batchIdInput">
                                 <button type="submit" class="delete-file-btn" id="deleteFileBtn" disabled>
                                     <i class="fas fa-trash"></i> Delete Selected File
                                 </button>
                             </form>
-
-                            <form action="{{ url_for('main.delete_data') }}" method="POST"
+                            
+                            <form action="{{ url_for('main.delete_data') }}" method="POST" 
                                 onsubmit="return confirm('⚠️ This will permanently delete ALL attendance and report data. Continue?');">
                                 <button type="submit" class="delete-all-btn">
                                     <i class="fas fa-bomb"></i> Delete All Data
@@ -142,52 +139,59 @@
                     <i class="fas fa-filter"></i>
                     <h3>Filter Data</h3>
                 </div>
-
+                
                 <div class="filter-grid">
-                    <!-- Employee Name Search Panel -->
+                    <!-- Employee Name Filter -->
                     <div class="filter-group">
-                        <label for="employeeSearch"><i class="fas fa-search"></i> Search Employee</label>
-                        <div class="search-input-wrapper">
-                            <input type="text" id="employeeSearch" class="filter-input"
-                                placeholder="Type name to search...">
-                            <i class="fas fa-user-search search-icon-inside"></i>
-                        </div>
+                        <label for="employeeFilter"><i class="fas fa-user"></i> Employee Name</label>
+                        <select id="employeeFilter" class="filter-dropdown">
+                            <option value="">All Employees</option>
+                            {% if table %}
+                                {% set unique_names = [] %}
+                                {% for row in table %}
+                                    {% if row.Name not in unique_names %}
+                                        {% set _ = unique_names.append(row.Name) %}
+                                        <option value="{{ row.Name }}">{{ row.Name }}</option>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endif %}
+                        </select>
                     </div>
-
+                    
                     <!-- Department Filter -->
                     <div class="filter-group">
                         <label for="departmentFilter"><i class="fas fa-building"></i> Department</label>
                         <select id="departmentFilter" class="filter-dropdown">
                             <option value="">All Departments</option>
                             {% if table %}
-                            {% set unique_depts = [] %}
-                            {% for row in table %}
-                            {% if row.Department is defined and row.Department not in unique_depts %}
-                            {% set _ = unique_depts.append(row.Department) %}
-                            <option value="{{ row.Department }}">{{ row.Department }}</option>
-                            {% endif %}
-                            {% endfor %}
+                                {% set unique_depts = [] %}
+                                {% for row in table %}
+                                    {% if row.Department is defined and row.Department not in unique_depts %}
+                                        {% set _ = unique_depts.append(row.Department) %}
+                                        <option value="{{ row.Department }}">{{ row.Department }}</option>
+                                    {% endif %}
+                                {% endfor %}
                             {% endif %}
                         </select>
                     </div>
-
+                    
                     <!-- Role Filter -->
                     <div class="filter-group">
                         <label for="roleFilter"><i class="fas fa-user-tag"></i> Role</label>
                         <select id="roleFilter" class="filter-dropdown">
                             <option value="">All Roles</option>
                             {% if table %}
-                            {% set unique_roles = [] %}
-                            {% for row in table %}
-                            {% if row.Role is defined and row.Role not in unique_roles %}
-                            {% set _ = unique_roles.append(row.Role) %}
-                            <option value="{{ row.Role }}">{{ row.Role }}</option>
-                            {% endif %}
-                            {% endfor %}
+                                {% set unique_roles = [] %}
+                                {% for row in table %}
+                                    {% if row.Role is defined and row.Role not in unique_roles %}
+                                        {% set _ = unique_roles.append(row.Role) %}
+                                        <option value="{{ row.Role }}">{{ row.Role }}</option>
+                                    {% endif %}
+                                {% endfor %}
                             {% endif %}
                         </select>
                     </div>
-
+                    
                     <!-- Month Filter -->
                     <div class="filter-group">
                         <label for="monthFilter"><i class="fas fa-calendar-alt"></i> Month</label>
@@ -208,10 +212,10 @@
                         </select>
                     </div>
                 </div>
-
+                
                 <!-- Active Filter Tags -->
                 <div class="filter-tags" id="filterTags"></div>
-
+                
                 <!-- Filter Actions -->
                 <div class="filter-actions">
                     <button type="button" class="filter-btn reset-filter-btn" id="resetFilters">
@@ -225,94 +229,90 @@
 
             <!-- Monthly Summary Table -->
             {% if table %}
-            <div class="action-section">
-                <div class="section-header">
-                    <div class="section-title">
-                        <i class="fas fa-table"></i>
-                        <h3>Monthly Summary Report</h3>
+                <div class="action-section">
+                    <div class="section-header">
+                        <div class="section-title">
+                            <i class="fas fa-table"></i>
+                            <h3>Monthly Summary Report</h3>
+                        </div>
+                        <div class="filter-indicator" id="filterIndicator">
+                            <span id="filterCount">Showing all {{ table|length }} employees</span>
+                        </div>
                     </div>
-                    <div class="filter-indicator" id="filterIndicator">
-                        <span id="filterCount">Showing all {{ table|length }} employees</span>
+                    <div class="search-box">
+                        <input type="text" id="agentSearch" placeholder="🔍 Search employee name...">
+                    </div>
+                    <div class="table-container" id="tableContainer">
+                        <table id="summaryTable">
+                            <thead>
+                                <tr>
+                                    <th>Emp ID</th>
+                                    <th>Month</th>
+                                    <th>Name</th>
+                                    <th>Gender</th>
+                                    <th>Emp Joining</th>
+                                    <th>Role</th> 
+                                    <th>Shift</th>
+                                    <th>Department</th>
+                                    <th>Total Days</th>
+                                    <th>Working Days</th>
+                                    <th>Present</th>
+                                    <th>Absent</th>
+                                    <th>Late</th>
+                                    <th>Half Days</th>
+                                    <th>Medical</th>
+                                    <th>Casual</th>
+                                    <th>Punch Missed HD</th>
+                                    <th>Half Sat</th> 
+                                    <th>Full Sat</th>
+                                    <th>OT Hours</th>
+                                    <th>Comp Late</th>
+                                    <th>Comp Half</th>
+                                    <th>Comp Absent</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                {% for row in table %}
+                                    <tr class="data-row" 
+                                        data-name="{{ row.Name }}" 
+                                        data-department="{{ row.Department if row.Department is defined else '' }}" 
+                                        data-role="{{ row.Role if row.Role is defined else '' }}"
+                                        data-month="{{ row.Month if row.Month is defined else '' }}">
+                                        <td>{{ row.EmpID if row.EmpID is defined else '' }}</td>
+                                        <td>{{ row.Month if row.Month is defined else '' }}</td>
+                                        <td><strong>{{ row.Name }}</strong></td>
+                                        <td>{{ row.Gender if row.Gender is defined else 'N/A' }}</td>
+                                        <td>{{ row.JoiningDate if row.JoiningDate is defined else '' }}</td>
+                                        <td>{{ row.Role if row.Role is defined else 'Full-Timer' }}</td>
+                                        <td>{{ row.Shift if row.Shift is defined else '10:00 - 19:00' }}</td>
+                                        <td>{{ row.Department if row.Department is defined else 'Cold Calling' }}</td>
+                                        <td>{{ row.TotalDays if row.TotalDays is defined else 0 }}</td>
+                                        <td>{{ row.WorkingDays if row.WorkingDays is defined else 0 }}</td>
+                                        <td>{{ row.Present if row.Present is defined else 0 }}</td>
+                                        <td>{{ row.Absent if row.Absent is defined else 0 }}</td>
+                                        <td>{{ row.Late if row.Late is defined else 0 }}</td>
+                                        <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
+                                        <td>{{ row.MedicalLeave if row.MedicalLeave is defined else 0 }}</td>
+                                        <td>{{ row.CasualLeave if row.CasualLeave is defined else 0 }}</td>
+                                        <td>{{ row.PunchMissed if row.PunchMissed is defined else 0 }}</td>
+                                        <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td>
+                                        <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td>
+                                        <td>{{ row.OverTime if row.OverTime is defined else 0.0 }}</td>
+                                        <td>{{ row.ByLateCount if row.ByLateCount is defined else 0 }}</td>
+                                        <td>{{ row.ByHalfDayCount if row.ByHalfDayCount is defined else 0 }}</td>
+                                        <td>{{ row.ByAbsentCount if row.ByAbsentCount is defined else 0 }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-                <div class="search-box">
-                    <input type="text" id="agentSearch" placeholder="🔍 Search employee name...">
-                </div>
-                <div class="table-container" id="tableContainer">
-                    <table id="summaryTable">
-                        <thead>
-                            <tr class="group-header">
-                                <th colspan="3" class="group-employee">Employee Info</th>
-                                <th colspan="4" class="group-work">Work Details</th>
-                                <th colspan="5" class="group-stats">Attendance Statistics</th>
-                                <th colspan="7" class="group-leaves">Leaves & Saturdays</th>
-                                <th colspan="3" class="group-comp">Compensation</th>
-                            </tr>
-                            <tr class="sub-header">
-                                <th class="sticky-col sticky-col-1">Emp ID</th>
-                                <th class="sticky-col sticky-col-2">Name</th>
-                                <th>Gender</th>
-                                <th>Joining</th>
-                                <th>Role</th>
-                                <th>Shift</th>
-                                <th>Dept</th>
-                                <th>Total</th>
-                                <th>Work</th>
-                                <th>Pres</th>
-                                <th>Abs</th>
-                                <th>Late</th>
-                                <th>HD</th>
-                                <th>Med</th>
-                                <th>Cas</th>
-                                <th>P.Miss</th>
-                                <th>H.Sat</th>
-                                <th>F.Sat</th>
-                                <th>OT</th>
-                                <th>C.Late</th>
-                                <th>C.HD</th>
-                                <th>C.Abs</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableBody">
-                            {% for row in table %}
-                            <tr class="data-row" data-name="{{ row.Name }}"
-                                data-department="{{ row.Department if row.Department is defined else '' }}"
-                                data-role="{{ row.Role if row.Role is defined else '' }}"
-                                data-month="{{ row.Month if row.Month is defined else '' }}">
-                                <td class="sticky-col sticky-col-1">{{ row.EmpID if row.EmpID is defined else '' }}</td>
-                                <td class="sticky-col sticky-col-2"><strong>{{ row.Name }}</strong></td>
-                                <td>{{ row.Gender if row.Gender is defined else 'N/A' }}</td>
-                                <td>{{ row.JoiningDate if row.JoiningDate is defined else '' }}</td>
-                                <td>{{ row.Role if row.Role is defined else 'Full-Timer' }}</td>
-                                <td>{{ row.Shift if row.Shift is defined else '10:00 - 19:00' }}</td>
-                                <td>{{ row.Department if row.Department is defined else 'Cold Calling' }}</td>
-                                <td>{{ row.TotalDays if row.TotalDays is defined else 0 }}</td>
-                                <td>{{ row.WorkingDays if row.WorkingDays is defined else 0 }}</td>
-                                <td>{{ row.Present if row.Present is defined else 0 }}</td>
-                                <td>{{ row.Absent if row.Absent is defined else 0 }}</td>
-                                <td>{{ row.Late if row.Late is defined else 0 }}</td>
-                                <td>{{ row.HalfDayWeekdays if row.HalfDayWeekdays is defined else 0 }}</td>
-                                <td>{{ row.MedicalLeave if row.MedicalLeave is defined else 0 }}</td>
-                                <td>{{ row.CasualLeave if row.CasualLeave is defined else 0 }}</td>
-                                <td>{{ row.PunchMissed if row.PunchMissed is defined else 0 }}</td>
-                                <td>{{ row.HalfDaySat if row.HalfDaySat is defined else 0 }}</td>
-                                <td>{{ row.FullDaySat if row.FullDaySat is defined else 0 }}</td>
-                                <td>{{ row.OverTime if row.OverTime is defined else 0.0 }}</td>
-                                <td>{{ row.ByLateCount if row.ByLateCount is defined else 0 }}</td>
-                                <td>{{ row.ByHalfDayCount if row.ByHalfDayCount is defined else 0 }}</td>
-                                <td>{{ row.ByAbsentCount if row.ByAbsentCount is defined else 0 }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
             {% else %}
-            <div class="empty-state">
-                <div class="empty-state-icon"><i class="fas fa-clipboard-list"></i></div>
-                <h3>No Monthly Summary Available</h3>
-                <p>Upload attendance data to generate monthly reports and analytics</p>
-            </div>
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-clipboard-list"></i></div>
+                    <h3>No Monthly Summary Available</h3>
+                    <p>Upload attendance data to generate monthly reports and analytics</p>
+                </div>
             {% endif %}
         </div>
     </div>
@@ -320,7 +320,6 @@
     <script src="{{ url_for('static', filename='js/monthly.js') }}"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
-
+    
 </body>
-
 </html>
